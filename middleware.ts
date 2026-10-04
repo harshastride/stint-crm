@@ -22,4 +22,5 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|api/|supabase/).*)'] };
+// public files (logo, icons) must load on the login page, so they skip the login check
+export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico|api/|supabase/|brand/|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)'] };

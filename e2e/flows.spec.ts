@@ -214,3 +214,11 @@ test('a role with no follow-ups sees a clear "all caught up" message', async ({ 
   await expect(page.getByText('Nothing to do')).toBeVisible();
   await expect(page.getByText(/You’re all caught up/)).toBeVisible();
 });
+
+test('logo loads on the login page while signed out', async ({ page }) => {
+  await page.context().clearCookies();
+  await page.goto('/login');
+  const logo = page.locator('img[alt="Stint"]');
+  await expect(logo).toBeVisible();
+  expect(await logo.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
+});
