@@ -7,7 +7,7 @@ export type Row = Record<string, any>;
 export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number'; get?: (r: Row) => unknown };
 export type Field = {
   key: string; label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments';
   list?: string;                 // dropdown list id (values come from Dropdown values)
   options?: string[];            // fixed options
   ref?: string;                  // small reference table: staff, program, batch, branch, company, lead_source, campaign
@@ -133,7 +133,7 @@ export const PAGES: Record<string, PageCfg> = {
     kpis: [count('Sent', (r) => r.status === 'Sent'), count('Accepted', (r) => r.status === 'Accepted'), sum('Value open', 'amount', (r) => ['Sent', 'Negotiating'].includes(r.status))],
     board: { field: 'status', list: 'quote_status' }, person: leadPerson,
     fields: [lead, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program', required: true }, { key: 'list_price', label: 'List price (₹, from the program)', type: 'number', readOnly: true },
-      { key: 'discount_pct', label: 'Discount %', type: 'select', options: ['0', '5', '8', '10', '15'] }, { key: 'plan', label: 'Payment plan', type: 'select', list: 'payment_plan' },
+      { key: 'discount_pct', label: 'Discount %', type: 'select', options: ['0', '5', '8', '10', '15'] }, { key: 'instalments', label: 'Payment plan', type: 'instalments' },
       { key: 'valid_until', label: 'Valid until', type: 'date' }, { key: 'status', label: 'Status', type: 'select', list: 'quote_status' }],
     derive: (v, refs) => { const p = refs.program?.find((x) => x.id === v.program_id); return p ? { ...v, list_price: Number(p.extra?.fee || 0) } : v; },
     rowTitle: (r) => 'Quote · ' + (r.lead?.full_name || ''),
@@ -269,7 +269,7 @@ export const PAGES: Record<string, PageCfg> = {
       { key: 'next_due', label: 'Next due', get: (r) => (r.overdue ? 'Overdue' : Number(r.balance) <= 0 ? 'Paid in full' : r.next_due || '—'), type: 'pill' }],
     views: [{ label: 'Active', where: (r) => Number(r.balance) > 0 }, { label: 'Overdue', where: (r) => !!r.overdue }, { label: 'Completed', where: (r) => Number(r.balance) <= 0 }],
     kpis: [count('Plans'), sum('Total value', 'total'), sum('Balance due', 'balance'), count('Overdue', (r) => !!r.overdue)], person: candPerson,
-    fields: [cand, { key: 'total', label: 'Total fee (₹)', type: 'number', required: true }, { key: 'plan', label: 'Payment plan', type: 'select', list: 'payment_plan' }],
+    fields: [cand, { key: 'total', label: 'Total fee (₹)', type: 'number', required: true }, { key: 'instalments', label: 'Payment plan', type: 'instalments' }],
     rowTitle: (r) => 'Fee plan · ' + (r.full_name || ''),
   },
   payment: {

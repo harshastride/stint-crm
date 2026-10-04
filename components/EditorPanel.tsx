@@ -6,6 +6,7 @@ import type { PageCfg, Row } from '@/lib/pages';
 import { Button, Notice, SidePanel } from './ui';
 import { FieldInput, friendlyError } from './Fields';
 import { JobPapers } from './JobPapers';
+import { InstalmentsEditor, quoteAmount, type Instalment } from './InstalmentsEditor';
 
 /** Create form and record editor in one: `row` null means a new record. */
 export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: PageCfg; row: Row | null; canWrite: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
@@ -26,6 +27,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const readOnly = !canWrite || !!cfg.readOnly;
+  const planTotal = cfg.id === 'quote' ? quoteAmount(values) : Number(values.total || 0);
 
   const set = (key: string, val: unknown) => setValues((old) => { const next = { ...old, [key]: val }; return cfg.derive ? cfg.derive(next, s.refs) : next; });
 
@@ -33,6 +35,11 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     const missing = fields.filter((f) => f.required && (values[f.key] == null || String(values[f.key]).trim() === '')).map((f) => f.label);
     if (cfg.id === 'followups' && isNew && !values.lead_id && !values.candidate_id) missing.push('a lead or a candidate');
     if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); return; }
+    if (fields.some((f) => f.type === 'instalments')) {
+      const inst = (values.instalments || []) as Instalment[];
+      const sum = inst.reduce((a, i) => a + Number(i.amount || 0), 0);
+      if (inst.length && (sum !== planTotal || inst.some((i) => !(Number(i.amount) > 0)))) { setMsg({ tone: 'bad', text: 'The instalments must each be above zero and add up to the final amount.' }); return; }
+    }
     setBusy(true); setMsg(null);
     const payload: Row = {};
     fields.forEach((f) => { if (!f.readOnly || cfg.derive) { const v = values[f.key]; payload[f.key] = typeof v === 'string' ? v.trim() || null : v; } });
@@ -73,9 +80,11 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={onClose}>
       <div className="flex flex-col gap-2.5">
         {fields.map((f) => (
-          <FieldWrap key={f.key} asLabel={f.type !== 'person'}>
+          <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments'}>
             <span>{f.label}{f.required && <span className="text-badText"> *</span>}</span>
-            {(readOnly || f.readOnly) && f.type !== 'person'
+            {f.type === 'instalments'
+              ? <InstalmentsEditor total={planTotal} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />
+              : (readOnly || f.readOnly) && f.type !== 'person'
               ? <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm font-normal text-text">{displayValue(values[f.key], f, s.refs)}</div>
               : <FieldInput field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />}
           </FieldWrap>
@@ -114,14 +123,11 @@ function displayValue(v: unknown, f: { type: string; ref?: string }, refs: Recor
 function QuoteMath({ values }: { values: Row }) {
   const list = Number(values.list_price || 0), d = Number(values.discount_pct || 0);
   if (!list) return null;
-  const amount = Math.round((list * (100 - d)) / 100 / 100) * 100;
-  const parts = values.plan === 'Full payment' ? 1 : parseInt(values.plan || '3', 10) || 3;
-  const each = Math.round(amount / parts / 100) * 100;
+  const amount = quoteAmount(values);
   const inr = (n: number) => '₹' + n.toLocaleString('en-IN');
   return (
     <div className="rounded-[10px] bg-surface2 p-3 text-[13px] leading-relaxed">
       <div><span className="text-muted">Final amount</span> <span className="num font-semibold">{inr(amount)}</span>{d > 0 && <span className="text-muted"> · saves {inr(list - amount)}</span>}</div>
-      <div><span className="text-muted">Instalments</span> <span className="num">{parts === 1 ? inr(amount) + ' on joining' : inr(amount - each * (parts - 1)) + ' on joining, then ' + (parts - 1) + ' × ' + inr(each)}</span></div>
       {d > 10 && <div className="mt-1 font-medium text-warnText">Above the discount limit: it will be marked for the Sales head to approve.</div>}
     </div>
   );
