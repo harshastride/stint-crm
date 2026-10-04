@@ -375,3 +375,21 @@ test('board: drag a card to another column', async ({ page }) => {
   await db.from('status_history').delete().eq('entity_id', q!.id).gte('at', started);   // leave no trace in the history
   await db.from('integration_event').delete().eq('person_name', name).gte('created_at', started);
 });
+
+test('table: click a cell to change it in place', async ({ page }) => {
+  const db = service();
+  const started = new Date().toISOString();
+  const { data: f } = await db.from('follow_up').select('id, title, owner_id').eq('status', 'Open').order('due_at').limit(1).single();
+  await login(page, 'harsha');
+  await page.goto('/p/followups');
+  await page.getByRole('tab', { name: 'Open' }).click();
+  const row = page.locator('tbody tr').filter({ hasText: f!.title }).first();
+  await row.getByRole('button', { name: /^Owner:/ }).click();
+  await row.getByLabel('Owner').selectOption({ label: 'Teja' });
+  await expect(page.getByText(/Owner updated/)).toBeVisible();
+  const { data: teja } = await db.from('staff').select('id').eq('email', 'teja@demo.stint.local').single();
+  const { data: after } = await db.from('follow_up').select('owner_id').eq('id', f!.id).single();
+  expect(after!.owner_id).toBe(teja!.id);
+  await db.from('follow_up').update({ owner_id: f!.owner_id }).eq('id', f!.id);
+  await db.from('integration_event').delete().gte('created_at', started).eq('entity', 'lead').eq('event', 'lead.assigned');
+});

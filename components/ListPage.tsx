@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
-import { getPath, type Bulk, type Col, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
+import { getPath, type Bulk, type Col, type Field, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } from './ui';
 import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
@@ -39,6 +39,15 @@ const compare = (c: Col, a: Row, b: Row) => {
   if (NUMERIC.includes(c.type || '')) return Number(x) - Number(y);
   return String(x).localeCompare(String(y), 'en-IN', { numeric: true, sensitivity: 'base' });
 };
+/** The form field a table column can edit in place: same key, or "owner.full_name" → "owner_id". Simple field types only. */
+const INLINE = ['select', 'ref', 'date', 'datetime', 'number', 'text'];
+const fieldFor = (cfg: PageCfg, c: Col): Field | null => {
+  if (c.get) return null;
+  const key = c.key.includes('.') ? c.key.split('.')[0] + '_id' : c.key;
+  const f = (cfg.fields || []).find((x) => x.key === key);
+  return f && INLINE.includes(f.type) && !f.readOnly && !f.createOnly ? f : null;
+};
+
 /** Page numbers with gaps: 1 … 4 5 6 … 13 (always the same width while paging). */
 const pageItems = (page: number, count: number): (number | 'gap')[] => {
   if (count <= 7) return Array.from({ length: count }, (_, i) => i + 1);
@@ -108,6 +117,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [savedViews, setSavedViews] = useState<Row[]>([]);
   const [activeSaved, setActiveSaved] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [cellEdit, setCellEdit] = useState<{ id: string; key: string } | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
   const [saving, setSaving] = useState<{ name: string; shared: string } | null>(null);
   const loadSaved = useCallback(async () => {
@@ -153,6 +163,25 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     if (error) { setNotice({ tone: 'bad', text: friendlyError(error) }); return; }
     setSaving(null); await loadSaved(); setActiveSaved(data.id);
     setNotice({ tone: 'good', text: `View “${data.name}” saved${data.shared === 'team' ? ' for your team' : data.shared === 'all' ? ' for everyone' : ''}.` });
+  };
+  const saveCell = async (r: Row, f: Field, value: unknown) => {
+    setCellEdit(null);
+    if ((r[f.key] ?? null) === (value ?? null)) return;
+    const { error } = await supabase().from(cfg.table).update({ [f.key]: value }).eq('id', r.id);
+    if (error) { setNotice({ tone: 'bad', text: f.label + ': ' + friendlyError(error) }); return; }
+    setNotice({ tone: 'good', text: `${cfg.rowTitle(r)}: ${f.label} updated.` });
+    load();
+  };
+  const inlineEditor = (r: Row, f: Field) => {
+    const common = { autoFocus: true, 'aria-label': f.label, onClick: (e: React.MouseEvent) => e.stopPropagation(), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Escape') setCellEdit(null); }, className: 'h-9 w-full min-w-[120px] px-2 text-[13px]' };
+    if (f.type === 'select' || f.type === 'ref') {
+      const opts: [string, string][] = f.type === 'ref' ? (s.refs[f.ref || ''] || []).map((x) => [x.id, x.label]) : (f.options || (f.list === '__roles' ? s.roles : s.lists[f.list || ''] || [])).map((v) => [v, v]);
+      return <select {...common} defaultValue={r[f.key] ?? ''} onBlur={() => setCellEdit(null)} onChange={(e) => saveCell(r, f, e.target.value || null)}><option value="">—</option>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>;
+    }
+    const v = r[f.key] == null ? '' : f.type === 'datetime' ? new Date(new Date(r[f.key]).getTime() - new Date(r[f.key]).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : f.type === 'date' ? String(r[f.key]).slice(0, 10) : String(r[f.key]);
+    const read = (t: string) => (t === '' ? null : f.type === 'number' ? Number(t) : f.type === 'datetime' ? new Date(t).toISOString() : t);
+    return <input {...common} type={f.type === 'datetime' ? 'datetime-local' : f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'} defaultValue={v}
+      onBlur={(e) => saveCell(r, f, read(e.target.value))} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setCellEdit(null); }} />;
   };
   const deleteView = async (v: Row) => {
     const { error } = await supabase().from('saved_view').delete().eq('id', v.id);
@@ -432,7 +461,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 {pageRows.map((r) => (
                   <tr key={r.id ?? r.key ?? JSON.stringify(r)} onClick={() => openRow(r)} className={cx('cursor-pointer border-t border-line', (r.id && picked.has(r.id)) || (selId === r.id && cfg.person) ? 'bg-accentSoft' : 'hover:bg-surface2')}>
                     <td className="w-11 pl-1">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</td>
-                    {cols.map((c, i) => <td key={c.key} className={cx('px-4 py-3 align-middle', i === 0 ? 'font-semibold' : 'text-text2')}>{cell(c, r)}</td>)}
+                    {cols.map((c, i) => {
+                      const f = canWrite && !cfg.readFrom && r.id ? fieldFor(cfg, c) : null;
+                      const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
+                      return (
+                        <td key={c.key} className={cx('align-middle', editing ? 'px-2 py-1' : 'px-4 py-3', i === 0 ? 'font-semibold' : 'text-text2')}>
+                          {editing ? inlineEditor(r, f!) : f ? (
+                            <button type="button" title={'Click to change ' + f.label} aria-label={`${f.label}: ${plain(c, r) || 'empty'}. Change`} onClick={(e) => { e.stopPropagation(); setCellEdit({ id: r.id, key: c.key }); }}
+                              className="-mx-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-left hover:border-line2 hover:bg-surface">{cell(c, r)}</button>
+                          ) : cell(c, r)}
+                        </td>
+                      );
+                    })}
                     {cfg.person && cfg.fields && (
                       <td className="pr-3">
                         <button type="button" aria-label={(canWrite ? 'Edit ' : 'View ') + cfg.rowTitle(r)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>
