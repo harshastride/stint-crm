@@ -263,7 +263,33 @@ const mobile = '9' + String(Date.now()).slice(-9);
     const again = await post(cfg.incoming_api_key, { full_name: 'Meta Lead', mobile: m2, source: 'Google lead form' });
     const notes = (await admin.from('note').select('body').eq('lead_id', row.id)).data || [];
     check('The same mobile again is not added twice; it gets a note', again.json.duplicate === true && notes.some((n) => /Enquired again/.test(n.body)), JSON.stringify(again.json));
-    await admin.from('lead').delete().eq('id', row.id);
+    // Stint CRM block endpoints: subscribe, confirm events, act on people
+    const api = (m, path, body) => fetch('http://localhost:3100/api/integrations/' + path, { method: m, headers: { 'content-type': 'application/json', 'x-api-key': cfg.incoming_api_key }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, json: await r.json() }));
+    const me = await api('GET', 'me');
+    check('Block connection check lists stages', me.status === 200 && me.json.lead_stages.includes('New'));
+    const badEv = await api('POST', 'hooks', { event: 'nope', url: 'http://localhost:9/x' });
+    const sub = await api('POST', 'hooks', { event: 'lead.created', url: 'http://localhost:3999/block' });
+    check('A block trigger can subscribe (localhost is rewritten for Docker)', badEv.status === 400 && sub.status === 201 && sub.json.target_url.startsWith('http://host.docker.internal:3999'), JSON.stringify(sub.json));
+    const m3 = '3' + String(Date.now()).slice(-9);
+    const nl = (await desk.from('lead').insert({ full_name: 'Block Lead', mobile: m3 }).select('id').single()).data;
+    const evs = (await svc.from('integration_event').select('id, subscription_id').eq('entity_id', nl.id).eq('event', 'lead.created')).data || [];
+    check('A new lead is queued for the main webhook and for each subscribed flow', evs.length === 2 && evs.some((e) => e.subscription_id === sub.json.id), JSON.stringify(evs));
+    const real = await api('GET', 'event?id=' + evs[0].id);
+    const fake = await api('GET', 'event?id=' + crypto.randomUUID());
+    check('The block can confirm a real event and spots a fake one', real.json.event === 'lead.created' && fake.status === 404);
+    const note = await api('POST', 'note', { mobile: m3, text: 'hello' });
+    const fu = await api('POST', 'follow-up', { lead_id: nl.id, title: 'Call them', due_in_hours: 2 });
+    const st = await api('POST', 'stage', { mobile: m3, stage: 'Interested' });
+    const stBad = await api('POST', 'stage', { mobile: m3, stage: 'Nonsense' });
+    const found = await api('GET', 'find?mobile=' + m3);
+    const lr = (await admin.from('lead').select('stage').eq('id', nl.id).single()).data;
+    check('Block actions: note, follow-up, stage, find', note.status === 201 && fu.status === 201 && st.status === 200 && stBad.status === 400 && lr.stage === 'Interested' && found.json.kind === 'lead', JSON.stringify([note.json, fu.json, st.json, found.json]).slice(0, 300));
+    const un = await api('DELETE', 'hooks?id=' + sub.json.id);
+    const left = (await svc.from('integration_subscription').select('id').eq('id', sub.json.id)).data || [];
+    check('Turning the flow off removes its subscription', un.status === 200 && left.length === 0);
+    const noKey = await fetch('http://localhost:3100/api/integrations/me').then((r) => r.status);
+    check('Block endpoints need the API key', noKey === 401);
+    await admin.from('lead').delete().eq('id', nl.id);
     const fd = await fetch('http://localhost:3100/api/integrations/fees-due?all=1', { headers: { 'x-api-key': cfg.incoming_api_key } }).then((r) => r.json());
     const fdBad = await fetch('http://localhost:3100/api/integrations/fees-due').then((r) => r.status);
     check('Fee reminder list needs the key and lists unpaid instalments', fdBad === 401 && Array.isArray(fd.items) && fd.items.every((i) => i.amount > 0 && i.due_on), JSON.stringify(fd).slice(0, 200));
@@ -341,7 +367,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
 // remove the people this run created, then the events it raised (test records must not reach Activepieces)
 { const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   await svc.from('candidate').delete().eq('full_name', 'Test Walkin').gte('created_at', startedAt);
-  await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller']).gte('created_at', startedAt); }
+  await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller', 'Block Lead']).gte('created_at', startedAt); }
 await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }).from('integration_event').delete().gte('created_at', startedAt);
 
 console.log(`\n${pass} passed, ${fail} failed`);

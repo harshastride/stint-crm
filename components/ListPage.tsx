@@ -10,8 +10,9 @@ import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
 import { friendlyError } from './Fields';
 import { ActivepiecesSetup } from './special/ActivepiecesSetup';
+import { AutomationBuilder } from './special/AutomationBuilder';
 
-const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup };
+const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder };
 
 const cell = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);

@@ -349,7 +349,7 @@ export const PAGES: Record<string, PageCfg> = {
     kpis: [count('Imports'), { label: 'Rows imported', calc: (rows) => rows.reduce((a, r) => a + Number(r.ok_rows || 0), 0) }], rowTitle: (r) => r.file,
   },
   automations: {
-    id: 'automations', table: 'automation', kind: 'Automation', purpose: 'Everything the CRM sends or receives on its own. Flows run in Activepieces; this list controls them.', cta: 'New automation', order: { col: 'direction', asc: true },
+    id: 'automations', table: 'automation', top: 'builder', kind: 'Automation', purpose: 'Everything the CRM sends or receives on its own. Flows run in Activepieces; this list controls them.', cta: 'New automation', order: { col: 'direction', asc: true },
     columns: [{ key: 'name', label: 'Flow' }, { key: 'direction', label: 'Direction' }, { key: 'trigger', label: 'When' }, { key: 'channel', label: 'Channel' }, { key: 'recipient', label: 'To' }, { key: 'status', label: 'Status', type: 'pill' }],
     views: [{ label: 'All' }, { label: 'Incoming', where: (r) => r.direction === 'Incoming' }, { label: 'Outgoing', where: (r) => r.direction === 'Outgoing' }, { label: 'Live', where: (r) => r.status === 'Live' }],
     kpis: [count('Flows'), count('Live', (r) => r.status === 'Live'), count('Paused', (r) => r.status === 'Paused')],

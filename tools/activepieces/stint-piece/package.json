@@ -1,0 +1,15 @@
+{
+  "name": "@stint/piece-stint-crm",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Stint CRM block for Activepieces: CRM triggers and actions without manual webhook setup",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@activepieces/pieces-common": "^0.12.5",
+    "@activepieces/pieces-framework": "^0.32.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
