@@ -162,7 +162,8 @@ test('change password: the window opens and the new password works', async ({ pa
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Password').fill(oldPw);
     await page.getByRole('button', { name: 'Sign in' }).click();
-    await page.getByRole('button', { name: 'Change password' }).click();
+    await page.getByRole('button', { name: /^Account menu/ }).click();
+    await page.getByRole('menuitem', { name: 'Change password' }).click();
     const dialog = page.getByRole('dialog', { name: 'Change password' });
     await expect(dialog).toBeInViewport();
     await dialog.getByLabel('New password').fill(newPw);
@@ -511,4 +512,20 @@ test('student portal: invite, first password, details, document upload, receipt'
     await db.from('candidate').delete().eq('id', c!.id);
     await db.from('integration_event').delete().eq('person_name', 'Portal Test');
   }
+});
+
+test('account menu: who I am, theme, sign out from the top right', async ({ page }) => {
+  await login(page, 'praveen');
+  await page.getByRole('button', { name: 'Account menu, Praveen' }).click();
+  const menu = page.getByRole('menu', { name: 'Account' });
+  await expect(menu.getByText('praveen@demo.stint.local')).toBeVisible();
+  await menu.getByRole('menuitemradio', { name: 'Dark' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await menu.getByRole('menuitemradio', { name: 'Light' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await page.getByRole('button', { name: 'Account menu, Praveen' }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await expect(page).toHaveURL(/\/login/);
 });

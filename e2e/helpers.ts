@@ -13,5 +13,5 @@ export async function login(page: Page, who: string) {
   await page.getByLabel('Email').fill(`${who}@demo.stint.local`);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('button', { name: /^Account menu/ })).toBeVisible({ timeout: 20_000 });
 }

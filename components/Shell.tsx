@@ -5,10 +5,11 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/lib/session';
 import { PersonSearch } from './Fields';
-import { cx, initials } from './ui';
+import { cx } from './ui';
 import { pageIcon } from '@/lib/icons';
 import { CommandMenu } from './CommandMenu';
 import { NotificationBell } from './NotificationBell';
+import { UserMenu, type ThemePref } from './UserMenu';
 import { ChangePassword } from './ChangePassword';
 
 
@@ -16,7 +17,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const s = useSession();
   const path = usePathname();
   const router = useRouter();
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState<ThemePref>('light');
   const [pwOpen, setPwOpenRaw] = useState(false);
   const [pwDone, setPwDone] = useState(false);
   const setPwOpen = (v: boolean) => { setPwOpenRaw(v); if (v) setPwDone(false); };
@@ -28,8 +29,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  useEffect(() => { const t = localStorage.getItem('stint-theme') || 'light'; setTheme(t); document.documentElement.dataset.theme = t; }, []);
-  const toggleTheme = () => { const t = theme === 'light' ? 'dark' : 'light'; setTheme(t); document.documentElement.dataset.theme = t; localStorage.setItem('stint-theme', t); };
+  // theme: light, dark, or the device's setting (followed live)
+  useEffect(() => { try { setTheme(((localStorage.getItem('stint-theme') as ThemePref) || 'light')); } catch {} }, []);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => { document.documentElement.dataset.theme = theme === 'system' ? (mq.matches ? 'dark' : 'light') : theme; };
+    apply();
+    if (theme !== 'system') return;
+    mq.addEventListener('change', apply); return () => mq.removeEventListener('change', apply);
+  }, [theme]);
+  const chooseTheme = (t: ThemePref) => { setTheme(t); try { localStorage.setItem('stint-theme', t); } catch {} };
 
   const groups = useMemo(() => {
     const out: { name: string; pages: { id: string; title: string }[] }[] = [];
@@ -76,15 +85,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
           );
         })}
-        <div className="mt-auto flex items-center gap-2.5 border-t border-line px-2.5 pt-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accentSoft text-xs font-semibold text-accentText">{initials(s.staff.full_name)}</div>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium">{s.staff.full_name}</div>
-            <div className="truncate text-[11px] text-muted">{s.staff.role}{s.staff.level === 'Head' ? ' · Head' : ''}</div>
-          </div>
-        </div>
-        <button type="button" onClick={() => setPwOpen(true)} className="mx-2.5 mt-2 min-h-[36px] rounded-lg text-[13px] font-medium text-text2 hover:bg-surface2">Change password</button>
-        <button type="button" onClick={s.signOut} className="mx-2.5 mb-1 mt-1 min-h-[36px] rounded-lg border border-line2 bg-surface text-[13px] font-medium">Sign out</button>
       </nav>
       <CommandMenu open={cmdOpen} onClose={() => setCmdOpen(false)} />
       {/* outside the sidebar: the sidebar's slide-in transform would otherwise trap this fixed window inside it */}
@@ -120,7 +120,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <span className="max-md:hidden">Jump to…</span><kbd className="rounded-md bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
           <NotificationBell />
-          <button type="button" onClick={toggleTheme} aria-label={theme === 'light' ? 'Dark mode' : 'Light mode'} className="min-h-[44px] shrink-0 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium"><span className="md:hidden">{theme === 'light' ? '☾' : '☀'}</span><span className="hidden md:inline">{theme === 'light' ? 'Dark mode' : 'Light mode'}</span></button>
+          <UserMenu staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
       </div>
