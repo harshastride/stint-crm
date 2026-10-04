@@ -457,7 +457,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
 { const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   await svc.from('candidate').delete().eq('full_name', 'Test Walkin').gte('created_at', startedAt);
   await svc.from('notification').delete().gte('created_at', startedAt);
-  await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller', 'Block Lead']).gte('created_at', startedAt); }
+  await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Test Again', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller', 'Block Lead']).gte('created_at', startedAt); }
 await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }).from('integration_event').delete().gte('created_at', startedAt);
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -1,5 +1,5 @@
 'use client';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -117,6 +117,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [colsOpen, setColsOpen] = useState(false);
+  const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [filterOpen, setFilterOpen] = useState<string | null>(null);   // '' = list of columns, key = that column's values
   const [savedViews, setSavedViews] = useState<Row[]>([]);
   const [activeSaved, setActiveSaved] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -144,7 +146,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   }, [cfg]);
 
   useEffect(() => {
-    setQ(''); setSort(null); setPage(0); setPicked(new Set()); setBulkOpen(null); setColsOpen(false);
+    setQ(''); setSort(null); setPage(0); setPicked(new Set()); setBulkOpen(null); setColsOpen(false); setFilters({}); setFilterOpen(null);
     try { setHidden(new Set(JSON.parse(localStorage.getItem('stint-cols:' + cfg.id) || '[]'))); } catch { setHidden(new Set()); }
   }, [cfg]);
   const toggleCol = (key: string) => setHidden((old) => {
@@ -161,16 +163,26 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     })),
   ], [cfg, s.custom]);
   const cols = columns.filter((c) => !hidden.has(c.key));
+  // columns worth filtering: a short list of repeating values (stage, owner, course, source…)
+  const filterable = useMemo(() => {
+    if (!rows?.length) return [] as { col: Col; values: [string, number][] }[];
+    return columns.filter((c) => !['money', 'number', 'date', 'datetime', 'duration'].includes(c.type || '')).map((c) => {
+      const m = new Map<string, number>();
+      rows.forEach((r) => { const v = plain(c, r) || '(empty)'; m.set(v, (m.get(v) || 0) + 1); });
+      return { col: c, values: [...m.entries()].sort((a, b) => b[1] - a[1]) };
+    }).filter((f) => f.values.length > 1 && f.values.length <= 40 && f.values.length < rows.length);
+  }, [rows, columns]);
+  const activeFilters = Object.entries(filters).filter(([, v]) => v.length);
   const applySaved = (v: Row) => {
     const c = v.config || {};
     setView(Math.min(Number(c.view) || 0, (cfg.views || [{ label: 'All' }]).length - 1)); setQ(c.q || ''); setSort(c.sort || null);
-    setHidden(new Set(c.hidden || [])); if (c.layout && (c.layout === 'table' || cfg.board)) setLayout(c.layout);
+    setHidden(new Set(c.hidden || [])); setFilters(c.filters || {}); if (c.layout && (c.layout === 'table' || cfg.board)) setLayout(c.layout);
     setActiveSaved(v.id);
   };
   const saveView = async () => {
     if (!saving?.name.trim()) return;
     const { data, error } = await supabase().from('saved_view').insert({ page_id: cfg.id, name: saving.name.trim(), shared: saving.shared,
-      config: { view, q, sort, hidden: [...hidden], layout } }).select().single();
+      config: { view, q, sort, hidden: [...hidden], layout, filters } }).select().single();
     if (error) { setNotice({ tone: 'bad', text: friendlyError(error) }); return; }
     setSaving(null); await loadSaved(); setActiveSaved(data.id);
     setNotice({ tone: 'good', text: `View “${data.name}” saved${data.shared === 'team' ? ' for your team' : data.shared === 'all' ? ' for everyone' : ''}.` });
@@ -229,15 +241,19 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const views = cfg.views || [{ label: 'All' }];
   const shown = useMemo(() => {
     let out = (rows || []).filter((r) => !views[view]?.where || views[view].where!(r, s.staff.id));
+    for (const [key, vals] of Object.entries(filters)) {
+      const col = columns.find((c) => c.key === key);
+      if (col && vals.length) out = out.filter((r) => vals.includes(plain(col, r) || '(empty)'));
+    }
     const term = q.trim().toLowerCase();
     if (term) out = out.filter((r) => columns.some((c) => short(c, r).toLowerCase().includes(term) || plain(c, r).toLowerCase().includes(term)));
     const col = sort && columns.find((c) => c.key === sort.key);
     if (col) out = [...out].sort((a, b) => (sort!.asc ? 1 : -1) * compare(col, a, b) || 0);
     return out;
-  }, [rows, views, view, s.staff.id, q, sort, columns]);
+  }, [rows, views, view, s.staff.id, q, sort, columns, filters]);
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const pageRows = useMemo(() => shown.slice(page * PAGE, page * PAGE + PAGE), [shown, page]);
-  useEffect(() => { setPage(0); }, [q, sort, view]);
+  useEffect(() => { setPage(0); }, [q, sort, view, filters]);
   // ticked rows: only those still in the current list count
   const pickedRows = useMemo(() => shown.filter((r) => r.id && picked.has(r.id)), [shown, picked]);
   const pageIds = pageRows.map((r) => r.id).filter(Boolean) as string[];
@@ -328,6 +344,39 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             ))}
           </div>
           <div className="ml-auto flex items-center gap-2">
+          {filterable.length > 0 && (
+            <div className="relative">
+              <button type="button" aria-expanded={filterOpen !== null} onClick={() => setFilterOpen(filterOpen === null ? '' : null)} className={cx('flex h-[38px] items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium', activeFilters.length ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>
+                <ListFilter size={14} /> Filter{activeFilters.length ? ` · ${activeFilters.length}` : ''}
+              </button>
+              {filterOpen !== null && (
+                <div role="dialog" aria-label="Filter" className="absolute right-0 z-30 mt-1 w-64 rounded-xl border border-line bg-surface p-1 shadow-lg">
+                  {filterOpen === '' ? filterable.map(({ col }) => (
+                    <button key={col.key} type="button" onClick={() => setFilterOpen(col.key)} className="flex min-h-[40px] w-full items-center justify-between rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
+                      <span>{col.label}</span><span className="text-[11.5px] text-muted">{filters[col.key]?.length ? filters[col.key].length + ' picked' : '›'}</span>
+                    </button>
+                  )) : (() => {
+                    const f = filterable.find((x) => x.col.key === filterOpen); if (!f) return null;
+                    const cur = filters[f.col.key] || [];
+                    return (<>
+                      <button type="button" onClick={() => setFilterOpen('')} className="flex min-h-[36px] w-full items-center px-2.5 text-[12px] font-semibold text-accentText">‹ {f.col.label}</button>
+                      <div className="max-h-64 overflow-y-auto">
+                        {f.values.map(([v, n]) => (
+                          <button key={v} type="button" role="menuitemcheckbox" aria-checked={cur.includes(v)}
+                            onClick={() => setFilters({ ...filters, [f.col.key]: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] })}
+                            className="flex min-h-[38px] w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
+                            <span className={cx('flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border', cur.includes(v) ? 'border-accent bg-accent text-white' : 'border-line2')}>{cur.includes(v) && <Check size={11} strokeWidth={3} />}</span>
+                            <span className="min-w-0 flex-1 truncate">{v}</span><span className="num text-[11.5px] text-muted">{n}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {cur.length > 0 && <button type="button" onClick={() => { const n = { ...filters }; delete n[f.col.key]; setFilters(n); }} className="mt-1 min-h-[34px] w-full border-t border-line text-[12.5px] font-medium text-text2">Clear {f.col.label}</button>}
+                    </>);
+                  })()}
+                </div>
+              )}
+            </div>
+          )}
           {layout === 'table' && (
             <div className="relative">
               <button type="button" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} className="flex h-[38px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">
@@ -388,6 +437,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             </button>
           )}
         </div>
+
+        {activeFilters.length > 0 && (
+          <div className="-mt-1 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+            {activeFilters.map(([key, vals]) => (
+              <span key={key} className="flex min-h-[32px] items-center gap-1 rounded-full bg-accentSoft pl-3 text-[12.5px] font-medium text-accentText">
+                {columns.find((c) => c.key === key)?.label}: {vals.length > 2 ? vals.slice(0, 2).join(', ') + ' +' + (vals.length - 2) : vals.join(', ')}
+                <button type="button" aria-label={'Remove filter ' + key} onClick={() => { const n = { ...filters }; delete n[key]; setFilters(n); }} className="flex h-8 w-7 items-center justify-center rounded-r-full hover:text-badText"><X size={13} /></button>
+              </span>
+            ))}
+            <button type="button" onClick={() => setFilters({})} className="min-h-[32px] px-2 text-[12.5px] text-text2 underline">Clear all</button>
+          </div>
+        )}
 
         {cfg.kpis && rows && (
           <section className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>

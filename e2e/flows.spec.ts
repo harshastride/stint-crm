@@ -612,3 +612,20 @@ test('phone input: +91 shown, formats as you type, pasted numbers cleaned', asyn
   await box.fill('45678');
   await expect(page.getByText('5 more digits')).toBeVisible();
 });
+
+test('filters: pick values in a column, chips show, clear all', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: /^Filter/ }).click();
+  const dlg = page.getByRole('dialog', { name: 'Filter' });
+  await dlg.getByRole('button', { name: /^Stage/ }).click();
+  const first = dlg.getByRole('menuitemcheckbox').first();
+  const value = (await first.locator('span').nth(1).innerText()).trim();
+  await first.click();
+  await page.getByRole('button', { name: /^Filter/ }).click();
+  await expect(page.getByLabel('Active filters')).toContainText('Stage: ' + value);
+  for (const t of await page.locator('tbody tr').allInnerTexts()) expect(t).toContain(value);
+  await page.getByRole('button', { name: 'Clear all' }).click();
+  await expect(page.getByLabel('Active filters')).toHaveCount(0);
+});
