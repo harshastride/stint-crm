@@ -51,6 +51,14 @@ Day to day: `supabase stop` / `supabase start` to stop and start the database; `
 - Every list: search, column sort, paging over all rows
 - `npm test`: database rules and security checks, then browser flows (Playwright)
 
+## What is built (after slice 5)
+
+- PDF fee quotes and payment receipts (Stint branded); institute details under Branding & sidebar
+- Calendar (counselling, mocks, follow-ups, batch starts), Ctrl+K command menu, saved views, drag-and-drop boards, click-to-edit cells
+- Duplicates finder and merge (Admin), @mentions and notifications, custom fields (Admin settings → Custom fields)
+- Student portal at `/portal`: students fill their data sheet, upload documents, see fees, receipts and schedule; invite from the student's quick panel
+- Stint CRM block for Activepieces (`tools/activepieces/stint-piece`) and the Automation builder page
+
 ## Not built yet
 
 See `docs/BACKLOG.md` (Activepieces, recordings, go-live).

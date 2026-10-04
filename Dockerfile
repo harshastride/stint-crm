@@ -20,6 +20,7 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3100 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
+COPY --from=build --chown=app:app /app/public ./public
 USER app
 EXPOSE 3100
 HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://127.0.0.1:3100/login >/dev/null || exit 1
