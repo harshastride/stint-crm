@@ -1,0 +1,44 @@
+# Activepieces on this machine, for building and testing flows against the local CRM.
+#   docker compose -f tools/activepieces/docker-compose.yml --env-file tools/activepieces/.env up -d   → http://localhost:8080
+# The CRM database reaches it at http://host.docker.internal:8080 ; it reaches the CRM at http://host.docker.internal:3100
+services:
+  activepieces:
+    image: ghcr.io/activepieces/activepieces:latest
+    restart: unless-stopped
+    ports: ["8080:80"]
+    depends_on: [postgres, redis]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      AP_ENGINE_EXECUTABLE_PATH: dist/packages/engine/main.js
+      AP_ENVIRONMENT: prod
+      AP_FRONTEND_URL: http://localhost:8080
+      AP_WEBHOOK_TIMEOUT_SECONDS: 30
+      AP_TRIGGER_DEFAULT_POLL_INTERVAL: 5
+      AP_EXECUTION_MODE: UNSANDBOXED
+      AP_TELEMETRY_ENABLED: "false"
+      AP_ENCRYPTION_KEY: ${AP_ENCRYPTION_KEY}
+      AP_JWT_SECRET: ${AP_JWT_SECRET}
+      AP_POSTGRES_DATABASE: activepieces
+      AP_POSTGRES_HOST: postgres
+      AP_POSTGRES_PORT: 5432
+      AP_POSTGRES_USERNAME: activepieces
+      AP_POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD}
+      AP_REDIS_HOST: redis
+      AP_REDIS_PORT: 6379
+    volumes: [ap_cache:/usr/src/app/cache]
+  postgres:
+    image: postgres:14.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: activepieces
+      POSTGRES_USER: activepieces
+      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD}
+    volumes: [ap_pg:/var/lib/postgresql/data]
+  redis:
+    image: redis:7.0.7
+    restart: unless-stopped
+    volumes: [ap_redis:/data]
+volumes:
+  ap_pg:
+  ap_redis:
+  ap_cache:

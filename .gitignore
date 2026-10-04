@@ -10,3 +10,4 @@ _to_delete
 .DS_Store
 test-results
 playwright-report
+tools/activepieces/.env
