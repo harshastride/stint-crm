@@ -1,5 +1,5 @@
 'use client';
-import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -105,6 +105,14 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [colsOpen, setColsOpen] = useState(false);
+  const [savedViews, setSavedViews] = useState<Row[]>([]);
+  const [activeSaved, setActiveSaved] = useState<string | null>(null);
+  const [saving, setSaving] = useState<{ name: string; shared: string } | null>(null);
+  const loadSaved = useCallback(async () => {
+    const { data } = await supabase().from('saved_view').select('*').eq('page_id', cfg.id).order('created_at');
+    setSavedViews(data || []);
+  }, [cfg.id]);
+  useEffect(() => { setActiveSaved(null); setSaving(null); loadSaved(); }, [loadSaved]);
 
   // Fetch everything the person may see, in chunks, so search, sort, views and totals cover all rows.
   const load = useCallback(async () => {
@@ -130,6 +138,26 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     return n;
   });
   const cols = cfg.columns.filter((c) => !hidden.has(c.key));
+  const applySaved = (v: Row) => {
+    const c = v.config || {};
+    setView(Math.min(Number(c.view) || 0, (cfg.views || [{ label: 'All' }]).length - 1)); setQ(c.q || ''); setSort(c.sort || null);
+    setHidden(new Set(c.hidden || [])); if (c.layout && (c.layout === 'table' || cfg.board)) setLayout(c.layout);
+    setActiveSaved(v.id);
+  };
+  const saveView = async () => {
+    if (!saving?.name.trim()) return;
+    const { data, error } = await supabase().from('saved_view').insert({ page_id: cfg.id, name: saving.name.trim(), shared: saving.shared,
+      config: { view, q, sort, hidden: [...hidden], layout } }).select().single();
+    if (error) { setNotice({ tone: 'bad', text: friendlyError(error) }); return; }
+    setSaving(null); await loadSaved(); setActiveSaved(data.id);
+    setNotice({ tone: 'good', text: `View “${data.name}” saved${data.shared === 'team' ? ' for your team' : data.shared === 'all' ? ' for everyone' : ''}.` });
+  };
+  const deleteView = async (v: Row) => {
+    const { error } = await supabase().from('saved_view').delete().eq('id', v.id);
+    if (error) { setNotice({ tone: 'bad', text: friendlyError(error) }); return; }
+    if (activeSaved === v.id) setActiveSaved(null);
+    loadSaved();
+  };
   useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board && !phone() ? 'board' : 'table'); load(); }, [cfg, load]);
 
   // open a new record with the person filled in: /p/payment?new=candidate:<id> (quick panel "Next steps")
@@ -241,7 +269,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
           <div className="flex flex-wrap gap-1" role="tablist">
             {views.map((v, i) => (
-              <button key={v.label} type="button" role="tab" aria-selected={view === i} onClick={() => setView(i)}
+              <button key={v.label} type="button" role="tab" aria-selected={view === i && !activeSaved} onClick={() => { setView(i); setActiveSaved(null); }}
                 className={cx('min-h-[38px] rounded-[10px] px-3.5 text-[13px] font-medium', view === i ? 'bg-ink text-white' : 'text-text2')}>{v.label}</button>
             ))}
           </div>
@@ -279,6 +307,32 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             </div>
           )}
           </div>
+        </div>
+
+        <div className="-mt-1 flex flex-wrap items-center gap-1.5" aria-label="Saved views">
+          {savedViews.map((v) => (
+            <span key={v.id} className={cx('flex min-h-[34px] items-center rounded-full border text-[12.5px] font-medium', activeSaved === v.id ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface text-text2')}>
+              <button type="button" aria-pressed={activeSaved === v.id} onClick={() => applySaved(v)} className="flex min-h-[34px] items-center gap-1.5 pl-3 pr-2" title={v.shared === 'me' ? 'Only you' : v.shared === 'team' ? 'Shared with ' + v.owner_role : 'Shared with everyone'}>
+                <Bookmark size={13} aria-hidden />{v.name}{v.shared !== 'me' && <span className="text-[10.5px] text-muted">· {v.shared === 'team' ? 'team' : 'all'}</span>}
+              </button>
+              {(v.owner_id === s.staff.id || s.staff.role === 'Admin') && <button type="button" aria-label={'Delete view ' + v.name} onClick={() => deleteView(v)} className="flex h-[34px] w-7 items-center justify-center rounded-r-full text-muted hover:text-badText"><X size={13} /></button>}
+            </span>
+          ))}
+          {saving ? (
+            <form onSubmit={(e) => { e.preventDefault(); saveView(); }} className="flex flex-wrap items-center gap-1.5">
+              <input autoFocus aria-label="View name" placeholder="Name this view, e.g. Hot leads" maxLength={60} value={saving.name} onChange={(e) => setSaving({ ...saving, name: e.target.value })} className="h-[34px] w-[220px] px-3 text-[13px]" />
+              <select aria-label="Who sees it" value={saving.shared} onChange={(e) => setSaving({ ...saving, shared: e.target.value })} className="h-[34px] px-2 text-[13px]">
+                <option value="me">Just me</option><option value="team">My team ({s.staff.role})</option>
+                {(s.staff.role === 'Admin' || s.staff.level === 'Head') && <option value="all">Everyone</option>}
+              </select>
+              <button type="submit" className="h-[34px] rounded-full bg-accent px-3 text-[12.5px] font-semibold text-white">Save</button>
+              <button type="button" onClick={() => setSaving(null)} className="h-[34px] px-2 text-[12.5px] text-text2">Cancel</button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setSaving({ name: '', shared: 'me' })} className="flex min-h-[34px] items-center gap-1.5 rounded-full border border-dashed border-line2 px-3 text-[12.5px] font-medium text-text2 hover:text-accentText">
+              <BookmarkPlus size={13} aria-hidden /> Save this view
+            </button>
+          )}
         </div>
 
         {cfg.kpis && rows && (

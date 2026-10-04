@@ -368,6 +368,16 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const pv = await sme.rpc('candidate_private_get', { cid: cand.id });
   check('SME sees no contact details', pv.data?.modes?.contact === 'h' && !pv.data?.contact?.mobile, JSON.stringify(pv.data?.contact)); }
 
+// Saved views: private views stay private; nobody can save a view as someone else
+{ const tid = (await tele.auth.getUser()).data.user.id;
+  const mine = (await tele.from('saved_view').insert({ page_id: 'lead', name: 'Private test', shared: 'me', config: {} }).select('id').single()).data;
+  const other = (await as('pooja'));
+  const seen = (await other.from('saved_view').select('id').eq('id', mine.id)).data || [];
+  check('A private saved view is not visible to teammates', seen.length === 0);
+  const forged = await other.from('saved_view').insert({ page_id: 'lead', name: 'Forged', owner_id: tid, config: {} });
+  check('A saved view cannot be created in someone else’s name', !!forged.error);
+  await tele.from('saved_view').delete().eq('id', mine.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

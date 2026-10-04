@@ -328,3 +328,28 @@ test('command menu: Ctrl+K finds people, pages and actions', async ({ page }) =>
   await dlg.getByRole('combobox').fill('payment');
   await expect(dlg.getByRole('option', { name: /Record a payment/ })).toHaveCount(0);
 });
+
+test('saved views: save, share with team, reopen, delete', async ({ page }) => {
+  const db = service();
+  await db.from('saved_view').delete().like('name', 'E2E view%');
+  await login(page, 'teja');
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByPlaceholder('Search this list').fill('ravi');
+  await page.getByRole('button', { name: 'Save this view' }).click();
+  await page.getByLabel('View name').fill('E2E view ravi');
+  await page.getByLabel('Who sees it').selectOption('team');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('View “E2E view ravi” saved for your team.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: /^E2E view ravi/ }).click();
+  await expect(page.getByPlaceholder('Search this list')).toHaveValue('ravi');
+  await login(page, 'pooja');    // same team sees it
+  await page.goto('/p/lead');
+  await expect(page.getByRole('button', { name: /^E2E view ravi/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Delete view E2E view ravi' })).toHaveCount(0);   // only the owner deletes
+  await login(page, 'manish');   // Sales: another team, does not see it
+  await page.goto('/p/lead');
+  await expect(page.getByRole('button', { name: /^E2E view ravi/ })).toHaveCount(0);
+  await db.from('saved_view').delete().like('name', 'E2E view%');
+});
