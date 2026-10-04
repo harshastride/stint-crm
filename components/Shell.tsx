@@ -50,9 +50,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2.5 px-2.5 py-3">
           <span className="flex flex-1 items-end gap-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/stint-logo.svg" alt="Stint" width={110} height={36} className="logo-light h-9 w-auto" />
-            <img src="/brand/stint-logo-dark.svg" alt="" width={110} height={36} className="logo-dark h-9 w-auto" />
-            <span className="mb-[13px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">CRM</span>
+            <img src="/brand/stint-logo.svg" alt="Stint" width={92} height={30} className="logo-light h-[30px] w-auto" />
+            <img src="/brand/stint-logo-dark.svg" alt="" width={92} height={30} className="logo-dark h-[30px] w-auto" />
+            <span className="mb-[11px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">CRM</span>
           </span>
           <button type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-[10px] md:hidden"><X size={18} /></button>
         </div>

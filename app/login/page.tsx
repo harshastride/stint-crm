@@ -41,9 +41,9 @@ export default function LoginPage() {
       <form onSubmit={submit} className="w-full max-w-[380px] rounded-2xl border border-line bg-surface p-7">
         <div className="flex items-end gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/stint-logo.svg" alt="Stint" width={150} height={49} className="logo-light h-[49px] w-auto" />
-          <img src="/brand/stint-logo-dark.svg" alt="" width={150} height={49} className="logo-dark h-[49px] w-auto" />
-          <span className="mb-[18px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[11px] font-semibold text-accentText">CRM</span>
+          <img src="/brand/stint-logo.svg" alt="Stint" width={104} height={34} className="logo-light h-[34px] w-auto" />
+          <img src="/brand/stint-logo-dark.svg" alt="" width={104} height={34} className="logo-dark h-[34px] w-auto" />
+          <span className="mb-[12px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">CRM</span>
         </div>
         <h1 className="mt-6 text-[26px] font-semibold leading-tight">Sign in</h1>
         <p className="mt-1 text-text2">Use the email your admin invited.</p>
