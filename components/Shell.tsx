@@ -10,6 +10,7 @@ import { pageIcon } from '@/lib/icons';
 import { CommandMenu } from './CommandMenu';
 import { NotificationBell } from './NotificationBell';
 import { UserMenu, type ThemePref } from './UserMenu';
+import { Tour } from './Tour';
 import { ChangePassword } from './ChangePassword';
 
 
@@ -24,6 +25,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [searchKind, setSearchKind] = useState<'lead' | 'candidate'>('lead');
   const [navOpen, setNavOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => { if (!s.staff.tour_done_at) { const t = setTimeout(() => setTourOpen(true), 900); return () => clearTimeout(t); } }, [s.staff.tour_done_at]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen((o) => !o); } };
     window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
@@ -58,7 +61,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-[100dvh]">
       {navOpen && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" aria-hidden onClick={() => setNavOpen(false)} />}
-      <nav aria-label="Pages" className={cx('fixed inset-y-0 left-0 z-40 flex w-[264px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface p-2.5 transition-transform duration-200 md:static md:w-[232px] md:translate-x-0',
+      <nav data-tour="nav" aria-label="Pages" className={cx('fixed inset-y-0 left-0 z-40 flex w-[264px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface p-2.5 transition-transform duration-200 md:static md:w-[232px] md:translate-x-0',
         navOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full')}>
         <div className="flex items-center gap-2.5 px-2.5 py-3">
           <span className="flex flex-1 items-end gap-1.5">
@@ -76,7 +79,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               {g.pages.map((p) => {
                 const on = current === p.id;
                 return (
-                  <Link key={p.id} href={p.id === 'home' ? '/' : '/p/' + p.id} aria-current={on ? 'page' : undefined}
+                  <Link key={p.id} data-tour={p.id === 'home' ? 'home' : undefined} href={p.id === 'home' ? '/' : '/p/' + p.id} aria-current={on ? 'page' : undefined}
                     className={cx('flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px]', on ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>
                     {(() => { const Icon = pageIcon(p.id); return <Icon size={16} strokeWidth={1.8} className="shrink-0" aria-hidden />; })()}<span>{p.title}</span>
                   </Link>
@@ -87,6 +90,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
       <CommandMenu open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <Tour open={tourOpen} onClose={() => { setTourOpen(false); s.reload(); }} />
       {/* outside the sidebar: the sidebar's slide-in transform would otherwise trap this fixed window inside it */}
         {pwOpen && (
           <div role="dialog" aria-label="Change password" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPwOpen(false)}>
@@ -116,11 +120,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </>
             ) : <span />}
           </div>
-          <button type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium text-text2">
+          <button data-tour="jump" type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium text-text2">
             <span className="max-md:hidden">Jump to…</span><kbd className="rounded-md bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
-          <NotificationBell />
-          <UserMenu staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} />
+          <span data-tour="bell"><NotificationBell /></span>
+          <span data-tour="account"><UserMenu onTour={() => setTourOpen(true)} staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} /></span>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
       </div>

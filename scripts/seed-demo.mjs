@@ -41,7 +41,7 @@ for (const [name, login, role, level] of STAFF) {
   const email = `${login}@${DOMAIN}`;
   let user = existing.find((u) => u.email === email);
   if (!user) user = (await must(db.auth.admin.createUser({ email, password: PASSWORD, email_confirm: true }), 'create ' + email)).user;
-  await must(db.from('staff').upsert({ id: user.id, full_name: name, email, role, level, branch_id: hsr, status: 'Active' }), 'staff ' + name);
+  await must(db.from('staff').upsert({ id: user.id, full_name: name, email, role, level, branch_id: hsr, status: 'Active', tour_done_at: new Date().toISOString() }), 'staff ' + name);   // demo logins skip the first-time tour
   S[name] = user.id;
 }
 console.log(`Staff ready: ${STAFF.length} logins, password "${PASSWORD}"`);

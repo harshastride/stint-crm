@@ -160,7 +160,7 @@ test('change password: the window opens and the new password works', async ({ pa
   const db = service();
   const email = `pw${Date.now()}@demo.stint.local`, oldPw = 'Old-pass-123456', newPw = 'New-pass-654321';
   const { data } = await db.auth.admin.createUser({ email, password: oldPw, email_confirm: true });
-  await db.from('staff').insert({ id: data.user!.id, full_name: 'PW Test', email, role: 'Telecaller', level: 'Junior', status: 'Active' });
+  await db.from('staff').insert({ id: data.user!.id, full_name: 'PW Test', email, role: 'Telecaller', level: 'Junior', status: 'Active', tour_done_at: new Date().toISOString() });
   try {
     await page.goto('/login');
     await page.getByLabel('Email').fill(email);
@@ -628,4 +628,28 @@ test('filters: pick values in a column, chips show, clear all', async ({ page })
   for (const t of await page.locator('tbody tr').allInnerTexts()) expect(t).toContain(value);
   await page.getByRole('button', { name: 'Clear all' }).click();
   await expect(page.getByLabel('Active filters')).toHaveCount(0);
+});
+
+test('first-time tour: shows once for a new person, can be skipped and replayed', async ({ page }) => {
+  const db = service();
+  const { data: me } = await db.from('staff').select('id, tour_done_at').eq('email', 'divya@demo.stint.local').single();
+  await db.from('staff').update({ tour_done_at: null }).eq('id', me!.id);
+  try {
+    await login(page, 'divya');
+    const tour = page.getByRole('dialog', { name: /Tour, step 1 of 5/ });
+    await expect(tour).toBeVisible();
+    await tour.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByRole('dialog', { name: /step 2 of 5/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Skip' }).click();
+    await expect(page.getByRole('dialog', { name: /Tour/ })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole('button', { name: /^Account menu/ })).toBeVisible();
+    await page.waitForTimeout(1200);
+    await expect(page.getByRole('dialog', { name: /Tour/ })).toHaveCount(0);   // not again
+    await page.getByRole('button', { name: /^Account menu/ }).click();
+    await page.getByRole('menuitem', { name: 'Show me around' }).click();
+    await expect(page.getByRole('dialog', { name: /Tour, step 1 of 5/ })).toBeVisible();
+  } finally {
+    await db.from('staff').update({ tour_done_at: me!.tour_done_at || new Date().toISOString() }).eq('id', me!.id);
+  }
 });

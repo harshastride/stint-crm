@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import { ChangePassword } from '@/components/ChangePassword';
 import { AppSkeleton } from '@/components/Skeletons';
 
-export type Staff = { id: string; full_name: string; email: string; role: string; level: string; branch_id: string | null; status: string; must_change_password?: boolean };
+export type Staff = { id: string; full_name: string; email: string; role: string; level: string; branch_id: string | null; status: string; must_change_password?: boolean; tour_done_at?: string | null };
 export type RefRow = { id: string; label: string; extra?: Record<string, unknown> };
 export type PageRow = { id: string; grp: string; title: string; sort: number };
 export type CustomField = { id: string; page_id: string; label: string; key: string; type: string; options: string | null; in_list: string; sort: number };
