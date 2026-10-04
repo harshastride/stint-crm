@@ -16,6 +16,7 @@ import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
 import { STEP_ICON } from '@/lib/icons';
 
 import { STAGES, STAGE_OWNER as OWNER, STAGE_INDEX } from '@/lib/journey';
+import { PanelSkeleton } from './Skeletons';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Family', identity: 'Identity', bank: 'Bank' };
 
@@ -53,7 +54,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
 
   useEffect(() => { setP(null); setMsg(null); setAction(null); setForm({}); load(); }, [load]);
 
-  if (!p) return <aside aria-label="Quick panel" className="fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none shrink-0 bg-surface p-5 text-muted md:w-[380px]">Loading…</aside>;
+  if (!p) return <aside aria-label="Quick panel" className="fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none shrink-0 bg-surface p-5 text-muted md:w-[380px]"><PanelSkeleton /></aside>;
 
   const si = STAGE_INDEX[p.stage] ?? 0;
   const days = Math.floor((Date.now() - new Date(p.stage_changed_at).getTime()) / 86400000);

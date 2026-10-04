@@ -13,6 +13,7 @@ import { ImportPage } from '@/components/special/ImportPage';
 import { BuilderPage } from '@/components/special/BuilderPage';
 import { Calendar } from '@/components/special/Calendar';
 import { Duplicates } from '@/components/special/Duplicates';
+import { PageSkeleton } from '@/components/Skeletons';
 
 const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, calendar: Calendar, duplicates: Duplicates };
 
@@ -30,8 +31,8 @@ export default function Page({ params }: { params: Promise<{ page: string }> }) 
     );
   }
   const Special = SPECIAL[page];
-  if (Special) return <Suspense fallback={<main className="p-6 text-muted">Loading…</main>}><Special /></Suspense>;
+  if (Special) return <Suspense fallback={<PageSkeleton />}><Special /></Suspense>;
   const cfg = PAGES[page];
   if (!cfg) return <main className="p-6 text-text2">This page has not been built yet.</main>;
-  return <Suspense fallback={<main className="p-6 text-muted">Loading…</main>}><ListPage cfg={cfg} /></Suspense>;
+  return <Suspense fallback={<PageSkeleton />}><ListPage cfg={cfg} /></Suspense>;
 }

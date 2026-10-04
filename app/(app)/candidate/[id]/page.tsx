@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Pill, cx, fmtDate, fmtDateTime, initials, money } from '@/components/ui';
+import { PageSkeleton } from '@/components/Skeletons';
 
 const GROUPS: [string, string][] = [['contact', 'Contact and address'], ['family', 'Family'], ['identity', 'Identity'], ['bank', 'Bank']];
 
@@ -45,7 +46,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
   }, [id, s]);
 
   if (missing) return <main className="flex-1 p-8 text-text2">This candidate does not exist, or your role can’t open it.</main>;
-  if (!c) return <main className="flex-1 p-8 text-muted">Loading…</main>;
+  if (!c) return <PageSkeleton />;
 
   const tabs = ['Profile', 'Education', 'Work experience', s.can('attendance') || s.can('note') ? 'Training' : '', s.can('mock') ? 'Mocks' : '', s.can('resume') ? 'Resume' : '', s.can('doc') ? 'Documents' : '', s.can('plan') ? 'Fees' : ''].filter(Boolean);
   const present = data.att?.length ? Math.round((100 * data.att.filter((a) => a.mark === 'P').length) / data.att.length) + '%' : '—';

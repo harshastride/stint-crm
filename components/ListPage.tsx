@@ -12,6 +12,7 @@ import { friendlyError } from './Fields';
 import { useToast } from './Toasts';
 import { ActivepiecesSetup } from './special/ActivepiecesSetup';
 import { AutomationBuilder } from './special/AutomationBuilder';
+import { TableSkeleton } from './Skeletons';
 
 const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder };
 
@@ -425,7 +426,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         )}
 
         {rows === null ? (
-          <div className="rounded-xl border border-line bg-surface p-6 text-muted">Loading…</div>
+          <TableSkeleton />
         ) : shown.length === 0 ? (
           <div className="rounded-xl border border-line bg-surface p-8 text-center">
             <div className="font-semibold">{q.trim() ? 'No matches' : (rows.length && view > 0) ? 'Nothing in “' + views[view].label + '”' : cfg.empty ? 'Nothing to do' : 'Nothing here yet'}</div>

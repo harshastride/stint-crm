@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabase';
 import { ChangePassword } from '@/components/ChangePassword';
+import { AppSkeleton } from '@/components/Skeletons';
 
 export type Staff = { id: string; full_name: string; email: string; role: string; level: string; branch_id: string | null; status: string; must_change_password?: boolean };
 export type RefRow = { id: string; label: string; extra?: Record<string, unknown> };
@@ -120,6 +121,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  if (!value) return <div className="flex h-screen items-center justify-center text-muted">Loading…</div>;
+  if (!value) return <AppSkeleton />;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

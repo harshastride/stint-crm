@@ -7,6 +7,7 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { PageHeader } from '../ListPage';
 import { cx } from '../ui';
+import { TableSkeleton } from '../Skeletons';
 
 // Month and week calendar of counselling sessions, mock interviews, follow-ups and batch starts.
 // Each source is read only if the role can open its page; row security decides which rows come back.
@@ -100,7 +101,7 @@ export function Calendar() {
         ))}
       </div>
 
-      {events === null ? <div className="rounded-xl border border-line bg-surface p-6 text-muted">Loading…</div> : mode === 'month' ? (
+      {events === null ? <TableSkeleton rows={6} /> : mode === 'month' ? (
         <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <div className="grid grid-cols-7 border-b border-line bg-surface2 text-center text-[11px] font-semibold text-text2">

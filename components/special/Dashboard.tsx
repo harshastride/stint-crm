@@ -7,6 +7,7 @@ import type { Row } from '@/lib/pages';
 import { Pill, cx, fmtDateTime, money } from '../ui';
 import { DashboardInsights, change, thisAndLast } from './DashboardInsights';
 import { pageIcon } from '@/lib/icons';
+import { PageSkeleton } from '../Skeletons';
 
 const JOURNEY: [string, 'lead' | 'candidate', string[]][] = [
   ['Leads', 'lead', ['New']], ['Calls', 'lead', ['Callback', 'Interested']], ['Counselling', 'lead', ['Counselling']], ['Enrolled', 'candidate', ['Enrolled']],
@@ -49,7 +50,7 @@ export function Dashboard() {
   }, [s]);
 
   const [title, sub] = TITLES[s.staff.role] || TITLES.Admin;
-  if (!d) return <main className="flex-1 p-8 text-muted">Loading…</main>;
+  if (!d) return <PageSkeleton />;
 
   const today = new Date().toDateString();
   const overdueTasks = d.tasks.filter((t) => new Date(t.due_at).getTime() < Date.now() && new Date(t.due_at).toDateString() !== today).length;

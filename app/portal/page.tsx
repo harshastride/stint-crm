@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Button, Notice, cx } from '@/components/ui';
 import { Journey } from '@/components/Journey';
 import { journey } from '@/lib/journey';
+import { PageSkeleton } from '@/components/Skeletons';
 
 // Student portal: the student's own details, documents, fees and schedule. Everything goes through portal_* functions.
 type Me = Record<string, any>;
@@ -35,7 +36,7 @@ export default function Portal() {
   useEffect(() => { load(); }, [load]);
   const signOut = async () => { await supabase().auth.signOut(); window.location.href = '/login'; };
 
-  if (me === undefined) return <main className="flex min-h-screen items-center justify-center bg-bg text-muted">Loading…</main>;
+  if (me === undefined) return <main className="min-h-screen bg-bg"><PageSkeleton /></main>;
   if (me === null) return (
     <main className="flex min-h-screen items-center justify-center bg-bg p-4">
       <div className="max-w-sm rounded-2xl border border-line bg-surface p-6 text-center">
