@@ -8,16 +8,17 @@ import { FieldInput, friendlyError } from './Fields';
 import { JobPapers } from './JobPapers';
 import { InstalmentsEditor, quoteAmount, type Instalment } from './InstalmentsEditor';
 
-/** Create form and record editor in one: `row` null means a new record. */
+/** Create form and record editor in one: `row` null (or a summary row with no id yet) means a new record, prefilled from the row. */
 export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: PageCfg; row: Row | null; canWrite: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
   const s = useSession();
-  const isNew = !row;
+  const isNew = !row?.id;
   const fields = useMemo(() => (cfg.fields || []).filter((f) => isNew || !f.createOnly), [cfg, isNew]);
   const [values, setValues] = useState<Row>(() => {
     const v: Row = {};
     const AUTO = ['status', 'stage', 'plan', 'pf_status', 'level', 'direction', 'discount_pct', 'method', 'connection'];
     (cfg.fields || []).forEach((f) => {
-      if (row) { v[f.key] = row[f.key] ?? null; return; }
+      if (row?.id) { v[f.key] = row[f.key] ?? null; return; }
+      if (row && row[f.key] != null) { v[f.key] = row[f.key]; return; }
       const first = f.type === 'select' && AUTO.includes(f.key) ? (f.options || s.lists[f.list || ''] || [])[0] ?? null : null;
       v[f.key] = f.def ? f.def({ me: s.staff.id }) : first;
     });

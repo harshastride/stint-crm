@@ -258,11 +258,12 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.item + ' · ' + (r.candidate?.full_name || ''),
   },
   alumni: {
-    id: 'alumni', table: 'alumni_followup', kind: 'Alumni follow-up', purpose: 'Check-ins with placed students, and the referrals they bring.', cta: 'Log follow-up', select: '*, candidate:candidate_id(id,full_name), by:by_id(full_name)', order: { col: 'contacted_on' },
-    columns: [candCol, { key: 'note', label: 'Note' }, { key: 'referrals', label: 'Referrals', type: 'number' }, { key: 'by.full_name', label: 'By' }, { key: 'contacted_on', label: 'Last contact', type: 'date' }],
-    kpis: [count('Check-ins'), { label: 'Referrals', calc: (rows) => rows.reduce((a, r) => a + Number(r.referrals || 0), 0) }], person: candPerson,
+    id: 'alumni', table: 'alumni_followup', readFrom: 'alumni_summary', kind: 'Alumni follow-up', purpose: 'Everyone in the Alumni stage, their last check-in and the referrals they bring.', cta: 'Log follow-up', select: '*', order: { col: 'contacted_on' },
+    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'company', label: 'Company' }, { key: 'note', label: 'Last note', get: (r) => r.note || 'Not contacted yet' }, { key: 'referrals', label: 'Referrals', type: 'number' }, { key: 'by_name', label: 'By' }, { key: 'contacted_on', label: 'Last contact', type: 'date' }],
+    views: [{ label: 'All' }, { label: 'Not contacted yet', where: (r) => !r.id }, { label: 'Contacted', where: (r) => !!r.id }],
+    kpis: [count('Alumni'), count('Not contacted yet', (r) => !r.id), { label: 'Referrals', calc: (rows) => rows.reduce((a, r) => a + Number(r.referrals || 0), 0) }], person: candPerson,
     fields: [cand, { key: 'note', label: 'Note', type: 'textarea' }, { key: 'referrals', label: 'Referrals from them', type: 'number' }, { key: 'contacted_on', label: 'Contacted on', type: 'date' }, { key: 'by_id', label: 'By', type: 'ref', ref: 'staff', def: me('by_id') }],
-    rowTitle: (r) => r.candidate?.full_name || 'Alumni',
+    rowTitle: (r) => r.full_name || r.candidate?.full_name || 'Alumni',
   },
   plan: {
     id: 'plan', table: 'fee_plan', readFrom: 'fee_plan_summary', kind: 'Fee plan', purpose: 'Each student’s total fee, what is paid and what is still due.', cta: 'New plan', select: '*', order: { col: 'created_at' },

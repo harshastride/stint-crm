@@ -91,6 +91,13 @@ const mobile = '9' + String(Date.now()).slice(-9);
 { const r = await tele.from('follow_up').select('owner_role'); check('Telecaller sees only their team’s follow-ups', (r.data || []).every((x) => x.owner_role === 'Telecaller'), JSON.stringify(r.data)); }
 { const r = await tele.rpc('person_timeline', { p_lead: null, p_candidate: cand.id }); check('Telecaller gets no candidate timeline', (r.data || []).length === 0); }
 
+// Alumni page lists everyone in the Alumni stage, contacted or not
+{ const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
+  const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];
+  check('Every Alumni-stage candidate is on the Alumni page', al.every((c) => sum.some((x) => x.candidate_id === c.id)), al.length + ' alumni, ' + sum.length + ' rows');
+  const t = await tele.from('alumni_summary').select('candidate_id');
+  check('Telecaller does not see the alumni list', (t.data || []).length === 0, (t.data || []).length + ' rows'); }
+
 // Companies can be added from the placement form by roles that record placements
 { const place = await as('lakshmi');
   const name = 'Test Co ' + Date.now();
