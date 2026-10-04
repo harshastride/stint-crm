@@ -12,6 +12,7 @@ services:
       AP_ENGINE_EXECUTABLE_PATH: dist/packages/engine/main.js
       AP_ENVIRONMENT: prod
       AP_FRONTEND_URL: http://localhost:8080
+      AP_INTERNAL_URL: http://127.0.0.1:80   # the worker inside the container reaches the app here, not on 8080
       AP_WEBHOOK_TIMEOUT_SECONDS: 30
       AP_TRIGGER_DEFAULT_POLL_INTERVAL: 5
       AP_EXECUTION_MODE: UNSANDBOXED
