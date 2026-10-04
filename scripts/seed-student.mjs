@@ -3,10 +3,10 @@
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 
-const env = Object.fromEntries(
-  readFileSync(new URL('../.env.local', import.meta.url), 'utf8').split('\n').filter((l) => l.includes('=') && !l.trim().startsWith('#'))
+const env = { ...Object.fromEntries(
+  (() => { try { return readFileSync(new URL('../.env.local', import.meta.url), 'utf8'); } catch { return ''; } })().split('\n').filter((l) => l.includes('=') && !l.trim().startsWith('#'))
     .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-);
+), ...process.env };
 const url = env.NEXT_PUBLIC_SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
 if (!/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|host\.docker\.internal)(:\d+)?/.test(url) && !process.argv.includes('--i-know-this-is-not-production')) {
   console.error('Refusing to add a demo student to a non-local database.'); process.exit(1);

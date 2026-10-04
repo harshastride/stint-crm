@@ -9,7 +9,10 @@
     "seed": "node scripts/seed-demo.mjs && node scripts/seed-student.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "test": "node scripts/test-security.mjs && playwright test"
+    "test": "node scripts/test-security.mjs && playwright test",
+    "dev:secure": "infisical run --env=dev -- next dev -p 3100",
+    "seed:secure": "infisical run --env=dev -- npm run seed",
+    "test:secure": "infisical run --env=dev -- npm test"
   },
   "dependencies": {
     "@expo-google-fonts/poppins": "^0.4.1",

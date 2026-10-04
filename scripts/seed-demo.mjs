@@ -3,11 +3,11 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
 
-const env = Object.fromEntries(
-  fs.readFileSync(new URL('../.env.local', import.meta.url), 'utf8').split('\n')
+const env = { ...Object.fromEntries(
+  (() => { try { return fs.readFileSync(new URL('../.env.local', import.meta.url), 'utf8'); } catch { return ''; } })().split('\n')
     .filter((l) => l.includes('=') && !l.trim().startsWith('#'))
     .map((l) => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim()]),
-);
+), ...process.env };
 const url = env.NEXT_PUBLIC_SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) { console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local'); process.exit(1); }
 // Demo people must never land in the live CRM: refuse anything but a local database unless forced on purpose.

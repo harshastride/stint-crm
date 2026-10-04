@@ -12,6 +12,7 @@ Training and placement CRM for Stint Academy (single institute). The owner, Hars
 |---|---|
 | Start database | `supabase start` (API 55321, DB 55322, Studio 55323) |
 | Start app | `npm run dev` → http://localhost:3100 |
+| Start app with keys from Infisical | `npm run dev:secure` (also `seed:secure`, `test:secure`; project linked in `.infisical.json`) |
 | Wipe and rebuild database | `supabase db reset` then `npm run seed` |
 | Type check | `npm run typecheck` |
 | Security and rules tests | `node scripts/test-security.mjs` (needs seeded data; must stay 100% passing) |
