@@ -24,4 +24,5 @@ PG_META_CRYPTO_KEY=${rand(24).slice(0, 32)}
 
 # CRM app (deploy/app.env)
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<same as ANON_KEY>
-SUPABASE_SERVICE_ROLE_KEY=<same as SERVICE_ROLE_KEY>`);
+SUPABASE_SERVICE_ROLE_KEY=<same as SERVICE_ROLE_KEY>
+COACH_SSO_SECRET=${rand(32)}   # same value as the Interview Coach STINT_SSO_SECRET`);

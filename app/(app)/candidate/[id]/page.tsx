@@ -1,5 +1,11 @@
 'use client';
 import { Journey } from '@/components/Journey';
+import { Meter } from '@/components/kit/Meter';
+import { RatingSummary } from '@/components/kit/RatingSummary';
+import { PracticeCard, type PracticeAttempt } from '@/components/kit/PracticeCard';
+import { Tracker } from '@/components/kit/Tracker';
+import { FileTree } from '@/components/kit/FileTree';
+import { TagChips } from '@/components/kit/Tags';
 import { journey, type StageChange } from '@/lib/journey';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
@@ -8,6 +14,8 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Pill, cx, fmtDate, fmtDateTime, initials, money } from '@/components/ui';
 import { PageSkeleton } from '@/components/Skeletons';
+import { Reveal } from '@/components/kit/Reveal';
+import { Lock } from 'lucide-react';
 
 const GROUPS: [string, string][] = [['contact', 'Contact and address'], ['family', 'Family'], ['identity', 'Identity'], ['bank', 'Bank']];
 
@@ -28,7 +36,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
       if (!one.data) { setMissing(true); return; }
       setC(one.data);
       const ids = [id, one.data.lead_id].filter(Boolean);
-      const [p, att, notes, mocks, fb, res, docs, plan, pays, hist] = await Promise.all([
+      const [p, att, notes, mocks, fb, res, docs, plan, pays, hist, sig, plc, jobs, prac] = await Promise.all([
         db.rpc('candidate_private_get', { cid: id }),
         opt('attendance', db.from('attendance').select('day,mark').eq('candidate_id', id).order('day', { ascending: false }).limit(60)),
         opt('note', db.from('training_note').select('*, trainer:trainer_id(full_name)').eq('candidate_id', id).order('created_at', { ascending: false })),
@@ -39,9 +47,13 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         opt('plan', db.from('fee_plan_summary').select('*').eq('candidate_id', id)),
         opt('payment', db.from('fee_payment').select('*').eq('candidate_id', id).order('due_on')),
         db.from('status_history').select('to_value, at, by:by_id(full_name)').in('entity_id', ids).order('at'),
+        db.from('candidate_signature').select('png, signed_at').eq('candidate_id', id),
+        opt('placement', db.from('placement').select('*, company:company_id(name)').eq('candidate_id', id).order('created_at', { ascending: false }).limit(1)),
+        opt('placement', db.from('job_record').select('id, company, joined_on').eq('candidate_id', id)),
+        opt('practice', db.from('interview_practice').select('topic, question, overall, accuracy, fluency, completeness, wpm, filler_count, created_at').eq('candidate_id', id).order('created_at', { ascending: false }).limit(50)),
       ]);
       setPriv(p.data);
-      setData({ hist: (hist.data || []).map((h: Row) => ({ ...h, by_name: h.by?.full_name })), att: att.data || [], notes: notes.data || [], mocks: mocks.data || [], fb: fb.data || [], res: res.data || [], docs: docs.data || [], plan: plan.data || [], pays: pays.data || [] });
+      setData({ hist: (hist.data || []).map((h: Row) => ({ ...h, by_name: h.by?.full_name })), att: att.data || [], notes: notes.data || [], mocks: mocks.data || [], fb: fb.data || [], res: res.data || [], docs: docs.data || [], plan: plan.data || [], pays: pays.data || [], sig: sig.data || [], plc: plc.data || [], jobs: jobs.data || [], prac: prac.data || [] });
     })();
   }, [id, s]);
 
@@ -69,12 +81,33 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium text-muted">Candidate 360 · {c.code}</div>
           <h1 className="text-[26px] font-semibold leading-tight">{c.full_name}</h1>
-          <div className="mt-1.5 flex flex-wrap gap-1.5"><Pill>{(c.program?.name || 'No program') + (c.batch?.code ? ' · ' + c.batch.code : '')}</Pill><Pill>{'Stage: ' + c.stage}</Pill></div>
+          <div className="mt-1.5 flex flex-wrap gap-1.5"><Pill>{(c.program?.name || 'No program') + (c.batch?.code ? ' · ' + c.batch.code : '')}</Pill><Pill>{'Stage: ' + c.stage}</Pill><TagChips tags={c.tags} max={6} /></div>
         </div>
         {[['Owner', c.poc?.full_name || '—'], ['Attendance', present], ['Fee due', plan ? money(plan.balance) : '—']].map(([l, v]) => (
           <div key={l} className="rounded-xl bg-surface2 px-3.5 py-2.5"><div className="text-[11px] font-medium text-muted">{l}</div><div className="num text-base font-semibold">{v}</div></div>
         ))}
       </section>
+      {(plan || (data.docs || []).length > 0) && (
+        <section className={cx(card, 'grid gap-4 sm:grid-cols-2')} aria-label="Progress">
+          {plan && Number(plan.total) > 0 && <Meter label="Fees paid" value={Number(plan.paid)} max={Number(plan.total)} text={`${money(plan.paid)} of ${money(plan.total)}`} />}
+          {(data.docs || []).length > 0 && <Meter label="Documents in" value={(data.docs || []).filter((d) => d.status !== 'Missing').length} max={(data.docs || []).length} />}
+        </section>
+      )}
+      {(data.plc || [])[0] && (() => {
+        const pl = (data.plc || [])[0], job = (data.jobs || [])[0], dropped = pl.status === 'Dropped';
+        const joined = pl.status === 'Joined' || !!job;
+        return (
+          <section className={card} aria-label="Placement tracker">
+            <h2 className="mb-3 text-base font-semibold">Placement · {pl.company?.name || 'Company'}{pl.role ? ' · ' + pl.role : ''}</h2>
+            <Tracker label="Placement steps" steps={[
+              { label: 'Offer accepted', note: [pl.company?.name, pl.ctc_lpa ? pl.ctc_lpa + ' LPA' : '', 'recorded ' + fmtDate(pl.created_at)].filter(Boolean).join(' · '), done: true },
+              { label: 'Joining date fixed', note: pl.joining_on ? fmtDate(pl.joining_on) : 'Not fixed yet', done: !!pl.joining_on },
+              { label: dropped ? 'Dropped' : 'Joined', note: dropped ? 'The candidate did not join.' : joined ? 'Joined' + (job?.joined_on ? ' on ' + fmtDate(job.joined_on) : '') : pl.joining_on && new Date(pl.joining_on) < new Date() ? 'Joining date passed: please confirm' : 'Waiting for joining day', done: joined, bad: dropped },
+              { label: 'Job papers tracked', note: job ? 'Papers are tracked under Job papers.' : 'Starts once they join.', done: !!job },
+            ]} />
+          </section>
+        );
+      })()}
       <section className={card} aria-label="Student journey">
         <h2 className="mb-4 text-base font-semibold">Journey</h2>
         <Journey steps={journey((data.hist || []) as StageChange[], c.stage, c.created_at)} />
@@ -85,15 +118,19 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
 
       {tab === 'Profile' && (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
+          {(s.can('sme') || s.can('mock')) && ((data.fb || []).length > 0 || (data.mocks || []).some((m) => m.status === 'Passed' || m.status === 'Failed')) && <RatingSummary reviews={s.can('sme') ? data.fb || [] : []} mocks={data.mocks || []} />}
+          {s.can('practice') && <PracticeCard attempts={(data.prac || []) as unknown as PracticeAttempt[]} />}
           <section className={card}><h2 className="mb-2 text-base font-semibold">Personal</h2>
             <Lines empty="Not filled in yet." rows={[['Full name', c.full_name], ...Object.entries(c.profile || {}).filter(([, v]) => v).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()), String(v)] as [string, string]), ['Joined', fmtDate(c.joined_on)]]} />
           </section>
+          {priv?.locked && <section className={'flex items-center gap-2 rounded-2xl bg-warnBg p-4 text-[13px] font-medium text-warnText'} role="note"><Lock size={16} aria-hidden />{String(priv.locked)} — ask Admin</section>}
           {priv && GROUPS.filter(([g]) => priv.modes[g] !== 'h').map(([g, label]) => (
             <section key={g} className={card}>
               <div className="mb-2 flex items-center justify-between"><h2 className="text-base font-semibold">{label}</h2>
                 <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-semibold', priv.modes[g] === 'f' ? 'bg-goodBg text-goodText' : 'bg-warnBg text-warnText')}>{priv.modes[g] === 'f' ? 'Full' : priv.modes[g] === 'm' ? 'Masked for ' + s.staff.role : 'Hidden for ' + s.staff.role}</span></div>
               {priv.modes[g] === 'h' ? <p className="text-text2">Your role can’t see this part.</p>
-                : <Lines empty="Not filled in yet." rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()), <span key={k} className="num">{String(v)}</span>])} />}
+                : <Lines empty="Not filled in yet." rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()),
+                    g === 'contact' && priv.modes[g] === 'm' ? <Reveal key={k} kind="candidate" id={id} field={k} label={k.replace(/_/g, ' ')} masked={String(v ?? '')} /> : <span key={k} className="num">{String(v)}</span>])} />}
             </section>
           ))}
         </div>
@@ -113,10 +150,20 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         </div>
       )}
       {tab === 'Resume' && <section className={card}><Lines empty="No resume versions yet." rows={(data.res || []).map((r) => ['Resume ' + r.version + (r.reason ? ' · ' + r.reason : ''), <Pill key={r.id}>{r.status}</Pill>, (r.reviewer?.full_name || '') + ' · ' + fmtDate(r.created_at)])} /></section>}
-      {tab === 'Documents' && <section className={card}><Lines empty="No documents requested yet." rows={(data.docs || []).map((d) => [d.doc_type, <Pill key={d.id}>{d.status}</Pill>, d.verified_at ? 'Verified ' + fmtDate(d.verified_at) : ''])} /></section>}
+      {tab === 'Documents' && <section className={card}><FileTree label="Candidate files" folders={[
+        { id: 'f-doc', name: 'Identity & education', files: (data.docs || []).map((d) => ({ id: 'd-' + d.id, name: d.doc_type, path: d.file_path || null, status: d.status, note: d.verified_at ? 'Verified ' + fmtDate(d.verified_at) : '' })) },
+        ...(s.can('resume') ? [{ id: 'f-res', name: 'Resumes', files: (data.res || []).filter((r) => r.file_path).map((r) => ({ id: 'r-' + r.id, name: r.version, path: r.file_path, status: r.status })) }] : []),
+      ]} /></section>}
       {tab === 'Fees' && (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
           <section className={card}><h2 className="mb-2 text-base font-semibold">Fee plan</h2><Lines empty="No fee plan yet." rows={plan ? [['Total', <span key="t" className="num">{money(plan.total)}</span>], ['Paid', <span key="p" className="num">{money(plan.paid)}</span>], ['Balance', <span key="b" className="num">{money(plan.balance)}</span>], ['Plan', plan.plan]] : []} /></section>
+          <section className={card}><h2 className="mb-2 text-base font-semibold">Fee agreement signature</h2>
+            {(data.sig || [])[0] ? <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={(data.sig || [])[0].png} alt={'Signature of ' + c.full_name} className="h-24 w-auto rounded-lg border border-line bg-white p-1" />
+              <p className="mt-1.5 text-[12.5px] text-text2">Signed in the student portal on {fmtDate((data.sig || [])[0].signed_at)}.</p>
+            </> : <p className="text-text2">Not signed yet. The student signs in the portal.</p>}
+          </section>
           {s.can('payment') && <section className={card}><h2 className="mb-2 text-base font-semibold">Payments</h2><Lines empty="No payments yet." rows={(data.pays || []).map((p) => [money(p.amount) + (p.mode ? ' · ' + p.mode : ''), <Pill key={p.id}>{p.status}</Pill>, p.paid_on ? 'Paid ' + fmtDate(p.paid_on) : 'Due ' + fmtDate(p.due_on)])} /></section>}
         </div>
       )}

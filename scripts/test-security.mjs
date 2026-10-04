@@ -16,6 +16,7 @@ const check = (name, ok, detail = '') => { ok ? pass++ : fail++; console.log((ok
 
 const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const admin = await as('harsha'), tele = await as('teja'), sales = await as('manish'), trainer = await as('kiran'), fin = await as('suresh'), desk = await as('anita'), hr = await as('praveen'), mkt = await as('divya');
+const service = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }); // reads lead.mobile (staff cannot since 047)
 
 // 1. Not logged in: nothing
 { const r = await anon.from('lead').select('id'); check('Visitor without login reads no leads', (r.data || []).length === 0 || !!r.error); }
@@ -28,7 +29,7 @@ const admin = await as('harsha'), tele = await as('teja'), sales = await as('man
 { const r = await mkt.from('candidate').select('id'); check('Marketing sees no candidates', (r.data || []).length === 0); }
 { const r = await tele.from('lead').select('id,stage').limit(1); check('Telecaller sees leads', (r.data || []).length === 1); }
 { const one = (await admin.from('lead').select('id,city').limit(1)).data[0];
-  const r = await mkt.from('lead').update({ city: 'Hacked' }).eq('id', one.id).select();
+  const r = await mkt.from('lead').update({ city: 'Hacked' }).eq('id', one.id).select('id');
   check('Marketing (view only) cannot edit a lead', (r.data || []).length === 0);
   const r2 = await trainer.from('fee_payment').insert({ candidate_id: one.id, amount: 1 });
   check('Trainer cannot add a payment', !!r2.error); }
@@ -86,7 +87,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const ap = (await admin.from('fee_quote').select('needs_approval, approved_by').eq('id', q.data.id).single()).data;
   check('Admin approves the quote', !ok.error && ap.needs_approval === false && !!ap.approved_by, ok.error?.message);
   await sales.from('fee_quote').update({ status: 'Accepted' }).eq('id', q.data.id);
-  const mv = await sales.from('lead').update({ stage: 'Converted' }).eq('id', r.data.id).select();
+  const mv = await sales.from('lead').update({ stage: 'Converted' }).eq('id', r.data.id).select('id');
   check('Sales can convert the lead', (mv.data || []).length === 1, mv.error?.message);
   const c = (await admin.from('candidate').select('id, code, stage, lead_id').eq('lead_id', r.data.id)).data;
   check('Conversion created exactly one candidate', c.length === 1 && c[0].stage === 'Enrolled' && /^STA-/.test(c[0].code), JSON.stringify(c));
@@ -104,8 +105,15 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Follow-ups were raised for front desk, HR and finance', fu.length === 3);
   const h = (await admin.from('status_history').select('*').eq('entity_id', r.data.id)).data;
   check('Stage change is in status history', h.some((x) => x.to_value === 'Converted' && x.person_name === 'Test Walkin'));
-  const pv = await hr.rpc('candidate_private_get', { cid: c[0].id });
-  check('Mobile carried over to the candidate', pv.data?.contact?.mobile === mobile);
+  // HR sees contact masked now; the full number comes only through Show (reveal_contact, logged)
+  const pv = await hr.rpc('reveal_contact', { p_kind: 'candidate', p_id: c[0].id, p_field: 'mobile' });
+  check('Mobile carried over to the candidate', pv.data === mobile, pv.error?.message);
+  const masked = await hr.rpc('candidate_private_get', { cid: c[0].id });
+  check('HR sees the carried-over mobile masked until Show', String(masked.data?.contact?.mobile || '').includes('•'));
+  await hr.rpc('candidate_private_set', { cid: c[0].id, grp: 'contact', data: { mobile: masked.data?.contact?.mobile } });
+  const still = await service.rpc('candidate_private_get', { cid: c[0].id });
+  const raw = (await service.from('candidate_private').select('contact').eq('candidate_id', c[0].id).single()).data;
+  check('Saving a masked value never overwrites the real number', raw?.contact?.mobile === mobile, JSON.stringify(still.error));
   await sales.from('lead').update({ stage: 'Counselling' }).eq('id', r.data.id); await sales.from('lead').update({ stage: 'Converted' }).eq('id', r.data.id);
   const again = (await admin.from('candidate').select('id').eq('lead_id', r.data.id)).data;
   check('Converting twice does not create a second candidate', again.length === 1);
@@ -128,7 +136,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const theirs = (await admin.from('lead').select('id').neq('owner_id', pid).limit(1).single()).data;
   const calls = await pooja.from('call_log').select('lead_id');
   check('Junior telecaller sees call logs only for their own leads', (calls.data || []).every((c) => pl.some((l) => l.id === c.lead_id)));
-  const upd = await pooja.from('lead').update({ city: 'X' }).eq('id', theirs.id).select();
+  const upd = await pooja.from('lead').update({ city: 'X' }).eq('id', theirs.id).select('id');
   check('Junior telecaller cannot change someone else\'s lead', (upd.data || []).length === 0);
   const hrj = await as('kiran');
   const kc = (await hrj.from('candidate').select('id')).data || [];
@@ -258,7 +266,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   else {
     check('Incoming lead with a wrong key is refused', bad.status === 401);
     const ok = await post(cfg.incoming_api_key, { full_name: 'Meta Lead', mobile: '+91 ' + m2, source: 'Meta lead form', course: 'Python', marketing_consent: true });
-    const row = (await admin.from('lead').select('id, owner_id, source:source_id(name), marketing_consent, program:program_id(name)').eq('mobile', m2).single()).data;
+    const row = (await service.from('lead').select('id, owner_id, source:source_id(name), marketing_consent, program:program_id(name)').eq('mobile', m2).single()).data;
     check('Incoming lead is created, tagged with its source and assigned', ok.status === 201 && row?.source?.name === 'Meta lead form' && !!row?.owner_id && row?.program?.name === 'Python' && row?.marketing_consent === true, JSON.stringify(ok.json));
     const again = await post(cfg.incoming_api_key, { full_name: 'Meta Lead', mobile: m2, source: 'Google lead form' });
     const notes = (await admin.from('note').select('body').eq('lead_id', row.id)).data || [];
@@ -329,7 +337,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
 
     // Android companion upload
     const key = (await svc.from('integration_config').select('value').eq('key', 'incoming_api_key').single()).data.value;
-    const leadMobile = (await admin.from('lead').select('mobile').eq('id', myLead.id).single()).data.mobile;
+    const leadMobile = (await service.from('lead').select('mobile').eq('id', myLead.id).single()).data.mobile;
     const form = (consent) => { const f = new FormData(); f.append('audio', new Blob(['fake'], { type: 'audio/mp4' }), 'call.m4a'); f.append('staff_email', 'teja@demo.stint.local'); f.append('number', '+91' + leadMobile); f.append('duration_sec', '42'); f.append('direction', 'out'); if (consent) f.append('consent', 'yes'); return f; };
     const bad = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { 'x-api-key': 'nope' }, body: form(true) }).then((x) => x.status);
     const noC = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { 'x-api-key': key }, body: form(false) }).then((x) => x.status);
@@ -430,10 +438,255 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const other = (await svc.from('candidate').select('id').neq('id', c.id).limit(1).single()).data;
   const up = await st.storage.from('candidate-files').upload(`${other.id}/doc/x.pdf`, new Blob(['x']));
   check('A student cannot upload into another student’s files', !!up.error);
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+  const sg = await st.rpc('portal_sign', { p_png: png });
+  check('A student can sign their fee agreement', !sg.error, sg.error?.message);
+  const sg2 = await st.rpc('portal_sign', { p_png: png });
+  check('A student cannot sign twice', !!sg2.error);
+  const notStudent = await tele.rpc('portal_sign', { p_png: png });
+  check('Staff cannot sign as a student', !!notStudent.error);
+  const seenAdmin = (await admin.from('candidate_signature').select('candidate_id').eq('candidate_id', c.id)).data || [];
+  const seenTele = (await tele.from('candidate_signature').select('candidate_id')).data || [];
+  check('Admin sees the signature; Telecaller sees none', seenAdmin.length === 1 && seenTele.length === 0, seenAdmin.length + '/' + seenTele.length);
   await svc.from('candidate').update({ stage: 'Placed' }).eq('id', c.id);
   const locked = await st.rpc('portal_save', { p_profile: { x: 1 }, p_education: null, p_experience: null, p_private: {} });
   check('Details are locked once the student moves past Training', !!locked.error);
   await svc.auth.admin.deleteUser(u.id); await svc.from('candidate').delete().eq('id', c.id); }
+
+// Activity heatmap: your own counts; someone else's only for Admin and team heads. Tags come from a dropdown list.
+{ const own = await tele.rpc('staff_activity', {});
+  check('Staff can see their own activity counts', !own.error, own.error?.message);
+  const harsha = (await admin.from('staff').select('id').eq('email', 'harsha@demo.stint.local').single()).data;
+  const other = await tele.rpc('staff_activity', { p_staff: harsha.id });
+  check('A Telecaller cannot see someone else\u2019s activity', !!other.error);
+  const byAdmin = await admin.rpc('staff_activity', { p_staff: harsha.id });
+  check('Admin can see anyone\u2019s activity', !byAdmin.error, byAdmin.error?.message);
+  const tags = (await tele.from('dropdown_value').select('value').eq('list_id', 'tag')).data || [];
+  check('Tag choices come from the Tags dropdown list', tags.length > 0, tags.length + ' tags'); }
+
+// Announcements: everyone reads, only Admin posts. "Who's viewing": you write only your own row.
+{ const a = await admin.from('announcement').insert({ message: 'Test notice', tone: 'Info' }).select('id').single();
+  check('Admin can post an announcement', !a.error, a.error?.message);
+  const seen = (await tele.from('announcement').select('id').eq('id', a.data?.id)).data || [];
+  check('Every staff member sees announcements', seen.length === 1);
+  const t = await tele.from('announcement').insert({ message: 'Tele notice' });
+  check('A Telecaller cannot post announcements', !!t.error);
+  await admin.from('announcement').delete().eq('id', a.data?.id);
+  const lead = (await tele.from('lead').select('id').limit(1).single()).data;
+  const me = (await tele.from('staff').select('id').eq('email', 'teja@demo.stint.local').single()).data;
+  const own = await tele.from('viewing').upsert({ staff_id: me.id, kind: 'lead', entity_id: lead.id });
+  check('Staff can mark a lead as being viewed by them', !own.error, own.error?.message);
+  const harsha = (await admin.from('staff').select('id').eq('email', 'harsha@demo.stint.local').single()).data;
+  const fake = await tele.from('viewing').insert({ staff_id: harsha.id, kind: 'lead', entity_id: lead.id });
+  check('Staff cannot pretend someone else is viewing', !!fake.error);
+  const deskSees = (await desk.from('viewing').select('staff_id').eq('kind', 'lead')).data || [];
+  const deskCanLead = (await desk.from('lead').select('id').limit(1)).data?.length;
+  check('Viewing is visible only to roles that can open that page', deskCanLead || deskSees.length === 0, deskSees.length + ' rows');
+  await tele.from('viewing').delete().eq('staff_id', me.id);
+  const ob = await tele.rpc('my_onboarding');
+  check('Onboarding checklist reads your own progress', !ob.error && typeof ob.data?.call === 'boolean', ob.error?.message); }
+
+// Only the assigned person (or their own team head) decides: resume approval, mock result, follow-up done, document verifier
+{ const id = async (login) => (await admin.from('staff').select('id').eq('email', login + '@demo.stint.local').single()).data.id;
+  const [praveenId, kiranId, harshaId] = [await id('praveen'), await id('kiran'), await id('harsha')];
+  const cand = (await admin.from('candidate').select('id').limit(1).single()).data;
+  const early = await admin.from('resume_version').insert({ candidate_id: cand.id, version: 'vSec', reviewer_id: praveenId, status: 'Approved' });
+  check('Nobody can add a resume already approved for someone else', !!early.error, 'insert allowed');
+  const r = (await admin.from('resume_version').insert({ candidate_id: cand.id, version: 'vSec', reviewer_id: praveenId }).select('id, status').single()).data;
+  check('A new resume starts Pending', r?.status === 'Pending', r?.status);
+  const byAdmin = await admin.from('resume_version').update({ status: 'Approved' }).eq('id', r.id).select('id');
+  check('Admin cannot approve a resume assigned to Praveen', !!byAdmin.error, 'update allowed');
+  check('…and the message names the reviewer', /Praveen/.test(byAdmin.error?.message || ''), byAdmin.error?.message);
+  const byHr = await hr.from('resume_version').update({ status: 'Approved' }).eq('id', r.id).select('id');
+  check('Praveen (the reviewer) can approve it', !byHr.error && byHr.data?.length === 1, byHr.error?.message);
+  const steal = await tele.from('resume_version').update({ reviewer_id: (await id('teja')) }).eq('id', r.id).select('id');
+  check('A Telecaller cannot make themselves the reviewer', !!steal.error || !steal.data?.length, 'reassigned');
+  await admin.from('resume_version').delete().eq('id', r.id);
+  const m = (await admin.from('mock_session').insert({ candidate_id: cand.id, trainer_id: kiranId, scheduled_at: new Date().toISOString() }).select('id').single()).data;
+  const mAdmin = await admin.from('mock_session').update({ status: 'Passed' }).eq('id', m.id).select('id');
+  check('Admin cannot mark Kiran\u2019s mock as Passed', !!mAdmin.error);
+  const mKiran = await trainer.from('mock_session').update({ status: 'Passed' }).eq('id', m.id).select('id');
+  check('Kiran (the mock trainer) can mark it Passed', !mKiran.error && mKiran.data?.length === 1, mKiran.error?.message);
+  await admin.from('mock_session').delete().eq('id', m.id);
+  const f = (await admin.from('follow_up').insert({ title: 'Sec follow-up', candidate_id: cand.id, owner_id: kiranId, owner_role: 'Trainer' }).select('id').single()).data;
+  const fSales = await sales.from('follow_up').update({ status: 'Done' }).eq('id', f.id).select('id');
+  check('Someone else cannot close Kiran\u2019s follow-up', !!fSales.error || !fSales.data?.length);
+  const fKiran = await trainer.from('follow_up').update({ status: 'Done' }).eq('id', f.id).select('id');
+  check('Kiran can close their own follow-up', !fKiran.error && fKiran.data?.length === 1, fKiran.error?.message);
+  await admin.from('follow_up').delete().eq('id', f.id);
+  const d = (await admin.from('candidate_document').insert({ candidate_id: cand.id, doc_type: 'Sec doc', status: 'Verified', verified_by: praveenId }).select('verified_by').single()).data;
+  check('"Verified by" is always the person who verified it', d?.verified_by === harshaId, d?.verified_by);
+  await admin.from('candidate_document').delete().eq('doc_type', 'Sec doc'); }
+
+// Program comparison: Sales gets aggregate numbers only; students and visitors get nothing
+{ const r = await sales.rpc('program_stats');
+  const keys = new Set((r.data || []).flatMap((x) => Object.keys(x)));
+  const allowed = ['program_id', 'name', 'fee', 'duration_weeks', 'enrolled', 'placed', 'placement_rate', 'avg_ctc_lpa'];
+  check('Sales can compare programs', !r.error && (r.data || []).length > 0, r.error?.message);
+  check('Program comparison returns no people', [...keys].every((k) => allowed.includes(k)) && !JSON.stringify(r.data).includes('Priya'), [...keys].join(','));
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const email = `pstat${Date.now()}@example.com`, pw = 'Student-pstat-12345';
+  const c = (await svc.from('candidate').insert({ code: 'STA-PS-' + String(Date.now()).slice(-5), full_name: 'Stats Sec', stage: 'Enrolled' }).select('id').single()).data;
+  const u = (await svc.auth.admin.createUser({ email, password: pw, email_confirm: true })).data.user;
+  await svc.from('student_account').insert({ user_id: u.id, candidate_id: c.id, must_change_password: false });
+  const st = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_ANON_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  await st.auth.signInWithPassword({ email, password: pw });
+  const sr = await st.rpc('program_stats');
+  check('A student cannot compare programs', !!sr.error || (sr.data || []).length === 0);
+  const ar = await anon.rpc('program_stats');
+  check('A visitor cannot compare programs', !!ar.error || (ar.data || []).length === 0);
+  await svc.from('student_account').delete().eq('user_id', u.id); await svc.auth.admin.deleteUser(u.id); await svc.from('candidate').delete().eq('id', c.id); }
+
+// Student portal, more: feedback, resumes, notifications, practice — own record only. Practice page for training roles only.
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const sme = await as('hemanth');
+  const email = `pmore${Date.now()}@example.com`, pw = 'Student-pmore-12345', tag = String(Date.now()).slice(-6);
+  const c = (await svc.from('candidate').insert({ code: 'STA-PM-' + tag, full_name: 'Portal More', stage: 'Training' }).select('id').single()).data;
+  const other = (await svc.from('candidate').select('id').neq('id', c.id).limit(1).single()).data;
+  const u = (await svc.auth.admin.createUser({ email, password: pw, email_confirm: true })).data.user;
+  await svc.from('student_account').insert({ user_id: u.id, candidate_id: c.id, must_change_password: false });
+  const st = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  await st.auth.signInWithPassword({ email, password: pw });
+  await svc.from('sme_feedback').insert([{ candidate_id: c.id, rating: 4, verdict: 'Good', comments: 'Mine' }, { candidate_id: other.id, rating: 1, verdict: 'Other', comments: 'NotMine-' + tag }]);
+  await svc.from('resume_version').insert([{ candidate_id: c.id, version: 'vPM' }, { candidate_id: other.id, version: 'vPM-other-' + tag }]);
+  await svc.from('interview_practice').insert([{ candidate_id: c.id, attempt_ref: 'pm-own-' + tag, topic: 'SQL', overall: 78 }, { candidate_id: other.id, attempt_ref: 'pm-oth-' + tag, topic: 'Other' }]);
+  const fb = await st.rpc('portal_feedback'), rs = await st.rpc('portal_resumes'), pr = await st.rpc('portal_practice');
+  check('A student sees their own feedback only', fb.data?.reviews?.length === 1 && Array.isArray(fb.data?.mocks) && !JSON.stringify(fb.data).includes('NotMine'), fb.error?.message || JSON.stringify(fb.data));
+  check('A student sees their own resumes only', rs.data?.length === 1 && rs.data[0].version === 'vPM', rs.error?.message || JSON.stringify(rs.data));
+  check('A student sees their own practice scores only', pr.data?.length === 1 && Number(pr.data[0].overall) === 78, pr.error?.message || JSON.stringify(pr.data));
+  const staffFb = await tele.rpc('portal_feedback'), staffRs = await tele.rpc('portal_resumes');
+  check('Staff get nothing from portal feedback and resumes', staffFb.data == null && (staffRs.data || []).length === 0);
+  const ins = await st.from('interview_practice').insert({ candidate_id: c.id, attempt_ref: 'pm-fake-' + tag, overall: 100 });
+  check('A student cannot add practice scores', !!ins.error);
+  const sn = (await st.from('student_notification').select('id')).data || [];
+  check('A student cannot read the notification table directly', sn.length === 0);
+  // resume files
+  const own = `${c.id}/resume/sec-${tag}.pdf`, oth = `${other.id}/resume/sec-${tag}.pdf`;
+  await svc.storage.from('candidate-files').upload(own, new Blob(['x'])); await svc.storage.from('candidate-files').upload(oth, new Blob(['y']));
+  const d1 = await st.storage.from('candidate-files').download(own), d2 = await st.storage.from('candidate-files').download(oth);
+  check('A student can open their own resume file', !d1.error, d1.error?.message);
+  check('A student cannot open another student’s resume file', !!d2.error);
+  const up = await st.storage.from('candidate-files').upload(`${c.id}/resume/up-${tag}.pdf`, new Blob(['z']));
+  check('A student cannot upload into the resume folder', !!up.error);
+  await svc.storage.from('candidate-files').remove([own, oth]);
+  // notifications from staff actions
+  const doc = (await admin.from('candidate_document').insert({ candidate_id: c.id, doc_type: 'PAN', status: 'Missing' }).select('id').single()).data;
+  await admin.from('candidate_document').update({ status: 'Verified' }).eq('id', doc.id);
+  const ns = await st.rpc('portal_notifications');
+  const titles = (ns.data || []).map((n) => n.title);
+  check('Verifying a document notifies the student', titles.includes('Your PAN was verified') && titles.includes('Please upload: PAN'), titles.join(' | '));
+  check('Practice and resume events notify the student', titles.some((t) => t.startsWith('Practice score saved: 78/100')) && titles.includes('A new resume version was added'), titles.join(' | '));
+  const one = ns.data[0].id;
+  const r1 = await st.rpc('portal_notifications_read', { p_ids: [one] });
+  const after1 = (await st.rpc('portal_notifications')).data;
+  check('A student can mark one notification read', !r1.error && after1.filter((n) => n.read_at).length === 1, r1.error?.message);
+  await st.rpc('portal_notifications_read', { p_ids: null });
+  const after2 = (await st.rpc('portal_notifications')).data;
+  check('A student can mark all notifications read', after2.every((n) => n.read_at));
+  const otherN = (await tele.rpc('portal_notifications')).data || [];
+  check('Staff get no portal notifications', otherN.length === 0);
+  // practice page: training roles only
+  for (const [name, cl] of [['Telecaller', tele], ['Sales', sales], ['Front desk', desk]]) {
+    const r = (await cl.from('interview_practice').select('id')).data || [];
+    check(`${name} cannot read interview practice`, r.length === 0, r.length + ' rows');
+  }
+  const refs = [];
+  for (const [name, cl] of [['Trainer', trainer], ['SME', sme], ['HR', hr]]) {
+    const seen = (await cl.from('candidate').select('id').limit(1)).data?.[0];
+    const ref = `pm-${name}-${tag}`; refs.push(ref);
+    if (seen) await svc.from('interview_practice').insert({ candidate_id: seen.id, attempt_ref: ref, overall: 50 });
+    const r = (await cl.from('interview_practice').select('id').eq('attempt_ref', ref)).data || [];
+    check(`${name} can read interview practice for a student they see`, r.length === 1, seen ? r.length + ' rows' : 'sees no candidate');
+  }
+  await svc.from('interview_practice').delete().in('attempt_ref', refs);
+  await svc.from('interview_practice').delete().like('attempt_ref', 'pm-oth-' + tag);
+  await svc.from('sme_feedback').delete().eq('comments', 'NotMine-' + tag);
+  await svc.from('resume_version').delete().eq('version', 'vPM-other-' + tag);
+  await svc.auth.admin.deleteUser(u.id); await svc.from('candidate').delete().eq('id', c.id); }
+
+// Document paths for the portal: staff get nothing (only a student's own paths come back)
+{ const dp = await admin.rpc('portal_document_paths');
+  check('portal_document_paths returns nothing for staff', !dp.error && Array.isArray(dp.data) && dp.data.length === 0, JSON.stringify(dp.error || dp.data)); }
+
+// A2 · 30-day rule (migration 048): non-Admin staff do not see closed / old history; Admin sees all
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
+  const tag = 'A2-' + Date.now();
+  const manishId = (await svc.from('staff').select('id').eq('email', 'manish@demo.stint.local').single()).data.id;
+  const sm = String(Date.now()).slice(-9);
+  const closed = (await svc.from('lead').insert({ full_name: 'Old Closed ' + tag, mobile: '8' + sm, stage: 'Not interested', owner_id: manishId }).select('id').single()).data;
+  await svc.from('lead').update({ stage_changed_at: ago(31) }).eq('id', closed.id);
+  const open = (await svc.from('lead').insert({ full_name: 'Open ' + tag, mobile: '7' + sm, stage: 'Interested', owner_id: manishId }).select('id').single()).data;
+  for (const [who, c] of [['Telecaller', tele], ['Sales', sales]]) {
+    const r = await c.from('lead').select('id').eq('id', closed.id); check(who + ' cannot see a lead closed 31 days ago', (r.data || []).length === 0); }
+  { const r = await admin.from('lead').select('id').eq('id', closed.id); check('Admin still sees a lead closed 31 days ago', (r.data || []).length === 1); }
+  await svc.from('call_log').insert({ lead_id: open.id, caller_id: manishId, outcome: 'Connected', notes: tag, called_at: ago(31) });
+  await svc.from('note').insert([{ lead_id: open.id, kind: 'Note', body: 'old ' + tag, by_id: manishId, created_at: ago(31) },
+                                 { lead_id: open.id, kind: 'Note', body: 'recent ' + tag, by_id: manishId, created_at: ago(29) }]);
+  { const s = await sales.from('call_log').select('id').eq('lead_id', open.id), a = await admin.from('call_log').select('id').eq('lead_id', open.id);
+    check('31-day-old call: hidden from Sales, Admin sees it', (s.data || []).length === 0 && (a.data || []).length === 1, JSON.stringify([s.data, a.data])); }
+  { const s = (await sales.from('note').select('body').eq('lead_id', open.id)).data || [], a = (await admin.from('note').select('body').eq('lead_id', open.id)).data || [];
+    check('31-day-old note hidden from Sales, 29-day-old still shown', s.length === 1 && s[0].body === 'recent ' + tag, JSON.stringify(s));
+    check('Admin sees both old and recent notes', a.length === 2); }
+  await svc.from('follow_up').insert([{ title: 'Done ' + tag, lead_id: open.id, owner_id: manishId, status: 'Done', due_at: ago(31), created_at: ago(31) },
+                                      { title: 'Open ' + tag, lead_id: open.id, owner_id: manishId, status: 'Open', due_at: ago(31), created_at: ago(31) }]);
+  { const s = (await sales.from('follow_up').select('title').eq('lead_id', open.id)).data || [];
+    check('Old Done follow-up hidden from its owner, old Open one still shown', s.length === 1 && s[0].title === 'Open ' + tag, JSON.stringify(s)); }
+  { const s = (await sales.rpc('person_timeline', { p_lead: open.id, p_candidate: null })).data || [];
+    const a = (await admin.rpc('person_timeline', { p_lead: open.id, p_candidate: null })).data || [];
+    check('Timeline: Sales does not get the 31-day-old note, Admin does', !s.some((x) => x.body === 'old ' + tag) && s.some((x) => x.body === 'recent ' + tag) && a.some((x) => x.body === 'old ' + tag), JSON.stringify(s.map((x) => x.body))); }
+  { const c1 = (await svc.from('candidate').select('id').limit(1).single()).data;
+    const p = (await svc.from('fee_payment').insert({ candidate_id: c1.id, amount: 1, status: 'Paid', created_at: ago(40) }).select('id').single());
+    const r = await fin.from('fee_payment').select('id').eq('id', p.data?.id);
+    check('40-day-old payment still visible to Finance', (r.data || []).length === 1, JSON.stringify(p.error || r.error));
+    if (p.data) await svc.from('fee_payment').delete().eq('id', p.data.id); }
+  await svc.from('follow_up').delete().eq('lead_id', open.id); await svc.from('note').delete().eq('lead_id', open.id);
+  await svc.from('call_log').delete().eq('lead_id', open.id); await svc.from('alert').delete().in('lead_id', [open.id, closed.id]);
+  await svc.from('status_history').delete().in('entity_id', [open.id, closed.id]);
+  await svc.from('lead').delete().in('id', [open.id, closed.id]); }
+
+// A1 · time-limited access: lead contact hidden, tap-to-reveal logged, stage and Alumni locks (migration 047)
+{ const tejaId = (await tele.auth.getUser()).data.user.id;
+  const m = '9' + String(Date.now() + 7).slice(-9);
+  const nl = (await service.from('lead').insert({ full_name: 'Reveal Test', mobile: m, owner_id: tejaId, created_by: tejaId }).select('id').single()).data;
+  const raw = await tele.from('lead').select('mobile').eq('id', nl.id);
+  check('A1 Telecaller cannot read lead.mobile directly', !!raw.error, JSON.stringify(raw.data));
+  const ll = await tele.from('lead_list').select('id, mobile_masked').eq('id', nl.id).maybeSingle();
+  check('A1 lead_list gives a masked mobile', ll.data?.mobile_masked === '•••••' + m.slice(-4), JSON.stringify(ll));
+  const sp = await tele.rpc('search_people', { p_kind: 'lead', p_term: m.slice(-5) });
+  const hit = (sp.data || []).find((x) => x.id === nl.id);
+  check('A1 search_people finds a lead by mobile digits, masked', !!hit && hit.mobile_masked.includes('•') && !JSON.stringify(sp.data).includes(m), JSON.stringify(sp));
+  const rv = await tele.rpc('reveal_contact', { p_kind: 'lead', p_id: nl.id, p_field: 'mobile' });
+  check('A1 Telecaller reveals a New lead mobile', rv.data === m, rv.error?.message);
+  const lg = await admin.from('data_access_log').select('staff_id, field').eq('entity_id', nl.id);
+  check('A1 reveal is logged and Admin can read the log', (lg.data || []).some((x) => x.staff_id === tejaId && x.field === 'mobile'), JSON.stringify(lg));
+  const lgT = await tele.from('data_access_log').select('id').eq('entity_id', nl.id);
+  check('A1 Telecaller cannot read the access log', (lgT.data || []).length === 0);
+  await service.from('lead').update({ stage: 'Counselling', owner_id: tejaId }).eq('id', nl.id);
+  const rv2 = await tele.rpc('reveal_contact', { p_kind: 'lead', p_id: nl.id, p_field: 'mobile' });
+  const cs = await tele.rpc('contact_status', { p_kind: 'lead', p_id: nl.id });
+  check('A1 reveal refused once the lead leaves the Telecaller stages', !!rv2.error && /Only while/.test(rv2.error.message) && cs.data?.allowed === false, rv2.error?.message || 'revealed');
+  const rvA = await admin.rpc('reveal_contact', { p_kind: 'lead', p_id: nl.id, p_field: 'mobile' });
+  check('A1 Admin can always reveal', rvA.data === m, rvA.error?.message);
+  await service.from('data_access_log').delete().eq('entity_id', nl.id);
+  await service.from('status_history').delete().eq('entity_id', nl.id);
+  await service.from('follow_up').delete().eq('lead_id', nl.id);
+  await service.from('lead').delete().eq('id', nl.id); }
+{ const pr = (await service.from('candidate').select('id').eq('full_name', 'Priya Reddy').single()).data;
+  const g = await hr.rpc('candidate_private_get', { cid: pr.id });
+  check('A1 HR (full mode) still gets contact masked', g.data?.modes?.contact === 'f' && /•/.test(g.data?.contact?.mobile || ''), JSON.stringify(g.data?.contact));
+  const al = (await service.from('candidate').select('id, stage_changed_at').eq('stage', 'Alumni').limit(1).single()).data;
+  await service.from('candidate').update({ stage_changed_at: new Date(Date.now() - 11 * 864e5).toISOString() }).eq('id', al.id);
+  const hrR = await hr.rpc('reveal_contact', { p_kind: 'candidate', p_id: al.id, p_field: 'mobile' });
+  check('A1 HR cannot reveal an Alumni locked for 11 days', !!hrR.error && /Alumni/.test(hrR.error.message), hrR.error?.message || 'revealed');
+  const hrG = await hr.rpc('candidate_private_get', { cid: al.id });
+  check('A1 Alumni lock hides all private groups', !!hrG.data?.locked && hrG.data.contact === null && hrG.data.bank === null && hrG.data.family === null, JSON.stringify(hrG.data));
+  const st = await hr.rpc('contact_status', { p_kind: 'candidate', p_id: al.id });
+  check('A1 contact_status says not allowed, with a reason', st.data?.allowed === false && !!st.data?.reason, JSON.stringify(st.data));
+  const adR = await admin.rpc('reveal_contact', { p_kind: 'candidate', p_id: al.id, p_field: 'mobile' });
+  check('A1 Admin can reveal a locked Alumni', !adR.error && !!adR.data, adR.error?.message);
+  await service.from('candidate').update({ stage_changed_at: al.stage_changed_at }).eq('id', al.id);
+  await service.from('data_access_log').delete().eq('entity_id', al.id); }
 
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
@@ -452,6 +705,29 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const t = await tele.from('company').insert({ name: name + ' tele' });
   check('Telecaller cannot add companies', !!t.error, 'insert was allowed');
   await admin.from('company').delete().eq('id', r.data?.id); }
+
+// KPI trends (migration 050): one row per day, metrics hidden when the page is not readable
+{ const a = await admin.rpc('kpi_trends', { days: 60 });
+  check('Admin gets 60 days of KPI trends', !a.error && (a.data || []).length === 60 && a.data.every((r) => r.leads != null && r.collected != null), a.error?.message);
+  const t = await tele.rpc('kpi_trends', { days: 30 });
+  check('Telecaller trends hide fees collected', !t.error && (t.data || []).every((r) => r.collected == null), t.error?.message);
+  const an = await anon.rpc('kpi_trends', { days: 30 });
+  check('Signed-out users cannot read KPI trends', !!an.error || (an.data || []).length === 0, 'rows returned'); }
+
+// Week calendar feed (migration 051): row security of the source tables applies; signed-out gets nothing
+{ const from = new Date(Date.now() - 200 * 864e5).toISOString(), to = new Date(Date.now() + 200 * 864e5).toISOString();
+  const kinds = async (c) => { const r = await c.from('calendar_feed').select('kind').gte('starts_at', from).lt('starts_at', to).limit(5000); return { error: r.error, set: new Set((r.data || []).map((x) => x.kind)) }; };
+  const a = await kinds(admin);
+  check('Admin reads the calendar feed', !a.error, a.error?.message);
+  const f = await kinds(fin);
+  check('Finance sees no mock interviews or counselling in the calendar', !f.error && !f.set.has('interview') && !f.set.has('counsel'), [...f.set].join(','));
+  const t = await kinds(tele);
+  check('Telecaller sees no mock interviews in the calendar', !t.error && !t.set.has('interview'), [...t.set].join(','));
+  const an = await anon.from('calendar_feed').select('kind').limit(1);
+  check('Signed-out users cannot read the calendar feed', !!an.error || (an.data || []).length === 0, 'rows returned');
+  const b1 = (await admin.from('batch').select('id').limit(1)).data?.[0];
+  const bad = b1 ? await admin.from('batch').update({ class_days: [9] }).eq('id', b1.id) : { error: null };
+  check('Batch class days outside Mon–Sun are refused', !!b1 && !!bad.error, 'update allowed'); }
 
 // remove the people this run created, then the events it raised (test records must not reach Activepieces)
 { const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });

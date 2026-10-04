@@ -412,3 +412,11 @@ insert into public.page (id, grp, title, sort) values ('calendar', 'Home', 'Cale
 insert into public.role_page_access (role, page_id, mode) select name, 'calendar', 'r' from public.app_role where name <> 'Admin' on conflict do nothing;
 insert into public.page (id, grp, title, sort) values ('duplicates', 'Admin settings', 'Duplicates', 42) on conflict (id) do nothing;
 insert into public.page (id, grp, title, sort) values ('fields', 'Admin settings', 'Custom fields', 41) on conflict (id) do nothing;
+insert into public.page (id, grp, title, sort) values ('practice', 'Training', 'Interview practice', 18) on conflict (id) do nothing;
+insert into public.role_page_access (role, page_id, mode) select name, 'practice', 'r' from public.app_role where name in ('SME', 'Trainer', 'HR / Counsellor') on conflict do nothing;
+-- contact stages per role (migration 047 sets these only on an existing database; roles are created here)
+update public.app_role set contact_lead_stages = '{New,Callback,Interested}' where name = 'Telecaller';
+update public.app_role set contact_lead_stages = '{Interested,Counselling}' where name = 'Sales';
+update public.app_role set contact_candidate_stages = '{Enrolled}' where name = 'Front desk';
+update public.app_role set contact_candidate_stages = '{Ready,Placed}' where name = 'Placement';
+update public.app_role set contact_candidate_stages = '{Enrolled,Training,Mocks,Resume,Docs,Ready}' where name = 'HR / Counsellor';

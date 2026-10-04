@@ -66,3 +66,15 @@ The front desk records consent with the tick on the enquiry form; incoming leads
 | `payment-receipt.flow.json` | CRM `payment.recorded` | WhatsApp + email receipt with the receipt number |
 
 WhatsApp and email providers are still an open decision; the flows name the step, pick the piece once decided.
+
+## Interview Coach scores in
+
+The Interview Coach (not Activepieces) sends each scored practice answer to the CRM.
+
+| | |
+|---|---|
+| Endpoint | `POST /api/integrations/practice` with header `x-api-key: <incoming API key>` |
+| Body | `candidate_id`, `attempt_ref` (unique; sending it again updates), `topic`, `question`, `overall`, `accuracy`, `fluency`, `completeness` (0–100), `wpm` (0–400), `filler_count` (0+), `created_at` |
+| Reply | `{ "ok": true, "id": "…" }`; wrong key 401; bad values 400 with a plain message |
+
+Students open the Coach from the portal through `GET /api/portal/coach` (needs `COACH_URL` and `COACH_SSO_SECRET`).

@@ -1,5 +1,7 @@
 'use client';
 import { ChevronDown, ChevronsLeft, ChevronsRight, Menu, Search, Star, User, UserRound, X } from 'lucide-react';
+import { AnnouncementBar } from './kit/Announcement';
+import { AlertStack } from './kit/AlertStack';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -11,9 +13,12 @@ import { CommandMenu } from './CommandMenu';
 import { NotificationBell } from './NotificationBell';
 import { UserMenu, type ThemePref } from './UserMenu';
 import { Tour } from './Tour';
+import { Shortcuts } from './kit/Shortcuts';
 import { ChangePassword } from './ChangePassword';
 import { supabase } from '@/lib/supabase';
 import { readRecent, type Recent } from '@/lib/recent';
+import { IdleGuard } from './kit/IdleGuard';
+import { Watermark } from './kit/Watermark';
 
 
 export function Shell({ children }: { children: React.ReactNode }) {
@@ -89,7 +94,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     if (!n) return null;
     return { n, tone: (id === 'followups' && counts.followups_late) || ['alert', 'payment', 'deliveries'].includes(id) ? 'bad' : 'soft' };
   };
-  const current = path === '/' ? 'home' : path.startsWith('/p/') ? path.split('/')[2] : path.startsWith('/candidate/') ? 'candidate' : '';
+  const current = path === '/' ? 'home' : path === '/calendar' ? 'calendar' : path.startsWith('/p/') ? path.split('/')[2] : path.startsWith('/candidate/') ? 'candidate' : '';
   const canSearch = { lead: s.can('lead'), candidate: s.can('candidate') };
   useEffect(() => { if (!canSearch.lead && canSearch.candidate) setSearchKind('candidate'); }, [canSearch.lead, canSearch.candidate]);
 
@@ -114,7 +119,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             const on = current === p.id, b = badge(p.id), Icon = pageIcon(p.id), fav = favs.includes(p.id);
             return (
               <div key={(inFavs ? 'f-' : '') + p.id} className="group relative">
-                <Link data-tour={p.id === 'home' && !inFavs ? 'home' : undefined} href={p.id === 'home' ? '/' : '/p/' + p.id} aria-current={on ? 'page' : undefined} title={collapsed ? p.title + (b ? ` (${b.n})` : '') : undefined}
+                <Link data-tour={p.id === 'home' && !inFavs ? 'home' : undefined} href={p.id === 'home' ? '/' : p.id === 'calendar' ? '/calendar' : '/p/' + p.id} aria-current={on ? 'page' : undefined} title={collapsed ? p.title + (b ? ` (${b.n})` : '') : undefined}
                   className={cx('flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px]', collapsed && 'md:justify-center md:px-0', on ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>
                   <span className="relative shrink-0"><Icon size={16} strokeWidth={1.8} aria-hidden />
                     {b && collapsed && <span className={cx('absolute -right-1.5 -top-1.5 hidden h-2.5 w-2.5 rounded-full border-2 border-surface md:block', b.tone === 'bad' ? 'bg-coral' : 'bg-accent')} />}</span>
@@ -161,6 +166,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </button>
       </nav>
       <CommandMenu open={cmdOpen} onClose={() => setCmdOpen(false)} />
+      <Shortcuts />
       <Tour open={tourOpen} onClose={() => { setTourOpen(false); s.reload(); }} />
       {/* outside the sidebar: the sidebar's slide-in transform would otherwise trap this fixed window inside it */}
         {pwOpen && (
@@ -191,13 +197,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </>
             ) : <span />}
           </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
           <button data-tour="jump" type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium text-text2">
             <span className="max-md:hidden">Jump to…</span><kbd className="rounded-md bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
           <span data-tour="bell"><NotificationBell /></span>
           <span data-tour="account"><UserMenu onTour={() => setTourOpen(true)} staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} /></span>
+          </div>
         </div>
-        <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
+        <AnnouncementBar />
+        <AlertStack />
+        <div className="relative flex min-h-0 min-w-0 flex-1">{children}{path.startsWith('/candidate/') && <Watermark name={s.staff.full_name} />}</div>
+        <IdleGuard />
       </div>
     </div>
   );

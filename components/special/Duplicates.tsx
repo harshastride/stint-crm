@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 import { Merge } from 'lucide-react';
+import { EmptyState } from '../kit/EmptyState';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
@@ -43,7 +44,7 @@ export function Duplicates() {
       <PageHeader group="Admin settings" title="Duplicates" purpose="Records that look like the same person. Pick the one to keep; calls, notes, quotes, payments and history from the other move onto it." scope={s.staff.role + (s.staff.role === 'Admin' ? ' · can merge' : ' · view only')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {pairs === null ? <div className="rounded-xl border border-line bg-surface p-6 text-muted">Looking for duplicates…</div>
-        : pairs.length === 0 ? <div className="rounded-xl border border-line bg-surface p-8 text-center"><div className="font-semibold">No duplicates found</div><div className="mt-1 text-text2">Leads and students all look unique right now.</div></div>
+        : pairs.length === 0 ? <EmptyState kind="done" title="No duplicates found" body="Leads and students all look unique right now." />
         : pairs.map((p, i) => (
           <section key={i} className="rounded-xl border border-line bg-surface p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">

@@ -20,7 +20,7 @@ Training and placement CRM for Stint Academy (single institute). The owner, Hars
 | All tests | `npm test` |
 | Go live | `deploy/README.md` |
 
-Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita Front desk, divya Marketing, teja Telecaller, manish Sales, praveen HR / Counsellor, kiran Trainer, hemanth SME, lakshmi Placement, suresh Finance).
+Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita Front desk, divya Marketing, teja Telecaller, manish Sales, praveen HR / Counsellor, kiran Trainer, hemanth SME, lakshmi Placement, suresh Finance; student portal: priya, linked to candidate Priya Reddy, via `scripts/seed-student.mjs`).
 
 ## How the code is organised
 - `lib/pages.ts`: one config per list page (table, columns, views, KPIs, board, form fields). Most page changes are edits here.
@@ -39,6 +39,7 @@ Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita 
 8. UI: Stint brand tokens in `app/globals.css` (Poppins, accent #4474B9, coral #FF6B35), light and dark themes, 44px touch targets, plain wording, no typing where a dropdown fits.
 9. Do not put real people's ID, bank or contact details in seeds, tests or fixtures.
 10. Job papers (`job_record`, `job_paper`) track documents for a job the candidate actually holds; the checklist is derived from the real joining and leaving dates. Do not add features that produce or back-date employment documents.
+11. Lead `mobile`/`email` are not selectable by signed-in users: read `lead_list` / `mobile_masked` and use `reveal_contact` (logged in `data_access_log`). Time limits come from settings `old_data_days`, `alumni_lock_days`, `idle_signout_minutes`, `reveal_seconds`.
 
 ## Where to look next
 Integrations: `docs/activepieces/` (events, incoming leads), recordings need `SONIOX_API_KEY` and `GEMINI_API_KEY` (server only).

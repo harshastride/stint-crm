@@ -1,4 +1,7 @@
 'use client';
+import { TagPicker } from './kit/Tags';
+import { RadioCards } from './kit/RadioCards';
+import { Slider } from './kit/Slider';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -9,6 +12,12 @@ import { PhoneInput } from './PhoneInput';
 const inputCls = 'h-[42px] w-full px-3 text-sm';
 
 /** Search-as-you-type picker for a lead or a candidate. */
+/** Find leads or candidates by name or mobile digits; the database masks the mobile and applies row visibility. */
+export async function searchPeople(kind: 'lead' | 'candidate', term: string, limit = 8): Promise<Row[]> {
+  const { data, error } = await supabase().rpc('search_people', { p_kind: kind, p_term: term, p_limit: limit });
+  return error ? [] : ((data as Row[]) || []);
+}
+
 export function PersonSearch({ kind, value, onChange, disabled, label }: { kind: 'lead' | 'candidate'; value: string | null; onChange: (id: string | null, row?: Row) => void; disabled?: boolean; label?: string }) {
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Row[]>([]);
@@ -19,7 +28,7 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
   useEffect(() => {
     if (!value) { setPicked(null); return; }
     if (picked?.id === value) return;
-    supabase().from(kind).select(kind === 'lead' ? 'id,full_name,mobile,stage' : 'id,full_name,code,stage').eq('id', value).maybeSingle().then(({ data }: { data: Row | null }) => setPicked(data));
+    supabase().from(kind === 'lead' ? 'lead_list' : kind).select(kind === 'lead' ? 'id,full_name,mobile_masked,stage' : 'id,full_name,code,stage').eq('id', value).maybeSingle().then(({ data }: { data: Row | null }) => setPicked(data));
   }, [value, kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -27,12 +36,8 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
     if (term.length < 2) { setHits([]); return; }
     const my = ++seq.current;
     const t = setTimeout(async () => {
-      const cols = kind === 'lead' ? 'id,full_name,mobile,stage' : 'id,full_name,code,stage';
-      const digits = term.replace(/\D/g, '');
-      let query = supabase().from(kind).select(cols).limit(8);
-      query = kind === 'lead' && digits.length >= 3 ? query.or(`full_name.ilike.%${term}%,mobile.ilike.%${digits}%`) : query.ilike('full_name', `%${term}%`);
-      const { data } = await query;
-      if (my === seq.current) setHits((data as Row[]) || []);
+      const data = await searchPeople(kind, term);
+      if (my === seq.current) setHits(data);
     }, 180);
     return () => clearTimeout(t);
   }, [q, kind]);
@@ -40,7 +45,7 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
   if (picked) {
     return (
       <div className="flex min-h-[42px] items-center justify-between gap-2 rounded-[10px] bg-surface2 px-3 py-1.5 text-sm">
-        <span><span className="font-medium">{picked.full_name}</span> <span className="text-muted">· {picked.mobile || picked.code || ''} · {picked.stage}</span></span>
+        <span><span className="font-medium">{picked.full_name}</span> <span className="text-muted">· {picked.mobile_masked || picked.code || ''} · {picked.stage}</span></span>
         {!disabled && <button type="button" className="rounded-md border border-line2 bg-surface px-2 py-1 text-xs" onClick={() => { setPicked(null); onChange(null); setQ(''); }}>Change</button>}
       </div>
     );
@@ -54,7 +59,7 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
           {hits.length === 0 && <div className="px-3 py-2.5 text-[13px] text-muted">No {kind} found.</div>}
           {hits.map((h) => (
             <button key={h.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-surface2" onClick={() => { setPicked(h); onChange(h.id, h); setOpen(false); }}>
-              <span className="font-medium">{h.full_name}</span> <span className="text-muted">· {h.mobile || h.code || ''} · {h.stage}</span>
+              <span className="font-medium">{h.full_name}</span> <span className="text-muted">· {h.mobile_masked || h.code || ''} · {h.stage}</span>
             </button>
           ))}
         </div>
@@ -140,6 +145,11 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
       </select>
     );
   }
+  if (field.slider) return <Slider label={field.label} value={Number(value) || 0} max={field.slider.max} limitSetting={field.slider.limitSetting} onChange={onChange} disabled={disabled} />;
+  if (field.type === 'select' && field.cards) {
+    const opts = field.options || s.lists[field.list || ''] || [];
+    if (opts.length <= 5) return <RadioCards label={field.label} options={opts} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
+  }
   if (field.type === 'select') {
     const base = field.options || (field.list === '__roles' ? s.roles : s.lists[field.list || ''] || []);
     const isOther = field.other && v !== '' && !base.includes(v);
@@ -154,6 +164,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
       </div>
     );
   }
+  if (field.type === 'tags') return <TagPicker label={field.label} value={(value as string[]) || []} options={s.lists[field.list || ''] || []} onChange={onChange} disabled={disabled} />;
   if (field.type === 'phone') return <PhoneInput label={field.label} value={v} onChange={(d) => onChange(d || null)} disabled={disabled} />;
   if (field.type === 'datetime') return <QuickDate label={field.label} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
   return <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} className={inputCls} value={field.type === 'date' ? v.slice(0, 10) : v} disabled={disabled}

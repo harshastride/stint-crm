@@ -6,7 +6,7 @@
     "dev": "next dev -p 3100",
     "build": "next build",
     "start": "next start -p 3100",
-    "seed": "node scripts/seed-demo.mjs",
+    "seed": "node scripts/seed-demo.mjs && node scripts/seed-student.mjs",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test": "node scripts/test-security.mjs && playwright test"

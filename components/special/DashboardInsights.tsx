@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Brush, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Row } from '@/lib/pages';
 import { money } from '../ui';
 
@@ -24,18 +24,19 @@ export const thisAndLast = (rows: Row[], field: string, pick: (r: Row) => number
 type Props = { leads: Row[]; cands: Row[]; fees: Row[]; target: number | null; targetLabel: string; sources: Record<string, string>; showLeads: boolean; showFees: boolean };
 
 export function DashboardInsights({ leads, cands, fees, target, targetLabel, sources, showLeads, showFees }: Props) {
-  // 12 weekly points: new leads and new enrolments, or collections when the role only sees fees
-  const weeks = Array.from({ length: 12 }, (_, i) => startOfWeek(new Date(Date.now() - (11 - i) * 7 * DAY)));
+  // 26 weekly points (drag the strip under the chart to zoom): new leads and enrolments, or collections when the role only sees fees
+  const N = 26;
+  const weeks = Array.from({ length: N }, (_, i) => startOfWeek(new Date(Date.now() - (N - 1 - i) * 7 * DAY)));
   const bucket = (rows: Row[], field: string, pick: (r: Row) => number = () => 1) => weeks.map((w, i) => {
-    const end = i < 11 ? weeks[i + 1].getTime() : Infinity;
+    const end = i < N - 1 ? weeks[i + 1].getTime() : Infinity;
     return rows.filter((r) => r[field] && new Date(r[field]).getTime() >= w.getTime() && new Date(r[field]).getTime() < end).reduce((a, r) => a + pick(r), 0);
   });
   const label = (d: Date) => d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
   const chart = showLeads
-    ? { title: 'New leads and enrolments', sub: 'Last 12 weeks', series: [['leads', 'New leads', ACCENT], ['enrolled', 'Enrolled', CORAL]] as const,
+    ? { title: 'New leads and enrolments', sub: 'Last 6 months · drag the strip below to zoom', series: [['leads', 'New leads', ACCENT], ['enrolled', 'Enrolled', CORAL]] as const,
         data: (() => { const a = bucket(leads, 'created_at'), b = bucket(cands, 'created_at'); return weeks.map((w, i) => ({ week: label(w), leads: a[i], enrolled: b[i] })); })() }
     : showFees
-      ? { title: 'Fees collected', sub: 'Per week, last 12 weeks', series: [['collected', 'Collected', ACCENT]] as const,
+      ? { title: 'Fees collected', sub: 'Per week, last 6 months · drag the strip below to zoom', series: [['collected', 'Collected', ACCENT]] as const,
           data: (() => { const a = bucket(fees.filter((f) => f.status === 'Received'), 'paid_on', (f) => Number(f.amount)); return weeks.map((w, i) => ({ week: label(w), collected: a[i] })); })() }
       : null;
 
@@ -71,7 +72,7 @@ export function DashboardInsights({ leads, cands, fees, target, targetLabel, sou
               {chart.series.map(([k, l, c]) => <span key={k} className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: c }} />{l}</span>)}
             </div>
           </div>
-          <div className="mt-3 h-[220px] text-muted" role="img" aria-label={chart.title + ', ' + chart.sub}>
+          <div className="mt-3 h-[260px] text-muted" role="img" aria-label={chart.title + ', ' + chart.sub}>
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chart.data as Record<string, string | number>[]} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
                 <defs>
@@ -89,6 +90,7 @@ export function DashboardInsights({ leads, cands, fees, target, targetLabel, sou
                   contentStyle={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10, fontSize: 12, color: 'var(--text)' }}
                   formatter={(v, n) => [showLeads ? String(v) : money(Number(v)), chart.series.find(([k]) => k === n)?.[1] || String(n)]} labelFormatter={(l) => 'Week of ' + String(l)} />
                 {chart.series.map(([k, , c]) => <Area key={k} type="monotone" dataKey={k} stroke={c} strokeWidth={2} fill={`url(#fill-${k})`} isAnimationActive={false} />)}
+                <Brush dataKey="week" height={26} startIndex={N - 12} travellerWidth={10} stroke={ACCENT} fill="var(--surface2)" tickFormatter={() => ''} aria-label="Zoom: drag the handles to pick weeks" />
               </AreaChart>
             </ResponsiveContainer>
           </div>

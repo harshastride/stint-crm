@@ -223,7 +223,7 @@ test('a role with no follow-ups sees a clear "all caught up" message', async ({ 
 test('logo loads on the login page while signed out', async ({ page }) => {
   await page.context().clearCookies();
   await page.goto('/login');
-  const logo = page.locator('img[alt="Stint"]');
+  const logo = page.locator('img[alt="Stint"]:visible').first();
   await expect(logo).toBeVisible();
   expect(await logo.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
 });
@@ -265,7 +265,7 @@ test('tables: a role without edit rights gets no bulk actions', async ({ page })
   await page.getByRole('checkbox', { name: /^Select (?!all)/ }).first().click();
   await expect(page.getByText('1 selected')).toBeVisible();
   await expect(page.getByRole('button', { name: /Reassign to/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Export 1' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Export 1' })).toHaveCount(0);   // export is Admin-only
 });
 
 test('dashboard: trends, target and tiles follow the role', async ({ page }) => {
@@ -368,13 +368,16 @@ test('board: drag a card to another column', async ({ page }) => {
   await page.getByRole('tab', { name: 'All' }).click();
   await page.getByRole('button', { name: 'board', exact: true }).click();
   const name = (q!.lead as unknown as { full_name: string }).full_name;
-  const card = page.locator('[draggable="true"]').filter({ hasText: name });
+  const board = page.getByTestId('board');
+  const card = board.locator('[data-card]').filter({ hasText: name });
   await expect(card).toHaveCount(1);
-  const dt = await page.evaluateHandle(() => new DataTransfer());
-  await card.dispatchEvent('dragstart', { dataTransfer: dt });
-  const target = page.getByRole('region', { name: 'Expired' });
-  await target.dispatchEvent('dragover', { dataTransfer: dt });
-  await target.dispatchEvent('drop', { dataTransfer: dt });
+  const target = board.locator('section[data-stage="Expired"]');
+  await card.scrollIntoViewIfNeeded();
+  const a = (await card.boundingBox())!;
+  await page.mouse.move(a.x + 20, a.y + 10); await page.mouse.down();
+  await page.mouse.move(a.x + 40, a.y + 20, { steps: 3 });
+  const b = (await target.boundingBox())!;
+  await page.mouse.move(b.x + 40, b.y + 40, { steps: 8 }); await page.mouse.up();
   await expect(page.getByText(new RegExp(name + '.*moved to Expired'))).toBeVisible();
   await db.from('fee_quote').update({ status: q!.status }).eq('id', q!.id);
   await db.from('status_history').delete().eq('entity_id', q!.id).gte('at', started);   // leave no trace in the history
@@ -508,6 +511,18 @@ test('student portal: invite, first password, details, document upload, receipt'
     const href = await page.getByRole('link', { name: 'Receipt' }).getAttribute('href');
     const pdf = await page.request.get(href!);
     expect(pdf.status()).toBe(200);
+    // steps and signature
+    await expect(page.getByRole('list', { name: 'Your joining steps' }).locator('[aria-current="step"]')).toContainText('My details');
+    const pad = page.getByLabel(/Signature box/);
+    const box = (await pad.boundingBox())!;
+    await page.mouse.move(box.x + 30, box.y + 80); await page.mouse.down();
+    await page.mouse.move(box.x + 120, box.y + 50, { steps: 8 }); await page.mouse.move(box.x + 220, box.y + 100, { steps: 8 }); await page.mouse.up();
+    await page.getByLabel('I have read and agree').check();
+    await page.getByRole('button', { name: 'Sign and submit' }).click();
+    await expect(page.getByText('Thank you. Your signature is saved.')).toBeVisible();
+    const { data: sig } = await db.from('candidate_signature').select('png').eq('candidate_id', c!.id).single();
+    expect(sig!.png).toMatch(/^data:image\/png;base64,/);
+    expect((await page.request.get(href!)).status()).toBe(200);   // receipt still builds with the signature on it
     // a student cannot use the staff CRM
     await page.goto('/p/lead');
     await expect(page).toHaveURL(/\/portal/);
@@ -554,8 +569,11 @@ test('timelines: icon history with filters, and the journey on the full profile'
 test('toasts: a change shows Undo, and Undo puts it back', async ({ page }) => {
   const db = service();
   const started = new Date().toISOString();
-  const { data: f } = await db.from('follow_up').select('id, title').eq('status', 'Open').not('candidate_id', 'is', null).limit(1).single();
-  const { data: fu } = await db.from('follow_up').select('candidate_id').eq('id', f!.id).single();
+  // only the owner (or their team head) can close a follow-up, so use one of Harsha's own
+  const { data: me } = await db.from('staff').select('id').eq('email', 'harsha@demo.stint.local').single();
+  const { data: c } = await db.from('candidate').select('id').eq('full_name', 'Priya Reddy').single();
+  const { data: f } = await db.from('follow_up').insert({ title: 'E2E undo task', candidate_id: c!.id, owner_id: me!.id, owner_role: 'Admin' }).select('id, title').single();
+  const fu = { candidate_id: c!.id };
   await login(page, 'harsha');
   await page.goto('/p/candidate?person=candidate:' + fu!.candidate_id);
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
@@ -565,6 +583,7 @@ test('toasts: a change shows Undo, and Undo puts it back', async ({ page }) => {
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect.poll(async () => (await db.from('follow_up').select('status').eq('id', f!.id).single()).data!.status).toBe('Open');
   await db.from('integration_event').delete().gte('created_at', started);
+  await db.from('follow_up').delete().eq('id', f!.id);
 });
 
 test('quick dates: one tap sets "Tomorrow 10 am" on a follow-up', async ({ page }) => {
@@ -660,8 +679,9 @@ test('quick panel: full view, contact buttons, next/previous, Esc', async ({ pag
   await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.locator('tbody tr').first().click();
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
-  await expect(panel.getByRole('link', { name: 'Call' })).toHaveAttribute('href', /^tel:\+91\d{10}$/);
-  await expect(panel.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa\.me\/91\d{10}$/);
+  // Call / WhatsApp first reveal the number (logged), then dial — they are buttons, not plain links
+  await expect(panel.getByRole('button', { name: 'Call', exact: true })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'WhatsApp', exact: true })).toBeEnabled();
   const first = await panel.locator('.truncate.text-base').first().innerText();
   await panel.getByRole('button', { name: /Next person/ }).click();
   await expect(panel.locator('.truncate.text-base').first()).not.toHaveText(first);
@@ -696,4 +716,93 @@ test('sidebar: counts, favourites, folding groups, collapse to icons, recently v
   await page.keyboard.press('Control+b');
   // tidy up the favourite
   await nav.getByRole('button', { name: 'Remove from favourites: Call logs' }).first().click({ force: true });
+});
+
+test('tags, date range, empty state, hover card and the delete bubble on lists', async ({ page }) => {
+  const db = service();
+  const { data: l } = await db.from('lead').insert({ full_name: 'Test Tagged', mobile: '9' + String(Date.now()).slice(-9), stage: 'New' }).select('id').single();
+  try {
+    await login(page, 'harsha');
+    await page.goto('/p/lead');
+    await page.getByRole('button', { name: 'table', exact: true }).click();
+    // tag from the editor
+    await page.getByRole('button', { name: 'Edit Test Tagged' }).click();
+    await page.getByRole('button', { name: 'Add tag' }).click();
+    await page.getByRole('menuitem', { name: 'Hot' }).click();
+    await page.getByRole('button', { name: 'Save changes' }).click();
+    await expect.poll(async () => (await db.from('lead').select('tags').eq('id', l!.id).single()).data!.tags).toEqual(['Hot']);
+    // filter by tag
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    await page.getByRole('button', { name: 'Tags ›' }).click();
+    await page.getByRole('menuitemcheckbox', { name: /^Hot/ }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('cell', { name: /Test Tagged/ }).first()).toBeVisible();
+    // hover card on the name
+    await page.getByRole('button', { name: /Full name: Test Tagged/ }).hover();
+    await expect(page.getByRole('tooltip')).toContainText('Click the row for the quick panel');
+    // a date range with nothing in it shows the friendly empty state, with a way out
+    await page.getByRole('button', { name: 'Added', exact: true }).click();
+    await page.getByLabel('From', { exact: true }).fill('2001-01-01'); await page.getByLabel('To', { exact: true }).fill('2001-01-31');
+    await page.getByRole('button', { name: 'Apply' }).click();
+    await expect(page.getByText('No matches')).toBeVisible();
+    await page.getByRole('button', { name: 'Clear search and filters' }).click();
+    await expect(page.getByRole('cell', { name: /Test Tagged/ }).first()).toBeVisible();
+    // delete asks in a small bubble first
+    await page.getByRole('button', { name: 'Edit Test Tagged' }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    const bubble = page.getByRole('dialog', { name: 'Delete this lead?' });
+    await expect(bubble).toBeVisible();
+    await bubble.getByRole('button', { name: 'Cancel' }).click();
+    await expect(bubble).toHaveCount(0);
+    expect((await db.from('lead').select('id').eq('id', l!.id)).data!.length).toBe(1);
+  } finally {
+    await db.from('lead').delete().eq('id', l!.id);
+    await db.from('integration_event').delete().eq('person_name', 'Test Tagged');
+  }
+});
+
+test('announcement bar, discount slider, placement tracker and who-is-viewing', async ({ page, browser }) => {
+  const db = service();
+  const { data: c } = await db.from('candidate').select('id').eq('full_name', 'Priya Reddy').single();
+  const { data: co } = await db.from('company').insert({ name: 'E2E Track Co ' + Date.now() }).select('id').single();
+  const { data: pl } = await db.from('placement').insert({ candidate_id: c!.id, company_id: co!.id, role: 'Analyst', joining_on: '2099-01-10', status: 'Joining soon' }).select('id').single();
+  let annId: string | undefined;
+  const other = await browser.newPage();
+  try {
+    // Admin posts an announcement; it shows at the top for everyone
+    await login(page, 'harsha');
+    await page.goto('/p/announcement?new=x:');
+    await page.getByLabel('Message (one or two lines)').fill('E2E: office closed Friday');
+    await page.getByRole('radio', { name: 'Important' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('cell', { name: 'E2E: office closed Friday' }).first()).toBeVisible();
+    annId = (await db.from('announcement').select('id').eq('message', 'E2E: office closed Friday').single()).data!.id;
+    await login(other, 'teja');
+    await expect(other.getByRole('status', { name: 'Announcement' })).toContainText('office closed Friday');
+    await other.getByRole('button', { name: 'Close announcement' }).click();
+    await expect(other.getByRole('status', { name: 'Announcement' })).toHaveCount(0);
+    // discount is a slider with the approval line
+    await page.goto('/p/quote?new=x:');
+    const slider = page.getByRole('slider', { name: 'Discount %' });
+    await slider.fill('15');
+    await expect(page.getByText(/Above 10%: needs Sales head approval/)).toBeVisible();
+    await slider.fill('5');
+    await expect(page.getByText(/Up to 10% without approval/)).toBeVisible();
+    // placement tracker on the full profile
+    await page.goto('/candidate/' + c!.id);
+    const track = page.getByRole('list', { name: 'Placement steps' });
+    await expect(track).toContainText('Offer accepted');
+    await expect(track.locator('[aria-current="step"]')).toContainText('Joined');
+    // two people on the same lead see each other
+    const { data: lead } = await db.from('lead').select('id').eq('full_name', 'Ravi Kumar').single();
+    await page.goto('/p/lead?person=lead:' + lead!.id);
+    await other.goto('/p/lead?person=lead:' + lead!.id);
+    await expect(other.getByText(/Harsha is also looking at this now/)).toBeVisible({ timeout: 30000 });
+  } finally {
+    await other.close();
+    if (annId) await db.from('announcement').delete().eq('id', annId);
+    await db.from('placement').delete().eq('id', pl!.id);
+    await db.from('company').delete().eq('id', co!.id);
+    await db.from('viewing').delete().eq('entity_id', (await db.from('lead').select('id').eq('full_name', 'Ravi Kumar').single()).data!.id);
+  }
 });

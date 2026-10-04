@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { RadioCards } from '../kit/RadioCards';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -10,6 +11,12 @@ import { PhoneInput, phoneProblem } from '../PhoneInput';
 
 const blank = { full_name: '', mobile: '', email: '', city: '', program_id: '', course_other: '', preferred_mode: '', preferred_start: '', currently: '', source_id: '', referred_by: '', notes: '', consent: false };
 const ctl = 'h-11 w-full px-3 text-sm';
+
+// A lead with exactly this 10-digit mobile (searched in the database; the number itself is never read back).
+async function findByMobile(mobile: string): Promise<Row | null> {
+  const { data } = await supabase().rpc('search_people', { p_kind: 'lead', p_term: mobile, p_limit: 1 });
+  return ((data as Row[]) || [])[0] || null;
+}
 
 export function EnquiryForm() {
   const s = useSession();
@@ -30,7 +37,7 @@ export function EnquiryForm() {
     if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); return; }
     setBusy(true); setMsg(null);
     const db = supabase();
-    const dupe = await db.from('lead').select('id,full_name,stage').eq('mobile', mobile).maybeSingle();
+    const dupe = { data: await findByMobile(mobile) };
     if (dupe.data) { setBusy(false); setMsg({ tone: 'bad', text: `This mobile is already in the CRM as ${dupe.data.full_name} (${dupe.data.stage}). Nothing new was added.`, id: dupe.data.id }); return; }
     const row = {
       full_name: String(v.full_name).trim(), mobile, email: v.email || null, city: v.city || null, program_id: v.program_id && v.program_id !== '__other' ? v.program_id : null,
@@ -59,7 +66,7 @@ export function EnquiryForm() {
       const m = String(v.mobile).replace(/\D/g, '');
       if (!String(v.full_name).trim() || m.length !== 10 || phoneProblem(m)) { setMsg({ tone: 'bad', text: 'Add their name and a 10-digit mobile starting with 6–9.' }); return; }
       // catch a repeat enquiry before anyone types the rest
-      const dupe = await supabase().from('lead').select('id,full_name,stage').eq('mobile', m).maybeSingle();
+      const dupe = { data: await findByMobile(m) };
       if (dupe.data) { setMsg({ tone: 'bad', text: `This mobile is already in the CRM as ${dupe.data.full_name} (${dupe.data.stage}).`, id: dupe.data.id }); return; }
     }
     if (step === 1 && !v.program_id) { setMsg({ tone: 'bad', text: 'Pick the course they want (or Other).' }); return; }
@@ -99,9 +106,9 @@ export function EnquiryForm() {
               </select>
             </label>
             {v.program_id === '__other' && <label className="flex flex-col gap-1 text-xs font-medium text-text2">Which course?<input className={ctl} value={v.course_other} onChange={set('course_other')} placeholder="Type the course" /></label>}
-            <Sel k="preferred_mode" label="Preferred mode" list="preferred_mode" />
+            <div className="flex flex-col gap-1 text-xs font-medium text-text2">Preferred mode<RadioCards label="Preferred mode" options={s.lists.preferred_mode || []} value={v.preferred_mode || null} onChange={(x) => setV({ ...v, preferred_mode: x || '' })} /></div>
             <Sel k="preferred_start" label="Preferred start" list="preferred_start" />
-            <Sel k="currently" label="Currently" list="currently" />
+            <div className="flex flex-col gap-1 text-xs font-medium text-text2">Currently<RadioCards label="Currently" options={s.lists.currently || []} value={v.currently || null} onChange={(x) => setV({ ...v, currently: x || '' })} /></div>
           </div>
         </section>}
         {step === 2 && <section className="anim-fade rounded-xl border border-line bg-surface p-4">

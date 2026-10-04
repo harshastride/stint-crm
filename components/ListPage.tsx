@@ -1,10 +1,11 @@
 'use client';
+import { Board } from './kit/Board';
 import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
-import { getPath, type Bulk, type Col, type Field, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
+import { getPath, mayReassign, statusLockedBy, type Bulk, type Col, type Field, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } from './ui';
 import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
@@ -12,13 +13,23 @@ import { friendlyError } from './Fields';
 import { useToast } from './Toasts';
 import { ActivepiecesSetup } from './special/ActivepiecesSetup';
 import { AutomationBuilder } from './special/AutomationBuilder';
+import { ProgramCompare } from './special/ProgramCompare';
 import { TableSkeleton } from './Skeletons';
+import { TagChips } from './kit/Tags';
+import { DateRange, inRange, type Range } from './kit/DateRange';
+import { EmptyState } from './kit/EmptyState';
+import { HoverCard } from './kit/HoverCard';
+import { Confirm } from './kit/Confirm';
+import { CountUp } from './kit/CountUp';
+import { RangeSlider, rupees } from './kit/RangeSlider';
+import { FilterBuilder, advExpr, advFields, type Adv } from './kit/FilterBuilder';
 
-const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder };
+const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder, compare: ProgramCompare };
 
 const cell = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);
   if (c.type === 'pill') return <Pill>{v as string}</Pill>;
+  if (c.type === 'tags') return Array.isArray(v) && v.length ? <TagChips tags={v as string[]} /> : <span className="text-muted">—</span>;
   if (v == null || v === '') return <span className="text-muted">—</span>;
   if (c.type === 'money') return <span className="num">{money(v)}</span>;
   if (c.type === 'date') return fmtDate(v);
@@ -70,6 +81,26 @@ function Tick({ state, label, onChange }: { state: boolean | 'some'; label: stri
   );
 }
 
+/** The filter values of one cell: each tag on its own, otherwise the shown text. */
+const values = (c: Col, r: Row): string[] => {
+  if (c.type === 'tags') { const t = getPath(r, c.key) as string[] | null; return t?.length ? t : ['(empty)']; }
+  return [plain(c, r) || '(empty)'];
+};
+const columns0 = (cfg: PageCfg) => cfg.columns;
+/** Hover card on a person's name: the rest of the row at a glance. */
+const peek = (cfg: PageCfg, columns: Col[], r: Row) => (
+  <span className="block">
+    <span className="flex items-center gap-2">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accentSoft text-[13px] font-semibold text-accentText">{cfg.rowTitle(r).split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()}</span>
+      <span className="min-w-0"><span className="block truncate text-[14px] font-semibold text-text">{cfg.rowTitle(r)}</span><span className="block text-[12px] text-muted">{cfg.kind}</span></span>
+    </span>
+    <span className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12.5px]">
+      {columns.slice(1, 7).filter((c) => c.type !== 'tags' && plain(c, r)).map((c) => <span key={c.key} className="contents"><span className="text-muted">{c.label}</span><span className="truncate text-text">{short(c, r)}</span></span>)}
+    </span>
+    {Array.isArray(r.tags) && r.tags.length > 0 && <span className="mt-2 block"><TagChips tags={r.tags} max={5} /></span>}
+    <span className="mt-2 block text-[11.5px] text-muted">Click the row for the quick panel.</span>
+  </span>
+);
 const plain = (c: Col, r: Row) => { const v = c.get ? c.get(r) : getPath(r, c.key); return v == null ? '' : String(v); };
 const short = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);
@@ -118,12 +149,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [colsOpen, setColsOpen] = useState(false);
   const [filters, setFilters] = useState<Record<string, string[]>>({});
+  const [range, setRange] = useState<Range>(null);
+  const [adv, setAdv] = useState<Adv>(null);   // advanced filter, applied by the database
+  const advRef = useRef<string | null>(null);
+  advRef.current = advExpr(adv, advFields(cfg));
+  const [amount, setAmount] = useState<[number, number] | null>(null);   // Amount filter (pages with a money column)
+  // the date the range picker filters on: the page's own sort date (added, due, called…)
+  const dateKey = cfg.order && /(_at|_on)$/.test(cfg.order.col) ? cfg.order.col : null;
+  const dateLabel = columns0(cfg).find((c) => c.key === dateKey)?.label || (dateKey === 'created_at' ? 'Added' : 'Dates');
   const [filterOpen, setFilterOpen] = useState<string | null>(null);   // '' = list of columns, key = that column's values
   const [savedViews, setSavedViews] = useState<Row[]>([]);
   const [activeSaved, setActiveSaved] = useState<string | null>(null);
-  const [dragId, setDragId] = useState<string | null>(null);
   const [cellEdit, setCellEdit] = useState<{ id: string; key: string } | null>(null);
-  const [dropOn, setDropOn] = useState<string | null>(null);
   const [saving, setSaving] = useState<{ name: string; shared: string } | null>(null);
   const loadSaved = useCallback(async () => {
     const { data } = await supabase().from('saved_view').select('*').eq('page_id', cfg.id).order('created_at');
@@ -136,6 +173,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     const all: Row[] = [];
     for (let from = 0; from < MAX_ROWS; from += CHUNK) {
       let query = supabase().from(cfg.readFrom || cfg.table).select(cfg.select || '*').range(from, from + CHUNK - 1);
+      if (advRef.current) query = query.or(advRef.current);
       if (cfg.order) query = query.order(cfg.order.col, { ascending: !!cfg.order.asc, nullsFirst: false });
       const { data, error } = await query;
       if (error) { setError(friendlyError(error)); setRows([]); return; }
@@ -145,8 +183,23 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     setError(null); setRows(all);
   }, [cfg]);
 
+  // "3 new leads": every 30 seconds, count records added by anyone since this list was loaded
+  const [fresh, setFresh] = useState(0);
+  const newest = useMemo(() => (rows || []).reduce((m, r) => (r.created_at && r.created_at > m ? r.created_at : m), ''), [rows]);
   useEffect(() => {
-    setQ(''); setSort(null); setPage(0); setPicked(new Set()); setBulkOpen(null); setColsOpen(false); setFilters({}); setFilterOpen(null);
+    setFresh(0);
+    if (!newest || (cfg.readFrom && !cfg.sameRows)) return;
+    const check = async () => {
+      if (document.hidden) return;
+      const { count } = await supabase().from(cfg.table).select('id', { count: 'exact', head: true }).gt('created_at', newest);
+      setFresh(count || 0);
+    };
+    const t = setInterval(check, 30000);
+    return () => clearInterval(t);
+  }, [newest, cfg]);
+
+  useEffect(() => {
+    setQ(''); setSort(null); setPage(0); setPicked(new Set()); setBulkOpen(null); setColsOpen(false); setFilters({}); setFilterOpen(null); setAmount(null); setAdv(null);
     try { setHidden(new Set(JSON.parse(localStorage.getItem('stint-cols:' + cfg.id) || '[]'))); } catch { setHidden(new Set()); }
   }, [cfg]);
   const toggleCol = (key: string) => setHidden((old) => {
@@ -168,21 +221,30 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     if (!rows?.length) return [] as { col: Col; values: [string, number][] }[];
     return columns.filter((c) => !['money', 'number', 'date', 'datetime', 'duration'].includes(c.type || '')).map((c) => {
       const m = new Map<string, number>();
-      rows.forEach((r) => { const v = plain(c, r) || '(empty)'; m.set(v, (m.get(v) || 0) + 1); });
+      rows.forEach((r) => { for (const v of values(c, r)) m.set(v, (m.get(v) || 0) + 1); });
       return { col: c, values: [...m.entries()].sort((a, b) => b[1] - a[1]) };
     }).filter((f) => f.values.length > 1 && f.values.length <= 40 && f.values.length < rows.length);
   }, [rows, columns]);
   const activeFilters = Object.entries(filters).filter(([, v]) => v.length);
+  // Amount filter: the first money column; bounds from the loaded rows
+  const moneyCol = useMemo(() => columns.find((c) => c.type === 'money' && c.key === 'amount') || columns.find((c) => c.type === 'money') || null, [columns]);
+  const moneyBounds = useMemo(() => {
+    if (!moneyCol || !rows?.length) return null;
+    const ns = rows.map((r) => raw(moneyCol, r)).filter((v) => v != null && v !== '' && !isNaN(Number(v))).map(Number);
+    return ns.length ? [Math.floor(Math.min(...ns)), Math.ceil(Math.max(...ns))] as [number, number] : null;
+  }, [moneyCol, rows]);
+  const amountOn = !!(amount && moneyCol);
+  const filterCount = activeFilters.length + (amountOn ? 1 : 0);
   const applySaved = (v: Row) => {
     const c = v.config || {};
     setView(Math.min(Number(c.view) || 0, (cfg.views || [{ label: 'All' }]).length - 1)); setQ(c.q || ''); setSort(c.sort || null);
-    setHidden(new Set(c.hidden || [])); setFilters(c.filters || {}); if (c.layout && (c.layout === 'table' || cfg.board)) setLayout(c.layout);
+    setHidden(new Set(c.hidden || [])); setFilters(c.filters || {}); setRange(c.range || null); setAmount(c.amount || null); setAdv(c.adv || null); if (c.layout && (c.layout === 'table' || cfg.board)) setLayout(c.layout);
     setActiveSaved(v.id);
   };
   const saveView = async () => {
     if (!saving?.name.trim()) return;
     const { data, error } = await supabase().from('saved_view').insert({ page_id: cfg.id, name: saving.name.trim(), shared: saving.shared,
-      config: { view, q, sort, hidden: [...hidden], layout, filters } }).select().single();
+      config: { view, q, sort, hidden: [...hidden], layout, filters, range, amount, adv } }).select().single();
     if (error) { setNotice({ tone: 'bad', text: friendlyError(error) }); return; }
     setSaving(null); await loadSaved(); setActiveSaved(data.id);
     setNotice({ tone: 'good', text: `View “${data.name}” saved${data.shared === 'team' ? ' for your team' : data.shared === 'all' ? ' for everyone' : ''}.` });
@@ -213,7 +275,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     if (activeSaved === v.id) setActiveSaved(null);
     loadSaved();
   };
-  useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board && !phone() ? 'board' : 'table'); load(); }, [cfg, load]);
+  useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setRange(null); setLayout(cfg.board && !phone() ? 'board' : 'table'); load(); }, [cfg, load]);
 
   // open a new record with the person filled in: /p/payment?new=candidate:<id> (quick panel "Next steps")
   useEffect(() => {
@@ -238,19 +300,28 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     if (p && p.includes(':')) { const [kind, id] = p.split(':'); if (kind === 'lead' || kind === 'candidate') { setPerson({ kind, id }); setPanelOpen(true); } }
   }, [params]);
 
+  const hover = (on: boolean, r: Row, node: React.ReactNode) => (on ? <HoverCard card={() => peek(cfg, columns, r)}>{node}</HoverCard> : node);
+  // status changes belong to the assigned person; reassigning to Admin, them or their team head
+  const lockedFor = (r: Row, key: string) => !!cfg.assignee && ((key === cfg.assignee.status && !!statusLockedBy(cfg, r, s.staff, s.refs.staff || [])) || (key === cfg.assignee.field && !mayReassign(cfg, r, s.staff, s.refs.staff || [])));
   const views = cfg.views || [{ label: 'All' }];
   const shown = useMemo(() => {
     let out = (rows || []).filter((r) => !views[view]?.where || views[view].where!(r, s.staff.id));
     for (const [key, vals] of Object.entries(filters)) {
       const col = columns.find((c) => c.key === key);
-      if (col && vals.length) out = out.filter((r) => vals.includes(plain(col, r) || '(empty)'));
+      if (col && vals.length) out = out.filter((r) => values(col, r).some((v) => vals.includes(v)));
     }
+    if (range && dateKey) out = out.filter((r) => inRange(r[dateKey], range));
+    if (amount && moneyCol) out = out.filter((r) => { const v = raw(moneyCol, r); return v != null && v !== '' && Number(v) >= amount[0] && Number(v) <= amount[1]; });
     const term = q.trim().toLowerCase();
     if (term) out = out.filter((r) => columns.some((c) => short(c, r).toLowerCase().includes(term) || plain(c, r).toLowerCase().includes(term)));
     const col = sort && columns.find((c) => c.key === sort.key);
     if (col) out = [...out].sort((a, b) => (sort!.asc ? 1 : -1) * compare(col, a, b) || 0);
     return out;
-  }, [rows, views, view, s.staff.id, q, sort, columns, filters]);
+  }, [rows, views, view, s.staff.id, q, sort, columns, filters, range, dateKey, amount, moneyCol]);
+  // advanced filter changed: fetch again with the new database filter
+  const advKey = advRef.current;
+  const advFirst = useRef(true);
+  useEffect(() => { if (advFirst.current) { advFirst.current = false; return; } setPage(0); load(); }, [advKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   // people in the current list order, for Previous / Next in the quick panel (each person once)
   const panelList = useMemo(() => {
@@ -266,18 +337,20 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const pageState: boolean | 'some' = pageIds.length && pageIds.every((id) => picked.has(id)) ? true : pageIds.some((id) => picked.has(id)) ? 'some' : false;
   const togglePick = (id: string) => setPicked((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const togglePage = () => setPicked((o) => { const n = new Set(o); if (pageState === true) pageIds.forEach((id) => n.delete(id)); else pageIds.forEach((id) => n.add(id)); return n; });
-  const canBulk = canWrite && !!cfg.bulk?.length && !cfg.readFrom;
+  const canBulk = canWrite && !!cfg.bulk?.length && (!cfg.readFrom || !!cfg.sameRows);
+  const canExport = s.staff.role === 'Admin';
   const runBulk = async (b: Bulk, value: string | null) => {
-    const before = pickedRows.map((r) => ({ id: r.id as string, v: r[b.field] ?? null }));
+    const mine = pickedRows.filter((r) => !lockedFor(r, b.field)), notMine = pickedRows.length - mine.length;
+    const before = mine.map((r) => ({ id: r.id as string, v: r[b.field] ?? null }));
     const ids = before.map((x) => x.id);
-    if (!ids.length) return;
+    if (!ids.length) { toast(`${b.label}: none of the ticked rows are yours to change. Only the person assigned (or their team head) can.`, { tone: 'bad' }); return; }
     setBulkBusy(true);
     const { data, error } = await supabase().from(cfg.table).update({ [b.field]: value }).in('id', ids).select('id');
     setBulkBusy(false); setBulkOpen(null);
     if (error) { toast(b.label + ': ' + friendlyError(error), { tone: 'bad' }); return; }
-    const done = new Set((data || []).map((x: Row) => x.id)), skipped = ids.length - done.size;
+    const done = new Set((data || []).map((x: Row) => x.id)), skipped = ids.length - done.size + notMine;
     const shownValue = b.ref ? (s.refs[b.ref]?.find((x) => x.id === value)?.label || value) : value;
-    toast(`${b.label}${b.value ? '' : ' ' + shownValue}: ${done.size} updated` + (skipped ? `, ${skipped} not allowed for your role.` : '.'), {
+    toast(`${b.label}${b.value ? '' : ' ' + shownValue}: ${done.size} updated` + (skipped ? `, ${skipped} skipped (assigned to someone else or not allowed for your role).` : '.'), {
       tone: skipped ? 'bad' : 'good',
       undo: done.size ? async () => {
         for (const x of before.filter((y) => done.has(y.id))) await supabase().from(cfg.table).update({ [b.field]: x.v }).eq('id', x.id);
@@ -335,7 +408,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
       <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-4 md:p-6 [&>*]:shrink-0">
         <PageHeader group={meta?.grp || ''} title={meta?.title || cfg.id} purpose={cfg.purpose}
           scope={s.staff.role === 'Admin' ? 'Admin · all records' : s.staff.role + (canWrite ? ' · can edit' : ' · view only')}>
-          {cfg.csv && <Button onClick={exportCsv}>Export</Button>}
+          {cfg.csv && canExport && <Button onClick={exportCsv}>Export</Button>}
           {cfg.person && person && !panelOpen && <Button onClick={() => setPanelOpen(true)}>Show panel</Button>}
           {canWrite && cfg.fields && !cfg.noCreate && cfg.cta && <Button variant="cta" onClick={onCta}>{cfg.cta}</Button>}
         </PageHeader>
@@ -350,14 +423,24 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             ))}
           </div>
           <div className="ml-auto flex items-center gap-2">
-          {filterable.length > 0 && (
+          {dateKey && rows && rows.length > 0 && <DateRange value={range} onChange={setRange} label={dateLabel} />}
+          {(filterable.length > 0 || moneyBounds) && (
             <div className="relative">
-              <button type="button" aria-expanded={filterOpen !== null} onClick={() => setFilterOpen(filterOpen === null ? '' : null)} className={cx('flex h-[38px] items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium', activeFilters.length ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>
-                <ListFilter size={14} /> Filter{activeFilters.length ? ` · ${activeFilters.length}` : ''}
+              <button type="button" aria-expanded={filterOpen !== null} onClick={() => setFilterOpen(filterOpen === null ? '' : null)} className={cx('flex h-[38px] items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium', filterCount ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>
+                <ListFilter size={14} /> Filter{filterCount ? ` · ${filterCount}` : ''}
               </button>
               {filterOpen !== null && (
                 <div role="dialog" aria-label="Filter" className="absolute right-0 z-30 mt-1 w-64 rounded-xl border border-line bg-surface p-1 shadow-lg">
-                  {filterOpen === '' ? filterable.map(({ col }) => (
+                  {filterOpen === '' && moneyCol && moneyBounds && (
+                    <button type="button" onClick={() => setFilterOpen('__amount')} className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
+                      <span>Amount</span><span className="text-[11.5px] text-muted">{amountOn ? 'On' : '›'}</span>
+                    </button>
+                  )}
+                  {filterOpen === '__amount' && moneyCol && moneyBounds ? (<>
+                    <button type="button" onClick={() => setFilterOpen('')} className="flex min-h-[44px] w-full items-center px-2.5 text-[12px] font-semibold text-accentText">‹ Amount ({moneyCol.label})</button>
+                    <RangeSlider label="Amount" min={moneyBounds[0]} max={moneyBounds[1]} value={amount || moneyBounds} onChange={setAmount} />
+                    {amountOn && <button type="button" onClick={() => setAmount(null)} className="mt-1 min-h-[44px] w-full border-t border-line text-[12.5px] font-medium text-text2">Clear Amount</button>}
+                  </>) : filterOpen === '' ? filterable.map(({ col }) => (
                     <button key={col.key} type="button" onClick={() => setFilterOpen(col.key)} className="flex min-h-[40px] w-full items-center justify-between rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
                       <span>{col.label}</span><span className="text-[11.5px] text-muted">{filters[col.key]?.length ? filters[col.key].length + ' picked' : '›'}</span>
                     </button>
@@ -383,6 +466,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               )}
             </div>
           )}
+          <FilterBuilder cfg={cfg} value={adv} onChange={setAdv} />
           {layout === 'table' && (
             <div className="relative">
               <button type="button" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} className="flex h-[38px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">
@@ -424,7 +508,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               <button type="button" aria-pressed={activeSaved === v.id} onClick={() => applySaved(v)} className="flex min-h-[34px] items-center gap-1.5 pl-3 pr-2" title={v.shared === 'me' ? 'Only you' : v.shared === 'team' ? 'Shared with ' + v.owner_role : 'Shared with everyone'}>
                 <Bookmark size={13} aria-hidden />{v.name}{v.shared !== 'me' && <span className="text-[10.5px] text-muted">· {v.shared === 'team' ? 'team' : 'all'}</span>}
               </button>
-              {(v.owner_id === s.staff.id || s.staff.role === 'Admin') && <button type="button" aria-label={'Delete view ' + v.name} onClick={() => deleteView(v)} className="flex h-[34px] w-7 items-center justify-center rounded-r-full text-muted hover:text-badText"><X size={13} /></button>}
+              {(v.owner_id === s.staff.id || s.staff.role === 'Admin') && <Confirm align="left" ariaLabel={'Delete view ' + v.name} title={'Remove the view “' + v.name + '”?'} body={v.shared === 'me' ? undefined : 'Others who use it will lose it too.'} yes="Remove" onYes={() => deleteView(v)} className="flex h-[34px] w-7 items-center justify-center rounded-r-full text-muted hover:text-badText"><X size={13} /></Confirm>}
             </span>
           ))}
           {saving ? (
@@ -444,15 +528,21 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           )}
         </div>
 
-        {activeFilters.length > 0 && (
+        {filterCount > 0 && (
           <div className="-mt-1 flex flex-wrap items-center gap-1.5" aria-label="Active filters">
+            {amountOn && (
+              <span className="flex min-h-[32px] items-center gap-1 rounded-full bg-accentSoft pl-3 text-[12.5px] font-medium text-accentText">
+                Amount: {rupees(amount![0])}–{rupees(amount![1])}
+                <button type="button" aria-label="Remove filter Amount" onClick={() => setAmount(null)} className="flex h-8 w-7 items-center justify-center rounded-r-full hover:text-badText"><X size={13} /></button>
+              </span>
+            )}
             {activeFilters.map(([key, vals]) => (
               <span key={key} className="flex min-h-[32px] items-center gap-1 rounded-full bg-accentSoft pl-3 text-[12.5px] font-medium text-accentText">
                 {columns.find((c) => c.key === key)?.label}: {vals.length > 2 ? vals.slice(0, 2).join(', ') + ' +' + (vals.length - 2) : vals.join(', ')}
                 <button type="button" aria-label={'Remove filter ' + key} onClick={() => { const n = { ...filters }; delete n[key]; setFilters(n); }} className="flex h-8 w-7 items-center justify-center rounded-r-full hover:text-badText"><X size={13} /></button>
               </span>
             ))}
-            <button type="button" onClick={() => setFilters({})} className="min-h-[32px] px-2 text-[12.5px] text-text2 underline">Clear all</button>
+            <button type="button" onClick={() => { setFilters({}); setAmount(null); }} className="min-h-[32px] px-2 text-[12.5px] text-text2 underline">Clear all</button>
           </div>
         )}
 
@@ -461,7 +551,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             {cfg.kpis.map((k) => (
               <div key={k.label} className="rounded-xl border border-line bg-surface px-3 py-2.5 md:px-4 md:py-3.5">
                 <div className="text-xs font-medium text-muted">{k.label}</div>
-                <div className="num mt-1 text-xl font-semibold md:text-2xl">{k.calc(rows)}</div>
+                <div className="num mt-1 text-xl font-semibold md:text-2xl"><CountUp value={k.calc(rows)} /></div>
               </div>
             ))}
           </section>
@@ -469,6 +559,13 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
 
         {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
         {error && <Notice tone="bad">{error}</Notice>}
+        {fresh > 0 && (
+          <div className="sticky top-2 z-30 -mb-2 flex justify-center" aria-live="polite">
+            <button type="button" onClick={() => { setFresh(0); load(); }} className="anim-rise flex min-h-[40px] items-center gap-2 rounded-full bg-accent px-4 text-[13px] font-semibold text-white shadow-lg hover:brightness-110">
+              <ArrowUp size={14} aria-hidden />{fresh} new {fresh === 1 ? cfg.kind.toLowerCase() : cfg.kind.toLowerCase() + 's'} · Show
+            </button>
+          </div>
+        )}
 
         {layout === 'table' && pickedRows.length > 0 && (
           <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accentSoft px-3 py-2" aria-live="polite">
@@ -487,7 +584,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 )}
               </span>
             ))}
-            <button type="button" onClick={exportCsv} className="min-h-[36px] rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">Export {pickedRows.length}</button>
+            {canExport && <button type="button" onClick={exportCsv} className="min-h-[36px] rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">Export {pickedRows.length}</button>}
             <button type="button" aria-label="Clear selection" onClick={() => setPicked(new Set())} className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface"><X size={16} /></button>
           </div>
         )}
@@ -495,38 +592,29 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         {rows === null ? (
           <TableSkeleton />
         ) : shown.length === 0 ? (
-          <div className="rounded-xl border border-line bg-surface p-8 text-center">
-            <div className="font-semibold">{q.trim() ? 'No matches' : (rows.length && view > 0) ? 'Nothing in “' + views[view].label + '”' : cfg.empty ? 'Nothing to do' : 'Nothing here yet'}</div>
-            <div className="mt-1 text-text2">{q.trim() ? 'Nothing in this view matches “' + q.trim() + '”.' : (rows.length && view > 0) ? 'Try another tab above.' : cfg.empty ? cfg.empty : canWrite && cfg.cta && !cfg.noCreate ? 'Use “' + cfg.cta + '” to add the first one.' : 'There is nothing to show in this view.'}</div>
-          </div>
+          q.trim() || filterCount || range ? (
+            <EmptyState kind="search" title="No matches" body={'Nothing here matches your ' + [q.trim() && 'search “' + q.trim() + '”', filterCount && 'filters', range && 'dates'].filter(Boolean).join(' and ') + '.'}
+              action={{ label: 'Clear search and filters', onClick: () => { setQ(''); setFilters({}); setRange(null); setAmount(null); setAdv(null); } }} />
+          ) : rows.length && view > 0 ? (
+            <EmptyState kind="done" title={'Nothing in “' + views[view].label + '”'} body="Try another tab above." action={{ label: 'Show ' + views[0].label, onClick: () => setView(0) }} />
+          ) : (
+            <EmptyState kind={cfg.empty ? 'done' : 'empty'} title={cfg.empty ? 'Nothing to do' : 'No ' + cfg.kind.toLowerCase() + 's yet'}
+              body={cfg.empty || (canWrite && cfg.cta && !cfg.noCreate ? 'Add the first one to get started.' : 'There is nothing to show in this view.')}
+              action={canWrite && cfg.fields && cfg.cta && !cfg.noCreate ? { label: cfg.cta, onClick: onCta } : undefined} />
+          )
         ) : layout === 'board' && cfg.board ? (
-          <div className="flex min-w-0 gap-3 overflow-x-auto pb-2">
-            {stages.map((st, i) => {
-              const cards = shown.filter((r) => r[cfg.board!.field] === st);
-              const next = stages[i + 1];
-              return (
-                <section key={st} aria-label={st}
-                  onDragOver={canWrite ? (e) => { if (dragId) { e.preventDefault(); setDropOn(st); } } : undefined}
-                  onDragLeave={() => setDropOn((d) => (d === st ? null : d))}
-                  onDrop={canWrite ? (e) => { e.preventDefault(); const r = shown.find((x) => x.id === dragId); setDragId(null); setDropOn(null); if (r && r[cfg.board!.field] !== st) move(r, st); } : undefined}
-                  className={cx('flex w-[240px] shrink-0 flex-col gap-2 rounded-xl p-2.5 transition-colors', dropOn === st ? 'bg-accentSoft ring-2 ring-accent' : 'bg-surface2')}>
-                  <div className="flex items-center justify-between px-1 text-[13px] font-semibold"><span>{st}</span><span className="num rounded-full bg-surface px-2 py-0.5 text-xs">{cards.length}</span></div>
-                  {cards.map((r) => (
-                    <div key={r.id} draggable={canWrite} onDragStart={(e) => { setDragId(r.id); e.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => { setDragId(null); setDropOn(null); }}
-                      aria-roledescription={canWrite ? 'Draggable card' : undefined}
-                      className={cx('anim-fade cursor-pointer rounded-[10px] border bg-surface p-2.5', canWrite && 'active:cursor-grabbing', dragId === r.id && 'opacity-50', selId === r.id ? 'border-accent ring-1 ring-accent' : 'border-line')} onClick={() => openRow(r)}>
-                      <div className="text-[13px] font-semibold">{plain(columns[0], r) || cfg.rowTitle(r)}</div>
-                      <div className="mt-0.5 text-xs text-text2">{columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field).map((c) => short(c, r)).filter(Boolean).join(' · ')}</div>
-                      <div className="mt-2 flex gap-1.5">
-                        {canWrite && next && <button type="button" className="min-h-[32px] flex-1 rounded-lg border border-line2 bg-surface text-xs font-medium text-accentText" onClick={(e) => { e.stopPropagation(); move(r, next); }}>Move to {next} →</button>}
-                        {canWrite && cfg.fields && cfg.person && <button type="button" aria-label="Edit" className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>}
-                      </div>
-                    </div>
-                  ))}
-                </section>
-              );
-            })}
-          </div>
+          <Board stages={stages} items={shown} stageOf={(r) => r[cfg.board!.field]} selectedId={selId} storageKey={cfg.id}
+            canMove={(r) => canWrite && !lockedFor(r, cfg.board!.field)} onMove={move} onOpen={openRow}
+            renderCard={(r, next) => (<>
+              <div className="text-[13px] font-semibold">{plain(columns[0], r) || cfg.rowTitle(r)}</div>
+              <div className="mt-0.5 text-xs text-text2">{columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field && c.type !== 'tags').map((c) => short(c, r)).filter(Boolean).join(' · ')}</div>
+              {Array.isArray(r.tags) && r.tags.length > 0 && <div className="mt-1.5"><TagChips tags={r.tags} /></div>}
+              <div className="mt-2 flex gap-1.5">
+                {canWrite && next && lockedFor(r, cfg.board!.field) && <span className="flex min-h-[32px] flex-1 items-center rounded-lg bg-surface2 px-2 text-[11.5px] text-muted">Only {statusLockedBy(cfg, r, s.staff, s.refs.staff || [])} can move this</span>}
+                {canWrite && next && !lockedFor(r, cfg.board!.field) && <button type="button" className="min-h-[32px] flex-1 rounded-lg border border-line2 bg-surface text-xs font-medium text-accentText" onClick={(e) => { e.stopPropagation(); move(r, next); }}>Move to {next} →</button>}
+                {canWrite && cfg.fields && cfg.person && <button type="button" aria-label="Edit" className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>}
+              </div>
+            </>)} />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-line bg-surface">
             <table className="w-full border-collapse text-left text-[13px]">
@@ -552,14 +640,15 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                   <tr key={r.id ?? r.key ?? JSON.stringify(r)} onClick={() => openRow(r)} className={cx('cursor-pointer border-t border-line', (r.id && picked.has(r.id)) || (selId === r.id && cfg.person) ? 'bg-accentSoft' : 'hover:bg-surface2')}>
                     <td className="w-11 pl-1">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</td>
                     {cols.map((c, i) => {
-                      const f = canWrite && !cfg.readFrom && r.id ? fieldFor(cfg, c) : null;
+                      const f0 = canWrite && (!cfg.readFrom || cfg.sameRows) && r.id ? fieldFor(cfg, c) : null;
+                      const f = f0 && !lockedFor(r, f0.key) ? f0 : null;
                       const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
                       return (
                         <td key={c.key} className={cx('align-middle', editing ? 'px-2 py-1' : 'px-4 py-3', i === 0 ? 'font-semibold' : 'text-text2')}>
-                          {editing ? inlineEditor(r, f!) : f ? (
+                          {editing ? inlineEditor(r, f!) : f ? hover(i === 0 && !!cfg.person?.(r), r,
                             <button type="button" title={'Click to change ' + f.label} aria-label={`${f.label}: ${plain(c, r) || 'empty'}. Change`} onClick={(e) => { e.stopPropagation(); setCellEdit({ id: r.id, key: c.key }); }}
                               className="-mx-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-left hover:border-line2 hover:bg-surface">{cell(c, r)}</button>
-                          ) : cell(c, r)}
+                          ) : hover(i === 0 && !!cfg.person?.(r), r, cell(c, r))}
                         </td>
                       );
                     })}

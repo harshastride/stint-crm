@@ -73,8 +73,8 @@ export function ImportPage() {
     const existing = new Set<string>();
     const mobiles = pending.map((p) => p.lead.mobile);
     for (let i = 0; i < mobiles.length; i += 200) {
-      const { data } = await supabase().from('lead').select('mobile').in('mobile', mobiles.slice(i, i + 200));
-      (data || []).forEach((d: Row) => existing.add(d.mobile));
+      const { data } = await supabase().rpc('existing_lead_mobiles', { p_mobiles: mobiles.slice(i, i + 200) });
+      ((data as string[] | null) || []).forEach((m) => existing.add(m));
     }
     pending.forEach((p) => (existing.has(p.lead.mobile) ? dupes.push([...p.row, 'Already in the CRM']) : ready.push(p.lead)));
     setCheck({ ready, dupes, bad }); setBusy(false); setStep(3);

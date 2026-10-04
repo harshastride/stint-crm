@@ -39,3 +39,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .anim-rise { animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
 @media (prefers-reduced-motion: reduce) { .anim-rise { animation: none; } }
 @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(300%); } }
+
+/* slider (discount %) */
+.stint-range::-webkit-slider-runnable-track { height: 8px; border-radius: 999px; background: linear-gradient(to right, var(--bar) var(--fill), var(--surface2) var(--fill)); }
+.stint-range::-moz-range-track { height: 8px; border-radius: 999px; background: linear-gradient(to right, var(--bar) var(--fill), var(--surface2) var(--fill)); }
+.stint-range::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -8px; height: 24px; width: 24px; border-radius: 999px; background: #fff; border: 3px solid var(--bar); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.stint-range::-moz-range-thumb { height: 18px; width: 18px; border-radius: 999px; background: #fff; border: 3px solid var(--bar); }
+.stint-range:focus-visible { outline: 2px solid #4474B9; outline-offset: 2px; border-radius: 8px; }

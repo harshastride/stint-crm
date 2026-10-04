@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "stint-crm", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3100 }
+    { "name": "stint-crm", "runtimeExecutable": "npx", "runtimeArgs": ["next", "dev"], "port": 3100, "autoPort": true }
   ]
 }

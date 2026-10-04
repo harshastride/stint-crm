@@ -1,9 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, Compass, ChevronDown, KeyRound, ListTodo, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from 'lucide-react';
+import { CalendarDays, CircleHelp, Compass, Keyboard, ChevronDown, KeyRound, ListTodo, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from 'lucide-react';
 import type { Staff } from '@/lib/session';
 import { cx, initials } from './ui';
+import { openShortcuts } from './kit/Shortcuts';
 
 export type ThemePref = 'light' | 'dark' | 'system';
 
@@ -66,9 +67,11 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
           </div>
           <div className="my-1 h-px bg-line" role="separator" />
           <button type="button" role="menuitem" className={item} onClick={() => go('/p/followups')}><ListTodo size={16} className="text-muted" />My follow-ups</button>
-          {canCalendar && <button type="button" role="menuitem" className={item} onClick={() => go('/p/calendar')}><CalendarDays size={16} className="text-muted" />Calendar</button>}
+          {canCalendar && <button type="button" role="menuitem" className={item} onClick={() => go('/calendar')}><CalendarDays size={16} className="text-muted" />Calendar</button>}
           <button type="button" role="menuitem" className={item} onClick={() => { close(false); onChangePassword(); }}><KeyRound size={16} className="text-muted" />Change password</button>
           {onTour && <button type="button" role="menuitem" className={item} onClick={() => { close(false); onTour(); }}><Compass size={16} className="text-muted" />Show me around</button>}
+          <button type="button" role="menuitem" className={item} onClick={() => go('/help')}><CircleHelp size={16} className="text-muted" />Help</button>
+          <button type="button" role="menuitem" className={item} onClick={() => { close(false); openShortcuts(); }}><Keyboard size={16} className="text-muted" />Keyboard shortcuts</button>
           <div className="my-1 h-px bg-line" role="separator" />
           <div className="flex min-h-[44px] items-center gap-3 px-2.5">
             <SunMoon size={16} className="text-muted" aria-hidden />

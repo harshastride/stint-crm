@@ -4,15 +4,17 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number'; get?: (r: Row) => unknown };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags'; get?: (r: Row) => unknown };
 export type Field = {
   key: string; label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
   list?: string;                 // dropdown list id (values come from Dropdown values)
   options?: string[];            // fixed options
   ref?: string;                  // small reference table: staff, program, batch, branch, company, lead_source, campaign
   person?: 'lead' | 'candidate'; // search-as-you-type picker
-  required?: boolean; other?: boolean; addable?: boolean; // addable: a ref picker where a missing name can be added on the spot
+  required?: boolean; other?: boolean; addable?: boolean; cards?: boolean; // cards: show a short option list as big tappable cards
+  slider?: { max: number; limitSetting?: string }; // a number picked with a slider (e.g. discount %)
+  // addable: a ref picker where a missing name can be added on the spot
   createOnly?: boolean; readOnly?: boolean;
   def?: (ctx: { me: string }) => unknown;
 };
@@ -22,7 +24,7 @@ export type PersonRef = { kind: 'lead' | 'candidate'; id: string };
 export type View = { label: string; where?: (r: Row, me: string) => boolean };
 export type Kpi = { label: string; calc: (rows: Row[]) => string | number };
 export type PageCfg = {
-  id: string; table: string; readFrom?: string; select?: string; order?: { col: string; asc?: boolean };
+  id: string; table: string; readFrom?: string; /** readFrom view has the same rows/ids as table, so editing in the list still works */ sameRows?: boolean; select?: string; order?: { col: string; asc?: boolean };
   kind: string; purpose: string; cta?: string; readOnly?: boolean; noCreate?: boolean; csv?: boolean;
   columns: Col[]; views?: View[]; kpis?: Kpi[];
   board?: { field: string; list: string };
@@ -33,6 +35,23 @@ export type PageCfg = {
   empty?: string;                // what an empty list means on this page
   bulk?: Bulk[];                 // actions for ticked rows (shown only to roles that can edit the page)
   top?: string;                  // id of an extra block shown above the list (see ListPage TOP)
+  assignee?: { field: string; status: string; label: string };   // only this person (or their team head) changes the status; the database enforces it
+};
+
+type Me = { id: string; role: string; level?: string | null };
+/** Mirrors the database's may_act_for: you, or you are Head of that person's team. */
+export const mayActFor = (who: string, me: Me, staff: RefRow[]) =>
+  who === me.id || (me.level === 'Head' && staff.find((x) => x.id === who)?.extra?.role === me.role);
+/** Name of the assigned person when someone else may not change this row's status; null when you may. */
+export function statusLockedBy(cfg: PageCfg, row: Row, me: Me, staff: RefRow[]): string | null {
+  const a = cfg.assignee; const who = a && row[a.field];
+  if (!who || mayActFor(who, me, staff)) return null;
+  return staff.find((x) => x.id === who)?.label || 'the assigned person';
+}
+/** Can you hand this row to someone else? Admin, the assignee, or their team head. */
+export const mayReassign = (cfg: PageCfg, row: Row, me: Me, staff: RefRow[]) => {
+  const who = cfg.assignee && row[cfg.assignee.field];
+  return !who || me.role === 'Admin' || mayActFor(who, me, staff);
 };
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
@@ -51,6 +70,7 @@ const leadPerson = (r: Row): PersonRef | null => { const id = r.lead_id || r.lea
 export const PAGES: Record<string, PageCfg> = {
   followups: {
     bulk: [{ field: 'status', label: 'Mark done', value: 'Done' }, { field: 'owner_id', label: 'Reassign to', ref: 'staff' }],
+    assignee: { field: 'owner_id', status: 'status', label: 'owner' },
     id: 'followups', table: 'follow_up', kind: 'Follow-up', purpose: 'Everything you need to do, sorted by when it is due.', cta: 'Add follow-up',
     empty: 'You’re all caught up. Follow-ups given to you or your team, and ones the CRM raises from its rules, appear here.',
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'due_at', asc: true },
@@ -85,10 +105,10 @@ export const PAGES: Record<string, PageCfg> = {
   },
   lead: {
     bulk: [{ field: 'owner_id', label: 'Reassign to', ref: 'staff' }, { field: 'stage', label: 'Move to stage', list: 'lead_stage' }],
-    id: 'lead', table: 'lead', kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
+    id: 'lead', table: 'lead', readFrom: 'lead_list', sameRows: true, kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
     select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
-    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner' },
-      { key: 'source.name', label: 'Source' }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No') }],
+    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'mobile_masked', label: 'Mobile' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner' },
+      { key: 'source.name', label: 'Source' }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No') }, { key: 'tags', label: 'Tags', type: 'tags' }],
     views: [{ label: 'All leads' }, { label: 'My leads', where: (r, id) => r.owner_id === id }, { label: 'Open', where: (r) => !['Converted', 'Not interested'].includes(r.stage) }],
     kpis: [count('New today', (r) => isToday(r.created_at)), count('Overdue calls', (r) => !['Converted', 'Not interested'].includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at)),
       count('Interested', (r) => r.stage === 'Interested'), count('Converted', (r) => r.stage === 'Converted')],
@@ -96,7 +116,7 @@ export const PAGES: Record<string, PageCfg> = {
     fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'mobile', label: 'Mobile', type: 'phone', required: true }, { key: 'email', label: 'Email', type: 'text' },
       { key: 'city', label: 'City', type: 'text' }, { key: 'program_id', label: 'Course interested', type: 'ref', ref: 'program' }, { key: 'source_id', label: 'Source', type: 'ref', ref: 'lead_source' },
       { key: 'stage', label: 'Stage', type: 'select', list: 'lead_stage' }, { key: 'owner_id', label: 'Owner', type: 'ref', ref: 'staff' },
-      { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'notes', label: 'Notes', type: 'textarea' }],
+      { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'tags', label: 'Tags', type: 'tags', list: 'tag' }, { key: 'notes', label: 'Notes', type: 'textarea' }],
     rowTitle: (r) => r.full_name,
   },
   call: {
@@ -122,6 +142,8 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.lead?.full_name || r.candidate?.full_name || r.number || 'Recording',
   },
   counsel: {
+    assignee: { field: 'counsellor_id', status: 'status', label: 'counsellor' },
+    top: 'compare',
     id: 'counsel', table: 'counselling_session', kind: 'Counselling session', purpose: 'Sessions where sales explains the program and fees.', cta: 'Book session',
     select: '*, lead:lead_id(id,full_name), counsellor:counsellor_id(full_name), program:program_id(name)', order: { col: 'scheduled_at' },
     columns: [leadCol, { key: 'counsellor.full_name', label: 'Counsellor' }, { key: 'program.name', label: 'Program' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'scheduled_at', label: 'When', type: 'datetime' }],
@@ -141,7 +163,7 @@ export const PAGES: Record<string, PageCfg> = {
     kpis: [count('Sent', (r) => r.status === 'Sent'), count('Accepted', (r) => r.status === 'Accepted'), sum('Value open', 'amount', (r) => ['Sent', 'Negotiating'].includes(r.status))],
     board: { field: 'status', list: 'quote_status' }, person: leadPerson,
     fields: [lead, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program', required: true }, { key: 'list_price', label: 'List price (₹, from the program)', type: 'number', readOnly: true },
-      { key: 'discount_pct', label: 'Discount %', type: 'select', options: ['0', '5', '8', '10', '15'] }, { key: 'instalments', label: 'Payment plan', type: 'instalments' },
+      { key: 'discount_pct', label: 'Discount %', type: 'number', slider: { max: 25, limitSetting: 'discount_approval_limit_pct' } }, { key: 'instalments', label: 'Payment plan', type: 'instalments' },
       { key: 'valid_until', label: 'Valid until', type: 'date' }, { key: 'status', label: 'Status', type: 'select', list: 'quote_status' }],
     derive: (v, refs) => { const p = refs.program?.find((x) => x.id === v.program_id); return p ? { ...v, list_price: Number(p.extra?.fee || 0) } : v; },
     rowTitle: (r) => 'Quote · ' + (r.lead?.full_name || ''),
@@ -156,12 +178,12 @@ export const PAGES: Record<string, PageCfg> = {
     bulk: [{ field: 'batch_id', label: 'Assign batch', ref: 'batch' }, { field: 'poc_id', label: 'Change owner', ref: 'staff' }],
     id: 'candidate', table: 'candidate', kind: 'Candidate', purpose: 'Enrolled students. Tap one for the quick panel, or open the full profile.', cta: 'Add candidate',
     select: '*, program:program_id(name), batch:batch_id(code), poc:poc_id(full_name)', order: { col: 'created_at' },
-    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'poc.full_name', label: 'Owner' }],
+    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'poc.full_name', label: 'Owner' }, { key: 'tags', label: 'Tags', type: 'tags' }],
     views: [{ label: 'All' }, { label: 'My candidates', where: (r, id) => r.poc_id === id }, { label: 'Ready', where: (r) => r.stage === 'Ready' }],
     kpis: [count('Active', (r) => !['Placed', 'Alumni'].includes(r.stage)), count('In training', (r) => r.stage === 'Training'), count('Ready', (r) => r.stage === 'Ready'), count('Placed', (r) => ['Placed', 'Alumni'].includes(r.stage))],
     board: { field: 'stage', list: 'candidate_stage' }, person: (r) => ({ kind: 'candidate', id: r.id }),
     fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program' }, { key: 'batch_id', label: 'Batch', type: 'ref', ref: 'batch' },
-      { key: 'stage', label: 'Stage', type: 'select', list: 'candidate_stage' }, { key: 'poc_id', label: 'Owner (point of contact)', type: 'ref', ref: 'staff' }, { key: 'joined_on', label: 'Joined on', type: 'date' }],
+      { key: 'stage', label: 'Stage', type: 'select', list: 'candidate_stage' }, { key: 'poc_id', label: 'Owner (point of contact)', type: 'ref', ref: 'staff' }, { key: 'joined_on', label: 'Joined on', type: 'date' }, { key: 'tags', label: 'Tags', type: 'tags', list: 'tag' }],
     rowTitle: (r) => r.full_name,
   },
   program: {
@@ -183,7 +205,7 @@ export const PAGES: Record<string, PageCfg> = {
     views: [{ label: 'Live', where: (r) => r.status === 'Live' }, { label: 'Upcoming', where: (r) => r.status === 'Upcoming' }, { label: 'Completed', where: (r) => r.status === 'Completed' }, { label: 'All' }],
     kpis: [count('Live', (r) => r.status === 'Live'), count('Upcoming', (r) => r.status === 'Upcoming')],
     fields: [{ key: 'code', label: 'Batch code', type: 'text', required: true }, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program', required: true }, { key: 'trainer_id', label: 'Trainer', type: 'ref', ref: 'staff' },
-      { key: 'branch_id', label: 'Branch', type: 'ref', ref: 'branch' }, { key: 'starts_on', label: 'Starts on', type: 'date' }, { key: 'status', label: 'Status', type: 'select', list: 'batch_status' }],
+      { key: 'branch_id', label: 'Branch', type: 'ref', ref: 'branch' }, { key: 'starts_on', label: 'Starts on', type: 'date' }, { key: 'ends_on', label: 'Ends on', type: 'date' }, { key: 'class_start', label: 'Class starts (e.g. 10:00)', type: 'text' }, { key: 'class_end', label: 'Class ends (e.g. 12:00)', type: 'text' }, { key: 'status', label: 'Status', type: 'select', list: 'batch_status' }],
     rowTitle: (r) => r.code,
   },
   note: {
@@ -194,6 +216,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => 'Note · ' + (r.candidate?.full_name || ''),
   },
   mock: {
+    assignee: { field: 'trainer_id', status: 'status', label: 'mock trainer' },
     id: 'mock', table: 'mock_session', kind: 'Mock session', purpose: 'Mock interviews run by our own team.', cta: 'Book mock', select: '*, candidate:candidate_id(id,full_name), trainer:trainer_id(full_name)', order: { col: 'scheduled_at' },
     columns: [candCol, { key: 'trainer.full_name', label: 'Mock trainer' }, { key: 'level', label: 'Level' }, { key: 'status', label: 'Result', type: 'pill' }, { key: 'scheduled_at', label: 'When', type: 'datetime' }],
     views: [{ label: 'Upcoming', where: (r) => r.status === 'Booked' }, { label: 'Done', where: (r) => r.status === 'Passed' }, { label: 'Failed', where: (r) => r.status === 'Failed' }, { label: 'All' }],
@@ -203,6 +226,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => 'Mock · ' + (r.candidate?.full_name || ''),
   },
   sme: {
+    assignee: { field: 'sme_id', status: 'verdict', label: 'SME' },
     id: 'sme', table: 'sme_feedback', kind: 'SME feedback', purpose: 'Expert ratings and comments after each mock.', cta: 'Add feedback', select: '*, candidate:candidate_id(id,full_name), sme:sme_id(full_name)', order: { col: 'created_at' },
     columns: [candCol, { key: 'sme.full_name', label: 'SME' }, { key: 'rating', label: 'Rating', get: (r) => (r.rating ? r.rating + ' / 5' : '—') }, { key: 'verdict', label: 'Verdict', type: 'pill' }, { key: 'comments', label: 'Comments' }, { key: 'created_at', label: 'Date', type: 'date' }],
     kpis: [count('Feedback given'), { label: 'Avg rating', calc: (rows) => (rows.length ? (rows.reduce((a, r) => a + Number(r.rating || 0), 0) / rows.length).toFixed(1) + ' / 5' : '—') }], person: candPerson,
@@ -211,6 +235,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => 'Feedback · ' + (r.candidate?.full_name || ''),
   },
   resume: {
+    assignee: { field: 'reviewer_id', status: 'status', label: 'reviewer' },
     id: 'resume', table: 'resume_version', kind: 'Resume', purpose: 'Every resume version and whether it was approved.', cta: 'Add resume version', select: '*, candidate:candidate_id(id,full_name), reviewer:reviewer_id(full_name)', order: { col: 'created_at' },
     columns: [candCol, { key: 'version', label: 'Version' }, { key: 'reviewer.full_name', label: 'Reviewer' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'reason', label: 'Reason' }, { key: 'created_at', label: 'Date', type: 'date' }, { key: 'file', label: 'File', get: (r) => (r.file_path ? 'Attached' : '—') }],
     views: [{ label: 'Pending review', where: (r) => r.status === 'Pending' }, { label: 'Approved', where: (r) => r.status === 'Approved' }, { label: 'Rejected', where: (r) => r.status === 'Rejected' }, { label: 'All' }],
@@ -248,6 +273,16 @@ export const PAGES: Record<string, PageCfg> = {
       { key: 'last_working_day', label: 'Last working day (leave empty if still working)', type: 'date' }, { key: 'pf_status', label: 'PF', type: 'select', list: 'pf_status' }, { key: 'status', label: 'Status', type: 'select', list: 'request_status' }],
     rowTitle: (r) => (r.candidate?.full_name || '') + ' · ' + r.company,
   },
+  announcement: {
+    id: 'announcement', table: 'announcement', kind: 'Announcement', purpose: 'Short notices every staff member sees at the top of the CRM, until the date you pick.', cta: 'Post announcement',
+    select: '*, by:created_by(full_name)', order: { col: 'created_at' },
+    empty: 'No announcements yet. Post one for holidays, new batches or rule changes.',
+    columns: [{ key: 'message', label: 'Message' }, { key: 'tone', label: 'Type', type: 'pill' }, { key: 'show_until', label: 'Show until', type: 'date' }, { key: 'by.full_name', label: 'Posted by' }, { key: 'created_at', label: 'Posted', type: 'datetime' }],
+    views: [{ label: 'Showing now', where: (r) => String(r.show_until) >= new Date().toISOString().slice(0, 10) }, { label: 'All' }],
+    fields: [{ key: 'message', label: 'Message (one or two lines)', type: 'textarea', required: true }, { key: 'tone', label: 'Type', type: 'select', options: ['Info', 'Important', 'Good news'], required: true, cards: true },
+      { key: 'show_until', label: 'Show until', type: 'date', required: true, def: () => new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10) }],
+    rowTitle: (r) => String(r.message || '').slice(0, 40),
+  },
   placement: {
     id: 'placement', table: 'placement', kind: 'Placement', purpose: 'Offers accepted and joining status.', cta: 'Record placement', select: '*, candidate:candidate_id(id,full_name), company:company_id(name)', order: { col: 'created_at' },
     columns: [candCol, { key: 'company.name', label: 'Company' }, { key: 'role', label: 'Role' }, { key: 'ctc_lpa', label: 'CTC (LPA)', type: 'number' }, { key: 'joining_on', label: 'Joining', type: 'date' }, { key: 'status', label: 'Status', type: 'pill' }],
@@ -259,6 +294,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => (r.candidate?.full_name || '') + ' · ' + (r.company?.name || ''),
   },
   checklist: {
+    assignee: { field: 'owner_id', status: 'status', label: 'owner' },
     id: 'checklist', table: 'placement_checklist_item', kind: 'Checklist item', purpose: 'Steps after an offer: documents, background check, joining.', cta: 'Add item', select: '*, candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'created_at' },
     columns: [candCol, { key: 'item', label: 'Item' }, { key: 'owner.full_name', label: 'Owner' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }],
     views: [{ label: 'Open', where: (r) => r.status !== 'Done' }, { label: 'Done', where: (r) => r.status === 'Done' }], kpis: [count('Open items', (r) => r.status !== 'Done')], person: candPerson,
@@ -293,6 +329,7 @@ export const PAGES: Record<string, PageCfg> = {
   },
   alert: {
     bulk: [{ field: 'status', label: 'Resolve', value: 'Resolved' }, { field: 'owner_id', label: 'Reassign to', ref: 'staff' }],
+    assignee: { field: 'owner_id', status: 'status', label: 'owner' },
     id: 'alert', table: 'alert', kind: 'Alert', purpose: 'Warnings for work that is slipping. Tap one to change its owner or resolve it.', noCreate: true,
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'raised_at' },
     columns: [{ key: 'title', label: 'Alert', get: (r) => r.title + ': ' + (r.lead?.full_name || r.candidate?.full_name || '') }, { key: 'area', label: 'Area' }, { key: 'owner.full_name', label: 'Owner' }, { key: 'priority', label: 'Priority', type: 'pill' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'raised_at', label: 'Raised', type: 'date' }],
@@ -305,6 +342,14 @@ export const PAGES: Record<string, PageCfg> = {
     columns: [{ key: 'person_name', label: 'Record' }, { key: 'what', label: 'What changed' }, { key: 'change', label: 'From → to', get: (r) => (r.from_value || '—') + ' → ' + (r.to_value || '—') }, { key: 'at', label: 'When', type: 'datetime' }],
     views: [{ label: 'All' }, { label: 'Leads', where: (r) => r.entity === 'lead' }, { label: 'Candidates', where: (r) => r.entity === 'candidate' }, { label: 'Fees', where: (r) => /fee/.test(r.entity) }],
     kpis: [count('Changes today', (r) => isToday(r.at))], rowTitle: (r) => r.person_name || 'Change',
+  },
+  accesslog: {
+    id: 'accesslog', table: 'data_access_log', kind: 'Access', purpose: 'Every time someone tapped Show on a phone, email or address.', readOnly: true, noCreate: true, csv: true,
+    select: '*, staff:staff_id(full_name, role)', order: { col: 'at' },
+    columns: [{ key: 'at', label: 'When', type: 'datetime' }, { key: 'staff', label: 'Staff', get: (r) => r.staff?.full_name || '—' }, { key: 'role', label: 'Role', get: (r) => r.staff?.role || '—' },
+      { key: 'kind', label: 'What', get: (r) => (r.kind === 'candidate' ? 'Student' : r.kind === 'lead' ? 'Lead' : r.kind) }, { key: 'field', label: 'Field' }, { key: 'entity_id', label: 'Record', get: (r) => String(r.entity_id || '').slice(0, 8) }],
+    views: [{ label: 'All' }, { label: 'Today', where: (r) => isToday(r.at) }],
+    kpis: [count('Shown today', (r) => isToday(r.at))], rowTitle: (r) => (r.staff?.full_name || 'Someone') + ' · ' + (r.field || ''),
   },
   company: {
     id: 'company', table: 'company', kind: 'Company', purpose: 'Client companies that hire our candidates.', cta: 'Add company', order: { col: 'name', asc: true },

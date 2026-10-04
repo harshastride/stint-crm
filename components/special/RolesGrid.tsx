@@ -11,7 +11,7 @@ const PAGE_NEXT: Record<string, string | null> = { '': 'r', r: 'w', w: null };
 const FIELD_NEXT: Record<string, string> = { h: 'm', m: 'f', f: 'h' };
 const PAGE_LABEL: Record<string, string> = { '': '—', r: 'View', w: 'Edit' };
 const FIELD_LABEL: Record<string, string> = { h: 'Hidden', m: 'Masked', f: 'Full' };
-type RoleRules = { owns: string[]; picks_up: string[]; sees_candidate_stages: string[]; sees_lead_stages: string[] };
+type RoleRules = { owns: string[]; picks_up: string[]; sees_candidate_stages: string[]; sees_lead_stages: string[]; contact_lead_stages: string[] | null; contact_candidate_stages: string[] | null };
 const tone = (level: number) => (level === 2 ? 'bg-accent text-white border-accent' : level === 1 ? 'bg-accentSoft text-accentText border-accent' : 'bg-surface text-muted border-line2');
 
 export function RolesGrid() {
@@ -26,7 +26,7 @@ export function RolesGrid() {
 
   const load = useCallback(async () => {
     const db = supabase();
-    const [a, f, r] = await Promise.all([db.from('role_page_access').select('*'), db.from('role_field_access').select('*'), db.from('app_role').select('name, owns, picks_up, sees_candidate_stages, sees_lead_stages')]);
+    const [a, f, r] = await Promise.all([db.from('role_page_access').select('*'), db.from('role_field_access').select('*'), db.from('app_role').select('name, owns, picks_up, sees_candidate_stages, sees_lead_stages, contact_lead_stages, contact_candidate_stages')]);
     setRules(Object.fromEntries((r.data || []).map((x: Row) => [x.name, x as RoleRules])));
     setPageAccess(Object.fromEntries((a.data || []).map((r: Row) => [r.role + '|' + r.page_id, r.mode])));
     setFieldAccess(Object.fromEntries((f.data || []).map((r: Row) => [r.role + '|' + r.field_group, r.mode])));
@@ -51,7 +51,7 @@ export function RolesGrid() {
     setMsg({ tone: 'good', text: `${role} · ${label}: ${FIELD_LABEL[next]}.` });
   };
 
-  const saveRule = async (role: string, key: keyof RoleRules, value: string[], text: string) => {
+  const saveRule = async (role: string, key: keyof RoleRules, value: string[] | null, text: string) => {
     if (!canWrite) return;
     const { error } = await supabase().from('app_role').update({ [key]: value }).eq('name', role);
     if (error) { setMsg({ tone: 'bad', text: error.message }); return; }
@@ -61,9 +61,20 @@ export function RolesGrid() {
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const leadStages = s.lists.lead_stage || [], candStages = s.lists.candidate_stage || [];
   const chip = (on: boolean) => cx('min-h-[30px] rounded-full border px-2.5 text-xs font-semibold', on ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface text-muted');
-  const StageChips = ({ role, k, all, what }: { role: string; k: 'sees_candidate_stages' | 'sees_lead_stages' | 'picks_up'; all: string[]; what: string }) => {
+  const StageChips = ({ role, k, all, what }: { role: string; k: 'sees_candidate_stages' | 'sees_lead_stages' | 'picks_up' | 'contact_lead_stages' | 'contact_candidate_stages'; all: string[]; what: string }) => {
     const cur = rules[role]?.[k] || [];
     const isPick = k === 'picks_up';
+    const isContact = k === 'contact_lead_stages' || k === 'contact_candidate_stages';
+    if (isContact) return (
+      <div className="flex flex-wrap gap-1">
+        <button type="button" disabled={!canWrite} aria-pressed={cur.length === 0} onClick={() => saveRule(role, k, null, 'can see ' + what + ' contact details in any stage')} className={chip(cur.length === 0)}>Any stage</button>
+        {all.map((st) => (
+          <button key={st} type="button" disabled={!canWrite} aria-pressed={cur.includes(st)}
+            onClick={() => { const next = toggle(cur, st); saveRule(role, k, next.length ? next : null, next.length ? 'can see ' + what + ' contact details only in ' + next.join(', ') : 'can see ' + what + ' contact details in any stage'); }}
+            className={chip(cur.includes(st))}>{st}</button>
+        ))}
+      </div>
+    );
     return (
       <div className="flex flex-wrap gap-1">
         {!isPick && <button type="button" disabled={!canWrite} onClick={() => saveRule(role, k, [], 'sees ' + what + ' in every stage')} className={chip(cur.length === 0)}>All</button>}
@@ -107,10 +118,12 @@ export function RolesGrid() {
                   </div>
                 </div>
                 <div><div className="mb-1 text-xs font-medium text-text2">Picks up other teams’ leads at</div><StageChips role={r} k="picks_up" all={leadStages} what="leads" /></div>
+                <div><div className="mb-1 text-xs font-medium text-text2">Can see contact details while the lead is in</div><StageChips role={r} k="contact_lead_stages" all={leadStages} what="lead" /></div>
+                <div><div className="mb-1 text-xs font-medium text-text2">Can see contact details while the student is in</div><StageChips role={r} k="contact_candidate_stages" all={candStages} what="student" /></div>
               </div>
             </section>
           ))}
-          <p className="text-xs text-muted">“All” means no limit. Juniors and Heads are set per person under Users &amp; staff. Page access still applies: a role needs the page to see the records at all. Admin always sees everything.</p>
+          <p className="text-xs text-muted">“All” and “Any stage” mean no limit. Every time someone shows a phone, email or address it is logged. Juniors and Heads are set per person under Users &amp; staff. Page access still applies: a role needs the page to see the records at all. Admin always sees everything.</p>
         </div>
       ) : (<>
       <div className="overflow-x-auto rounded-xl border border-line bg-surface">

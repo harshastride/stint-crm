@@ -19,7 +19,7 @@ const ACTIONS: { label: string; page: string; href: string; hint: string }[] = [
   { label: 'Book a mock interview', page: 'mock', href: '/p/mock?new=x:', hint: 'For a candidate' },
   { label: 'Mark attendance', page: 'attendance', href: '/p/attendance', hint: 'Today’s batch' },
   { label: 'Record a placement', page: 'placement', href: '/p/placement?new=x:', hint: 'Offer accepted' },
-  { label: 'Open the calendar', page: 'calendar', href: '/p/calendar', hint: 'This month' },
+  { label: 'Open the calendar', page: 'calendar', href: '/calendar', hint: 'This week' },
 ];
 
 export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -40,11 +40,11 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     const t = setTimeout(async () => {
       const db = supabase(), digits = term.replace(/\D/g, ''), safe = term.replace(/[%,()]/g, ' ');
       const [l, c] = await Promise.all([
-        s.can('lead') ? db.from('lead').select('id, full_name, mobile, stage').or(`full_name.ilike.%${safe}%${digits.length >= 3 ? `,mobile.ilike.%${digits}%` : ''}`).limit(5) : Promise.resolve({ data: [] }),
+        s.can('lead') ? db.rpc('search_people', { p_kind: 'lead', p_term: digits.length >= 3 ? digits : term, p_limit: 5 }) : Promise.resolve({ data: [] }),
         s.can('candidate') ? db.from('candidate').select('id, full_name, code, stage').or(`full_name.ilike.%${safe}%,code.ilike.%${safe}%`).limit(5) : Promise.resolve({ data: [] }),
       ]);
       setPeople([
-        ...((l.data || []) as { id: string; full_name: string; mobile: string; stage: string }[]).map((x) => ({ id: 'l' + x.id, group: 'People' as const, label: x.full_name, hint: `Lead · ${x.stage} · ${x.mobile}`, href: `/p/lead?person=lead:${x.id}`, icon: User })),
+        ...((l.data || []) as { id: string; full_name: string; mobile_masked: string; stage: string }[]).map((x) => ({ id: 'l' + x.id, group: 'People' as const, label: x.full_name, hint: `Lead · ${x.stage} · ${x.mobile_masked || ''}`, href: `/p/lead?person=lead:${x.id}`, icon: User })),
         ...((c.data || []) as { id: string; full_name: string; code: string; stage: string }[]).map((x) => ({ id: 'c' + x.id, group: 'People' as const, label: x.full_name, hint: `Candidate · ${x.stage} · ${x.code}`, href: `/p/candidate?person=candidate:${x.id}`, icon: UserRound })),
       ]);
     }, 160);

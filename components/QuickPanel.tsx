@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { PersonRef, Row } from '@/lib/pages';
-import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
+import { Button, Notice, Pill, cx, fmtDateTime, initials, money } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
 import { Timeline } from './Timeline';
@@ -19,6 +19,10 @@ import { STEP_ICON } from '@/lib/icons';
 
 import { STAGES, STAGE_OWNER as OWNER, STAGE_INDEX } from '@/lib/journey';
 import { PanelSkeleton } from './Skeletons';
+import { Meter } from './kit/Meter';
+import { Viewers } from './kit/Viewers';
+import { mayActFor } from '@/lib/pages';
+import { Reveal, contactStatus, revealOnce } from './kit/Reveal';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Family', identity: 'Identity', bank: 'Bank' };
 
@@ -31,6 +35,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const [timeline, setTimeline] = useState<Row[]>([]);
   const [tasks, setTasks] = useState<Row[]>([]);
   const [priv, setPriv] = useState<Row | null>(null);
+  const [prog, setProg] = useState<{ fees?: [number, number]; docs?: [number, number] }>({});
   // the tab you were on is kept for the next person
   const [tab, setTabRaw] = useState<'Log' | 'Timeline' | 'Details'>(() => { try { return (localStorage.getItem('stint-panel-tab') as 'Log') || 'Log'; } catch { return 'Log'; } });
   const setTab = (t: 'Log' | 'Timeline' | 'Details') => { setTabRaw(t); try { localStorage.setItem('stint-panel-tab', t); } catch {} };
@@ -43,6 +48,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const [form, setForm] = useState<Row>({});
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cst, setCst] = useState<{ allowed: boolean; reason: string | null } | null>(null);
 
   const canWritePerson = isLead ? s.can('lead', 'w') : s.can('candidate', 'w');
   const canCall = isLead && s.can('call', 'w');
@@ -51,18 +57,49 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
 
   const load = useCallback(async () => {
     const db = supabase();
-    const sel = isLead ? '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)' : '*, program:program_id(name), batch:batch_id(code), owner:poc_id(full_name)';
-    const [one, tl, fu] = await Promise.all([
-      db.from(person.kind).select(sel).eq('id', person.id).maybeSingle(),
+    // leads come from lead_list: full mobile/email are not readable, only the masked copies
+    const loadOne = async () => {
+      if (!isLead) return db.from('candidate').select('*, program:program_id(name), batch:batch_id(code), owner:poc_id(full_name)').eq('id', person.id).maybeSingle();
+      const r = await db.from('lead_list').select('*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)').eq('id', person.id).maybeSingle();
+      if (!r.error) return r;
+      const plain = await db.from('lead_list').select('*').eq('id', person.id).maybeSingle();
+      const d = plain.data as Row | null;
+      if (d) {
+        const [pg, ow, so] = await Promise.all([
+          d.program_id ? db.from('program').select('name').eq('id', d.program_id).maybeSingle() : Promise.resolve({ data: null }),
+          d.owner_id ? db.from('staff').select('full_name').eq('id', d.owner_id).maybeSingle() : Promise.resolve({ data: null }),
+          d.source_id ? db.from('lead_source').select('name').eq('id', d.source_id).maybeSingle() : Promise.resolve({ data: null }),
+        ]);
+        Object.assign(d, { program: pg.data, owner: ow.data, source: so.data });
+      }
+      return plain;
+    };
+    const [one, tl, fu, st] = await Promise.all([
+      loadOne(),
       db.rpc('person_timeline', { p_lead: isLead ? person.id : null, p_candidate: isLead ? null : person.id }),
       db.from('follow_up').select('*').eq(idCol, person.id).eq('status', 'Open').order('due_at'),
+      contactStatus(person.kind as 'lead' | 'candidate', person.id, true),
     ]);
-    setP(one.data); setTimeline(tl.data || []); setTasks(fu.data || []);
-    if (one.data) trackRecent(s.staff.id, { kind: person.kind, id: person.id, name: one.data.full_name });
-    if (!isLead) { const { data } = await db.rpc('candidate_private_get', { cid: person.id }); setPriv(data); }
+    setCst(st);
+    setP(one.data as Row | null); setTimeline(tl.data || []); setTasks(fu.data || []);
+    if (one.data) trackRecent(s.staff.id, { kind: person.kind, id: person.id, name: (one.data as Row).full_name });
+    if (!isLead) {
+      const [pv, plan, pay, docs] = await Promise.all([
+        db.rpc('candidate_private_get', { cid: person.id }),
+        s.can('plan') ? db.from('fee_plan').select('total').eq('candidate_id', person.id).maybeSingle() : Promise.resolve({ data: null }),
+        s.can('payment') ? db.from('fee_payment').select('amount').eq('candidate_id', person.id).eq('status', 'Received') : Promise.resolve({ data: null }),
+        s.can('doc') ? db.from('candidate_document').select('status').eq('candidate_id', person.id) : Promise.resolve({ data: null }),
+      ]);
+      setPriv(pv.data);
+      const total = Number((plan.data as Row | null)?.total || 0);
+      setProg({
+        fees: total > 0 && pay.data ? [(pay.data as Row[]).reduce((a, r) => a + Number(r.amount), 0), total] : undefined,
+        docs: (docs.data as Row[] | null)?.length ? [(docs.data as Row[]).filter((d) => d.status !== 'Missing').length, (docs.data as Row[]).length] : undefined,
+      });
+    }
   }, [person.kind, person.id, isLead, idCol]);
 
-  useEffect(() => { setP(null); setMsg(null); setAction(null); setForm({}); load(); }, [load]);
+  useEffect(() => { setP(null); setProg({}); setMsg(null); setAction(null); setForm({}); load(); }, [load]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -84,9 +121,23 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
 
   if (!p) return <aside aria-label="Quick panel" className="fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none shrink-0 bg-surface p-5 text-muted md:w-[380px]"><PanelSkeleton /></aside>;
 
-  const clean = (v: unknown) => (typeof v === 'string' && v && !v.includes('•') ? v : '');
-  const contact = isLead ? { mobile: clean(p.mobile).replace(/\D/g, '').slice(-10), email: clean(p.email) }
-    : { mobile: clean(priv?.contact?.mobile).replace(/\D/g, '').slice(-10), email: clean(priv?.contact?.email) };
+  // masked copies only; the real value is fetched (and logged) on tap
+  const kind = person.kind as 'lead' | 'candidate';
+  const contact: { mobile: string; email: string } = isLead ? { mobile: p.mobile_masked || '', email: p.email_masked || '' }
+    : { mobile: priv?.modes?.contact === 'h' ? '' : String(priv?.contact?.mobile || ''), email: priv?.modes?.contact === 'h' ? '' : String(priv?.contact?.email || '') };
+  const lockReason = cst && !cst.allowed ? (cst.reason || 'Details locked') : (!isLead && priv?.locked ? String(priv.locked) : null);
+  const isAdmin = s.staff.role === 'Admin';
+  const openContact = async (field: 'mobile' | 'email', how: 'tel' | 'wa' | 'mail' | 'copy') => {
+    if (lockReason) return;
+    const v = await revealOnce(kind, person.id, field);
+    if (!v) { setMsg({ tone: 'bad', text: 'Could not show this detail. ' + (lockReason || '') }); return; }
+    const digits = v.replace(/\D/g, '').slice(-10);
+    if (how === 'tel') window.location.href = 'tel:+91' + digits;
+    else if (how === 'wa') window.open('https://wa.me/91' + digits, '_blank', 'noopener');
+    else if (how === 'mail') window.location.href = 'mailto:' + v;
+    else { navigator.clipboard?.writeText('+91 ' + digits); toast('Number copied'); }
+  };
+  const btn = 'flex min-h-[44px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText disabled:opacity-40';
   const si = STAGE_INDEX[p.stage] ?? 0;
   const days = Math.floor((Date.now() - new Date(p.stage_changed_at).getTime()) / 86400000);
   const stageList = s.lists[isLead ? 'lead_stage' : 'candidate_stage'] || [];
@@ -188,16 +239,28 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         </div>
         <div className="mt-2 text-xs font-medium text-text2">Stage {si + 1} of 9 · {STAGES[si]} · with {OWNER[si]} · {days} day{days === 1 ? '' : 's'} here</div>
         {(contact.mobile || contact.email) && (
-          <div className="mt-3 grid grid-cols-4 gap-1.5">
-            {contact.mobile && <a href={'tel:+91' + contact.mobile} className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><Phone size={15} />Call</a>}
-            {contact.mobile && <a href={'https://wa.me/91' + contact.mobile} target="_blank" rel="noopener" className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><MessageCircle size={15} />WhatsApp</a>}
-            {contact.email && <a href={'mailto:' + contact.email} className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><Mail size={15} />Email</a>}
-            {contact.mobile && <button type="button" onClick={() => { navigator.clipboard?.writeText('+91 ' + contact.mobile); toast('Number copied: +91 ' + contact.mobile); }} className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><Copy size={15} />Copy</button>}
+          <div className="mt-3 flex flex-col gap-1.5">
+            {contact.mobile && <div className="flex items-center justify-between gap-2 text-[13px]"><span className="text-muted">Mobile</span><Reveal kind={kind} id={person.id} field="mobile" label="mobile" masked={contact.mobile} /></div>}
+            {contact.email && <div className="flex items-center justify-between gap-2 text-[13px]"><span className="text-muted">Email</span><Reveal kind={kind} id={person.id} field="email" label="email" masked={contact.email} /></div>}
+            <div className={cx('grid gap-1.5', isAdmin ? 'grid-cols-4' : 'grid-cols-3')}>
+              {contact.mobile && <button type="button" disabled={!!lockReason} title={lockReason || 'Call'} onClick={() => openContact('mobile', 'tel')} className={btn}><Phone size={15} />Call</button>}
+              {contact.mobile && <button type="button" disabled={!!lockReason} title={lockReason || 'WhatsApp'} onClick={() => openContact('mobile', 'wa')} className={btn}><MessageCircle size={15} />WhatsApp</button>}
+              {contact.email && <button type="button" disabled={!!lockReason} title={lockReason || 'Email'} onClick={() => openContact('email', 'mail')} className={btn}><Mail size={15} />Email</button>}
+              {contact.mobile && isAdmin && <button type="button" disabled={!!lockReason} title={lockReason || 'Copy number'} onClick={() => openContact('mobile', 'copy')} className={btn}><Copy size={15} />Copy</button>}
+            </div>
           </div>
         )}
+        {lockReason && <div role="note" className="mt-2 rounded-[10px] bg-warnBg px-3 py-2 text-[12px] font-medium text-warnText">{lockReason.startsWith('Details locked') ? lockReason : 'Details locked: ' + lockReason} — ask Admin</div>}
       </div>
       </div>
 
+      <Viewers kind={person.kind} id={person.id} />
+      {(prog.fees || prog.docs) && (
+        <div className="flex flex-col gap-2.5 rounded-[12px] border border-line p-3">
+          {prog.fees && <Meter label="Fees paid" value={prog.fees[0]} max={prog.fees[1]} text={`${money(prog.fees[0])} of ${money(prog.fees[1])}`} />}
+          {prog.docs && <Meter label="Documents in" value={prog.docs[0]} max={prog.docs[1]} />}
+        </div>
+      )}
       {overdue > 0 && <Notice tone="bad">Overdue: {overdue} follow-up{overdue > 1 ? 's are' : ' is'} past the due date.</Notice>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
@@ -223,7 +286,9 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
               <span className="flex shrink-0 gap-1.5">
                 {(() => { const st = stepForFollowUp(t.title, person.kind); return st && allowed(st) ? (
                   <button type="button" className="flex min-h-[32px] items-center gap-1 rounded-md bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}>{(() => { const I = STEP_ICON[st.key]; return I ? <I size={13} strokeWidth={2.2} aria-hidden /> : null; })()}{st.label}</button>) : null; })()}
-                <button type="button" className="min-h-[32px] rounded-md border border-line2 bg-surface px-2 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
+                {!t.owner_id || mayActFor(t.owner_id, s.staff, s.refs.staff || [])
+                  ? <button type="button" className="min-h-[32px] rounded-md border border-line2 bg-surface px-2 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
+                  : <span className="text-[11.5px] text-muted" title="Only the owner or their team head can close it">{(s.refs.staff || []).find((x) => x.id === t.owner_id)?.label.split(' ')[0]}’s</span>}
               </span>
             </div>
           ))}
@@ -293,14 +358,14 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
       {tab === 'Details' && (
         <div className="anim-fade flex flex-col gap-2.5">
           {isLead ? (
-            <Group title="Enquiry" rows={[['Mobile', p.mobile], ['Email', p.email], ['City', p.city], ['Source', p.source?.name], ['Preferred mode', p.preferred_mode], ['Currently', p.currently], ['Notes', p.notes]]} />
+            <Group title="Enquiry" rows={[['Mobile', p.mobile_masked], ['Email', p.email_masked], ['City', p.city], ['Source', p.source?.name], ['Preferred mode', p.preferred_mode], ['Currently', p.currently], ['Notes', p.notes]]} />
           ) : (
             <>
               <Group title="Candidate" rows={[['ID', p.code], ['Program', p.program?.name], ['Batch', p.batch?.code], ['Joined', p.joined_on]]} />
               {priv && Object.keys(GROUP_LABEL).map((g) => (
                 priv.modes[g] === 'h'
                   ? null   // hidden groups are left out entirely, not announced
-                  : <Group key={g} title={GROUP_LABEL[g]} tag={priv.modes[g] === 'm' ? 'Masked' : 'Full'} rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' '), String(v)])} />
+                  : <Group key={g} title={GROUP_LABEL[g]} tag={priv.modes[g] === 'm' ? 'Masked' : 'Full'} rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' '), g === 'contact' && priv.modes[g] === 'm' ? <Reveal kind="candidate" id={person.id} field={k} label={k.replace(/_/g, ' ')} masked={String(v ?? '')} /> : String(v)])} />
               ))}
               <Link href={'/candidate/' + person.id} className="flex min-h-[44px] items-center justify-center rounded-[10px] border border-ink bg-surface text-sm font-semibold">Open full profile</Link>
               {(s.can('candidate', 'w') || s.can('enrolform', 'w')) && (
@@ -331,7 +396,7 @@ function Group({ title, tag, rows }: { title: string; tag?: string; rows: [strin
       {rows.map(([l, v]) => (
         <div key={l} className="flex justify-between gap-3 py-1 text-[13px]">
           <span className="capitalize text-muted">{l}</span>
-          <span className="num text-right font-medium">{v == null || v === '' ? '—' : String(v)}</span>
+          <span className="num text-right font-medium">{v == null || v === '' ? '—' : typeof v === 'object' ? (v as React.ReactNode) : String(v)}</span>
         </div>
       ))}
     </div>

@@ -10,6 +10,7 @@ Nothing here has been run on a real server yet. Follow it top to bottom on a fre
 | 2 | Get the official self-hosted stack | `git clone --depth 1 https://github.com/supabase/supabase && cp -r supabase/docker /opt/supabase && cd /opt/supabase && cp .env.example .env` |
 | 3 | New secrets (never the local ones) | On your laptop: `node scripts/gen-secrets.mjs` → paste into `/opt/supabase/.env` |
 | 4 | Auth emails (SMTP) | In `.env`: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_ADMIN_EMAIL`, `SMTP_SENDER_NAME="Stint Academy"`; `SITE_URL=https://crm.<your domain>`; `ENABLE_EMAIL_SIGNUP=false` (staff are invited only) |
+| 4b | Idle sign-out on the server | In `docker-compose.yml`, under the `auth` service `environment:`, add `GOTRUE_SESSIONS_INACTIVITY_TIMEOUT: 30m` (keep it equal to the `idle_signout_minutes` setting). The app also signs people out after that time on screen |
 | 5 | Keep the database private | Do not open port 5432 or 8000 to the internet (firewall: allow only 22, 80, 443) |
 | 6 | Start | `docker compose up -d` |
 | 7 | Apply the CRM schema and settings | From the project folder: `supabase db push --db-url "postgresql://postgres:<POSTGRES_PASSWORD>@<server>:5432/postgres"` (over an SSH tunnel), then run `supabase/seed.sql` once with `psql`. **Never** run `npm run seed` there (it refuses non-local databases anyway) |

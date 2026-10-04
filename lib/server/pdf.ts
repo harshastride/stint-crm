@@ -121,7 +121,7 @@ export async function quotePdf(q: QuoteData, inst: Institute, terms: string) {
 }
 
 export type ReceiptData = { id: string; receipt_no: string | null; amount: number; mode: string | null; paid_on: string | null; label: string | null;
-  candidate: { full_name: string; code: string | null; program?: string | null }; balance?: number | null; total?: number | null };
+  candidate: { full_name: string; code: string | null; program?: string | null }; balance?: number | null; total?: number | null; signature?: { png: string; signed_at: string } | null };
 
 export async function receiptPdf(r: ReceiptData, inst: Institute, note: string) {
   const number = r.receipt_no || 'R-' + r.id.slice(0, 8).toUpperCase();
@@ -144,6 +144,12 @@ export async function receiptPdf(r: ReceiptData, inst: Institute, note: string) 
   s.page.drawRectangle({ x: R - 120, y: s.y - 8, width: 120, height: 26, borderColor: BLUE, borderWidth: 1.2, color: rgb(1, 1, 1) });
   const w = s.f.bold.widthOfTextAtSize('PAID', 12);
   s.text('PAID', R - 60 - w / 2, s.y, 12, { bold: true, color: BLUE });
+  if (r.signature?.png) {   // the student's fee-agreement signature from the portal
+    const img = await doc.embedPng(r.signature.png);
+    const h = 44, wd = Math.min(160, (img.width / img.height) * h);
+    s.page.drawImage(img, { x: M, y: s.y - 12, width: wd, height: h });
+    s.text('Student’s signature on the fee agreement, ' + date(r.signature.signed_at), M, s.y - 24, 8, { color: GREY });
+  }
   footer(s, note);
   return { bytes: await doc.save(), filename: `Stint-receipt-${number}.pdf` };
 }

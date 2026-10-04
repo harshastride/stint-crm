@@ -18,3 +18,8 @@ port = 55324
 site_url = "http://localhost:3100"
 # Nobody can register themselves. Logins are created by an admin from Users & staff.
 enable_signup = false
+
+# Sign a session out on the server after 30 minutes with no token refresh (matches the idle_signout_minutes setting).
+# Needs `supabase stop && supabase start` to take effect.
+[auth.sessions]
+inactivity_timeout = "30m"
