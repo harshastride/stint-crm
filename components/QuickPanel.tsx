@@ -8,6 +8,7 @@ import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
 import { Timeline } from './Timeline';
+import { QuickDate } from './QuickDate';
 import { useToast } from './Toasts';
 import { MentionText } from './MentionText';
 import { useRouter } from 'next/navigation';
@@ -220,7 +221,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
               <div className="text-sm font-semibold">Follow-up</div>
               {form.suggested && <div className="text-[12px] text-text2">{form.suggested} Change it if needed, or close this.</div>}
               <input aria-label="What needs doing" placeholder="What needs doing" className="h-10 px-3 text-sm" value={form.title || ''} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              <input aria-label="Due" type="datetime-local" className="h-10 px-3 text-sm" value={form.due || ''} onChange={(e) => setForm({ ...form, due: e.target.value })} />
+              <QuickDate label="Due" value={form.due ? new Date(form.due).toISOString() : null} onChange={(iso) => setForm({ ...form, due: iso || '' })} />
               <Button variant="primary" disabled={busy} onClick={saveTask}>Save follow-up</Button>
             </div>
           )}

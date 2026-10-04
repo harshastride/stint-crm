@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Field, Row } from '@/lib/pages';
+import { QuickDate } from './QuickDate';
 
 const inputCls = 'h-[42px] w-full px-3 text-sm';
 
@@ -152,10 +153,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
       </div>
     );
   }
-  if (field.type === 'datetime') {
-    const local = v ? new Date(new Date(v).getTime() - new Date(v).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '';
-    return <input type="datetime-local" className={inputCls} value={local} disabled={disabled} onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : null)} />;
-  }
+  if (field.type === 'datetime') return <QuickDate label={field.label} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
   return <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} className={inputCls} value={field.type === 'date' ? v.slice(0, 10) : v} disabled={disabled}
     onChange={(e) => onChange(field.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value || null)} />;
 }
