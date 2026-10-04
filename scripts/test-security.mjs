@@ -355,6 +355,14 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const fd = (await desk.from('candidate_document').select('id')).data || [];
   check('Front desk cannot see documents', fd.length === 0, fd.length + ' rows'); }
 
+// Records rules can only be changed by Admin; lead stage limits are enforced
+{ const t = await tele.from('app_role').update({ sees_lead_stages: [] }).eq('name', 'Telecaller').select();
+  check('A telecaller cannot change role rules', (t.data || []).length === 0);
+  await admin.from('app_role').update({ sees_lead_stages: ['New'] }).eq('name', 'Marketing');
+  const ml = (await mkt.from('lead').select('stage')).data || [];
+  check('A role limited to New leads sees only New leads', ml.every((l) => l.stage === 'New'), JSON.stringify(ml));
+  await admin.from('app_role').update({ sees_lead_stages: [] }).eq('name', 'Marketing'); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

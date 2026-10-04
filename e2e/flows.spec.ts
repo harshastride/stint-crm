@@ -193,3 +193,17 @@ test('next-step buttons: by stage, on follow-ups, and forms open with the person
   await page.locator('tbody tr').filter({ hasText: 'New' }).first().click();
   await expect(panel.getByRole('button', { name: 'Log call' }).first()).toBeVisible();
 });
+
+test('Records tab: admin changes which stages a role sees', async ({ page }) => {
+  const db = service();
+  await login(page, 'harsha');
+  await page.goto('/p/roles');
+  await page.getByRole('button', { name: 'Records' }).click();
+  const fd = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Front desk', exact: true }) });
+  await expect(fd.getByRole('button', { name: 'Enrolled', pressed: true }).first()).toBeVisible();
+  await fd.getByRole('button', { name: 'Training', exact: true }).first().click();
+  await expect(page.getByText(/Front desk: sees students only in Enrolled, Training/)).toBeVisible();
+  const { data } = await db.from('app_role').select('sees_candidate_stages').eq('name', 'Front desk').single();
+  expect(data!.sees_candidate_stages).toEqual(['Enrolled', 'Training']);
+  await db.from('app_role').update({ sees_candidate_stages: ['Enrolled'] }).eq('name', 'Front desk');
+});
