@@ -168,7 +168,7 @@ insert into public.role_field_access (role, field_group, mode) values
   ('Trainer', 'family', 'h'),
   ('Trainer', 'identity', 'h'),
   ('Trainer', 'bank', 'h'),
-  ('SME', 'contact', 'm'),
+  ('SME', 'contact', 'h'),
   ('SME', 'family', 'h'),
   ('SME', 'identity', 'h'),
   ('SME', 'bank', 'h'),

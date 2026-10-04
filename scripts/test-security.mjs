@@ -363,6 +363,11 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('A role limited to New leads sees only New leads', ml.every((l) => l.stage === 'New'), JSON.stringify(ml));
   await admin.from('app_role').update({ sees_lead_stages: [] }).eq('name', 'Marketing'); }
 
+// SME sees no contact details at all
+{ const sme = await as('hemanth');
+  const pv = await sme.rpc('candidate_private_get', { cid: cand.id });
+  check('SME sees no contact details', pv.data?.modes?.contact === 'h' && !pv.data?.contact?.mobile, JSON.stringify(pv.data?.contact)); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];
