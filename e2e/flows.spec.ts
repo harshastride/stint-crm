@@ -71,7 +71,7 @@ test('lists can be searched and sorted', async ({ page }) => {
   const rows = page.locator('tbody tr');
   await expect(rows.first()).toContainText('Rakesh B');
   for (const t of await rows.allInnerTexts()) expect(t).toContain('Rakesh B');
-  await page.getByRole('button', { name: 'Amount' }).click();
+  await page.locator('thead').getByRole('button', { name: 'Amount', exact: true }).click();
   await expect(page.locator('th[aria-sort="ascending"]')).toHaveCount(1);
 });
 
