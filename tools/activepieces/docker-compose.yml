@@ -1,5 +1,6 @@
 # Activepieces on this machine, for building and testing flows against the local CRM.
 #   docker compose -f tools/activepieces/docker-compose.yml --env-file tools/activepieces/.env up -d   → http://localhost:8080
+# http://localhost:8081 is the same Activepieces with the CRM skin (no logo / extra menus), used inside the CRM.
 # The CRM database reaches it at http://host.docker.internal:8080 ; it reaches the CRM at http://host.docker.internal:3100
 services:
   activepieces:
@@ -27,6 +28,14 @@ services:
       AP_REDIS_HOST: redis
       AP_REDIS_PORT: 6379
     volumes: [ap_cache:/usr/src/app/cache]
+  crm-skin:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["8081:80"]
+    depends_on: [activepieces]
+    volumes:
+      - ./crm-skin/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./crm-skin/skin.js:/etc/nginx/skin.js:ro
   postgres:
     image: postgres:14.4
     restart: unless-stopped
