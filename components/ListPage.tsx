@@ -1,5 +1,6 @@
 'use client';
 import { Board } from './kit/Board';
+import { Funnel } from './kit/Funnel';
 import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,13 +24,17 @@ import { Confirm } from './kit/Confirm';
 import { CountUp } from './kit/CountUp';
 import { RangeSlider, rupees } from './kit/RangeSlider';
 import { FilterBuilder, advExpr, advFields, type Adv } from './kit/FilterBuilder';
+import { PersonChip } from './kit/Avatar';
+import { AvatarStack, type StackPerson } from './kit/AvatarStack';
 
-const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder, compare: ProgramCompare };
+const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder, compare: ProgramCompare, funnel: Funnel };
 
 const cell = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);
   if (c.type === 'pill') return <Pill>{v as string}</Pill>;
   if (c.type === 'tags') return Array.isArray(v) && v.length ? <TagChips tags={v as string[]} /> : <span className="text-muted">—</span>;
+  if (c.type === 'person') return <PersonChip name={v as string} />;
+  if (c.type === 'people') { const t = (v || {}) as { people?: StackPerson[]; more?: number; moreLabel?: string }; return t.people?.length || t.more ? <AvatarStack size="sm" people={t.people || []} more={t.more || 0} moreLabel={t.moreLabel} /> : <span className="text-muted">—</span>; }
   if (v == null || v === '') return <span className="text-muted">—</span>;
   if (c.type === 'money') return <span className="num">{money(v)}</span>;
   if (c.type === 'date') return fmtDate(v);
@@ -105,7 +110,7 @@ const plain = (c: Col, r: Row) => { const v = c.get ? c.get(r) : getPath(r, c.ke
 const short = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);
   if (v == null || v === '') return '';
-  return c.type === 'money' ? money(v) : c.type === 'date' ? fmtDate(v) : c.type === 'datetime' ? fmtDateTime(v) : c.type === 'pct' ? v + '%' : c.type === 'duration' ? fmtDuration(v) : String(v);
+  return c.type === 'money' ? money(v) : c.type === 'date' ? fmtDate(v) : c.type === 'datetime' ? fmtDateTime(v) : c.type === 'pct' ? v + '%' : c.type === 'duration' ? fmtDuration(v) : c.type === 'people' ? ((v as { text?: string }).text ?? '') : String(v);
 };
 
 export function PageHeader({ group, title, purpose, scope, children }: { group: string; title: string; purpose: string; scope: string; children?: React.ReactNode }) {
@@ -293,6 +298,9 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     const row = rows.find((r) => r.id === e.split(':')[1]);
     if (row) { setEditing(row); router.replace('/p/' + cfg.id); }
   }, [params, rows, cfg, router]);
+
+  // open a list filtered to one stage: /p/lead?stage=Interested (funnel chart)
+  useEffect(() => { const st = params.get('stage'); if (st) setFilters({ stage: [st] }); }, [params, cfg]);
 
   // open a person straight from the search box: /p/lead?person=lead:<id>
   useEffect(() => {

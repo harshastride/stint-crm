@@ -4,7 +4,7 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags'; get?: (r: Row) => unknown };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people'; get?: (r: Row) => unknown };
 export type Field = {
   key: string; label: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
@@ -75,7 +75,7 @@ export const PAGES: Record<string, PageCfg> = {
     empty: 'You’re all caught up. Follow-ups given to you or your team, and ones the CRM raises from its rules, appear here.',
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'due_at', asc: true },
     columns: [{ key: 'title', label: 'Follow-up' }, { key: 'who', label: 'Person', get: (r) => r.lead?.full_name || r.candidate?.full_name || '—' }, { key: 'owner_role', label: 'Team' },
-      { key: 'owner.full_name', label: 'Owner' }, { key: 'due_at', label: 'Due', type: 'datetime' }, { key: 'status', label: 'Status', type: 'pill' }],
+      { key: 'owner.full_name', label: 'Owner', type: 'person' }, { key: 'due_at', label: 'Due', type: 'datetime' }, { key: 'status', label: 'Status', type: 'pill' }],
     views: [{ label: 'Open', where: (r) => r.status === 'Open' }, { label: 'Overdue', where: (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at) },
       { label: 'Today', where: (r) => r.status === 'Open' && isToday(r.due_at) }, { label: 'Mine', where: (r, id) => r.status === 'Open' && r.owner_id === id }, { label: 'Done', where: (r) => r.status === 'Done' }],
     kpis: [count('Open', (r) => r.status === 'Open'), count('Overdue', (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at)), count('Today', (r) => r.status === 'Open' && isToday(r.due_at))],
@@ -107,7 +107,7 @@ export const PAGES: Record<string, PageCfg> = {
     bulk: [{ field: 'owner_id', label: 'Reassign to', ref: 'staff' }, { field: 'stage', label: 'Move to stage', list: 'lead_stage' }],
     id: 'lead', table: 'lead', readFrom: 'lead_list', sameRows: true, kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
     select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
-    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'mobile_masked', label: 'Mobile' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner' },
+    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'mobile_masked', label: 'Mobile' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner', type: 'person' },
       { key: 'source.name', label: 'Source' }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No') }, { key: 'tags', label: 'Tags', type: 'tags' }],
     views: [{ label: 'All leads' }, { label: 'My leads', where: (r, id) => r.owner_id === id }, { label: 'Open', where: (r) => !['Converted', 'Not interested'].includes(r.stage) }],
     kpis: [count('New today', (r) => isToday(r.created_at)), count('Overdue calls', (r) => !['Converted', 'Not interested'].includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at)),
@@ -178,7 +178,7 @@ export const PAGES: Record<string, PageCfg> = {
     bulk: [{ field: 'batch_id', label: 'Assign batch', ref: 'batch' }, { field: 'poc_id', label: 'Change owner', ref: 'staff' }],
     id: 'candidate', table: 'candidate', kind: 'Candidate', purpose: 'Enrolled students. Tap one for the quick panel, or open the full profile.', cta: 'Add candidate',
     select: '*, program:program_id(name), batch:batch_id(code), poc:poc_id(full_name)', order: { col: 'created_at' },
-    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'poc.full_name', label: 'Owner' }, { key: 'tags', label: 'Tags', type: 'tags' }],
+    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'poc.full_name', label: 'Owner', type: 'person' }, { key: 'tags', label: 'Tags', type: 'tags' }],
     views: [{ label: 'All' }, { label: 'My candidates', where: (r, id) => r.poc_id === id }, { label: 'Ready', where: (r) => r.stage === 'Ready' }],
     kpis: [count('Active', (r) => !['Placed', 'Alumni'].includes(r.stage)), count('In training', (r) => r.stage === 'Training'), count('Ready', (r) => r.stage === 'Ready'), count('Placed', (r) => ['Placed', 'Alumni'].includes(r.stage))],
     board: { field: 'stage', list: 'candidate_stage' }, person: (r) => ({ kind: 'candidate', id: r.id }),
@@ -200,8 +200,9 @@ export const PAGES: Record<string, PageCfg> = {
   },
   batch: {
     id: 'batch', table: 'batch', kind: 'Batch', purpose: 'Class groups with trainer and start date.', cta: 'New batch',
-    select: '*, program:program_id(name), trainer:trainer_id(full_name), branch:branch_id(name)', order: { col: 'code', asc: true },
-    columns: [{ key: 'code', label: 'Batch' }, { key: 'program.name', label: 'Program' }, { key: 'trainer.full_name', label: 'Trainer' }, { key: 'branch.name', label: 'Branch' }, { key: 'starts_on', label: 'Starts', type: 'date' }, { key: 'status', label: 'Status', type: 'pill' }],
+    select: '*, program:program_id(name), trainer:trainer_id(id,full_name), branch:branch_id(name), students:candidate(count)', order: { col: 'code', asc: true },
+    columns: [{ key: 'code', label: 'Batch' }, { key: 'program.name', label: 'Program' }, { key: 'trainer.full_name', label: 'Trainer', type: 'person' },
+      { key: 'team', label: 'Class', type: 'people', get: (r) => { const n = Number(r.students?.[0]?.count || 0); return { people: r.trainer ? [{ id: r.trainer.id, name: r.trainer.full_name, role: 'Trainer' }] : [], more: n, moreLabel: n + (n === 1 ? ' student' : ' students'), text: (r.trainer?.full_name || 'No trainer') + ' + ' + n + ' students' }; } }, { key: 'branch.name', label: 'Branch' }, { key: 'starts_on', label: 'Starts', type: 'date' }, { key: 'status', label: 'Status', type: 'pill' }],
     views: [{ label: 'Live', where: (r) => r.status === 'Live' }, { label: 'Upcoming', where: (r) => r.status === 'Upcoming' }, { label: 'Completed', where: (r) => r.status === 'Completed' }, { label: 'All' }],
     kpis: [count('Live', (r) => r.status === 'Live'), count('Upcoming', (r) => r.status === 'Upcoming')],
     fields: [{ key: 'code', label: 'Batch code', type: 'text', required: true }, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program', required: true }, { key: 'trainer_id', label: 'Trainer', type: 'ref', ref: 'staff' },
@@ -296,7 +297,7 @@ export const PAGES: Record<string, PageCfg> = {
   checklist: {
     assignee: { field: 'owner_id', status: 'status', label: 'owner' },
     id: 'checklist', table: 'placement_checklist_item', kind: 'Checklist item', purpose: 'Steps after an offer: documents, background check, joining.', cta: 'Add item', select: '*, candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'created_at' },
-    columns: [candCol, { key: 'item', label: 'Item' }, { key: 'owner.full_name', label: 'Owner' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }],
+    columns: [candCol, { key: 'item', label: 'Item' }, { key: 'owner.full_name', label: 'Owner', type: 'person' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }],
     views: [{ label: 'Open', where: (r) => r.status !== 'Done' }, { label: 'Done', where: (r) => r.status === 'Done' }], kpis: [count('Open items', (r) => r.status !== 'Done')], person: candPerson,
     fields: [cand, { key: 'item', label: 'Item', type: 'text', required: true }, { key: 'owner_id', label: 'Owner', type: 'ref', ref: 'staff', def: me('owner_id') }, { key: 'status', label: 'Status', type: 'select', list: 'checklist_status' }, { key: 'due_on', label: 'Due', type: 'date' }],
     rowTitle: (r) => r.item + ' · ' + (r.candidate?.full_name || ''),
@@ -332,7 +333,7 @@ export const PAGES: Record<string, PageCfg> = {
     assignee: { field: 'owner_id', status: 'status', label: 'owner' },
     id: 'alert', table: 'alert', kind: 'Alert', purpose: 'Warnings for work that is slipping. Tap one to change its owner or resolve it.', noCreate: true,
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'raised_at' },
-    columns: [{ key: 'title', label: 'Alert', get: (r) => r.title + ': ' + (r.lead?.full_name || r.candidate?.full_name || '') }, { key: 'area', label: 'Area' }, { key: 'owner.full_name', label: 'Owner' }, { key: 'priority', label: 'Priority', type: 'pill' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'raised_at', label: 'Raised', type: 'date' }],
+    columns: [{ key: 'title', label: 'Alert', get: (r) => r.title + ': ' + (r.lead?.full_name || r.candidate?.full_name || '') }, { key: 'area', label: 'Area' }, { key: 'owner.full_name', label: 'Owner', type: 'person' }, { key: 'priority', label: 'Priority', type: 'pill' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'raised_at', label: 'Raised', type: 'date' }],
     views: [{ label: 'Open', where: (r) => r.status === 'Open' }, { label: 'Resolved', where: (r) => r.status === 'Resolved' }], kpis: [count('Open', (r) => r.status === 'Open'), count('High priority', (r) => r.status === 'Open' && r.priority === 'High')],
     fields: [{ key: 'owner_id', label: 'Owner', type: 'ref', ref: 'staff' }, { key: 'priority', label: 'Priority', type: 'select', list: 'priority' }, { key: 'status', label: 'Status', type: 'select', options: ['Open', 'Resolved'] }],
     rowTitle: (r) => r.title,
@@ -359,7 +360,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.name,
   },
   rep_funnel: {
-    id: 'rep_funnel', table: 'rep_funnel', kind: 'Report row', purpose: 'Leads to placement, month by month.', readOnly: true, csv: true, order: { col: 'month' },
+    id: 'rep_funnel', table: 'rep_funnel', top: 'funnel', kind: 'Report row', purpose: 'Leads to placement, month by month.', readOnly: true, csv: true, order: { col: 'month' },
     columns: [{ key: 'month', label: 'Month', get: (r) => new Date(r.month).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) }, { key: 'leads', label: 'Leads', type: 'number' }, { key: 'enrolled', label: 'Enrolled', type: 'number' }, { key: 'placed', label: 'Placed', type: 'number' }, { key: 'collected', label: 'Fees collected', type: 'money' }],
     rowTitle: (r) => String(r.month),
   },

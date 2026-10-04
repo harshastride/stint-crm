@@ -13,6 +13,9 @@ import { CountUp } from '../kit/CountUp';
 import { Checklist } from '../kit/Checklist';
 import { Sparkline, periodChange, type SparkPoint } from '../kit/Sparkline';
 import { StatSkeleton } from '../kit/StatSkeleton';
+import { Leaderboard } from '../kit/Leaderboard';
+import { Funnel } from '../kit/Funnel';
+import { TargetRing } from '../kit/TargetRing';
 
 const JOURNEY: [string, 'lead' | 'candidate', string[]][] = [
   ['Leads', 'lead', ['New']], ['Calls', 'lead', ['Callback', 'Interested']], ['Counselling', 'lead', ['Counselling']], ['Enrolled', 'candidate', ['Enrolled']],
@@ -34,7 +37,7 @@ export function Dashboard() {
     (async () => {
       const [leads, cands, tasks, alerts, fees, trends] = await Promise.all([
         s.can('lead') ? db.from('lead').select('id,stage,created_at,owner_id,source_id').limit(5000) : Promise.resolve({ data: [] }),
-        s.can('candidate') ? db.from('candidate').select('id,stage,created_at').limit(5000) : Promise.resolve({ data: [] }),
+        s.can('candidate') ? db.from('candidate').select('id,stage,created_at,poc_id').limit(5000) : Promise.resolve({ data: [] }),
         db.from('follow_up').select('*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name)').eq('status', 'Open').order('due_at').limit(12),
         s.can('alert') ? db.from('alert').select('*, lead:lead_id(full_name), candidate:candidate_id(full_name)').eq('status', 'Open').order('raised_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
         s.can('payment') ? db.from('fee_payment').select('amount,status,paid_on').limit(5000) : Promise.resolve({ data: [] }),
@@ -110,8 +113,12 @@ export function Dashboard() {
 
       <Checklist />
 
-      <DashboardInsights leads={d.leads} cands={d.cands} fees={d.fees} target={d.target} sources={d.sources}
+      <DashboardInsights leads={d.leads} cands={d.cands} fees={d.fees} target={null} sources={d.sources}
         targetLabel={s.staff.role === 'Sales' && s.staff.level !== 'Head' ? 'My enrolments' : 'Team enrolments'} showLeads={s.can('lead')} showFees={s.can('payment')} />
+
+      {d.target !== null && d.target > 0 && (
+        (() => { const mine = s.staff.role === 'Sales' && s.staff.level !== 'Head'; return <TargetRing value={thisAndLast(mine ? d.cands.filter((c) => c.poc_id === s.staff.id) : d.cands, 'created_at')[0]} target={d.target} title={mine ? 'My monthly target' : 'Team monthly target'} />; })()
+      )}
 
       <section aria-label="Headline numbers" className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
         {tiles.map((t, i) => {
@@ -154,6 +161,10 @@ export function Dashboard() {
       </section>
 
       {['Telecaller', 'Sales', 'HR / Counsellor', 'Placement', 'Front desk', 'Admin'].includes(s.staff.role) && <ActivityHeatmap />}
+
+      <Leaderboard role={s.staff.role} />
+
+      {showJourney && <Funnel />}
 
       {showJourney && (
         <section className="rounded-2xl bg-ink p-5 text-[#E6EBF5]">

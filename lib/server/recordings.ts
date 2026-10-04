@@ -14,50 +14,52 @@ export async function asCaller() {
   });
 }
 
+/** Phone app: acts as the signed-in staff member, so row security applies exactly as on the website. */
+export const asToken = (token: string) => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
+});
+
+/** Phone app: the active staff member behind "Authorization: Bearer <login token>", or null. */
+export async function staffFromBearer(request: Request) {
+  const token = (request.headers.get('authorization') || '').match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return null;
+  const { data } = await asToken(token).auth.getUser(token);
+  if (!data.user) return null;
+  const { data: staff } = await service().from('staff').select('id, full_name, email').eq('id', data.user.id).eq('status', 'Active').maybeSingle();
+  return staff ? { ...staff, token } : null;
+}
+
 export type Segment = { speaker: string; start_ms: number; end_ms: number; text: string };
 
-const SONIOX = 'https://api.soniox.com';
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Both AI keys are on the server, so uploads can be transcribed straight away. */
+export const aiReady = () => !!(process.env.DEEPGRAM_API_KEY && process.env.GEMINI_API_KEY);
 
-/** Soniox async transcription: upload, transcribe (English + Indian languages, speakers), fetch, clean up. */
+/** Deepgram pre-recorded transcription: one call, speakers separated, English mixed with Indian languages. */
 export async function transcribe(audio: Blob, filename: string): Promise<{ text: string; segments: Segment[] }> {
-  const key = process.env.SONIOX_API_KEY;
-  if (!key) throw new Error('SONIOX_API_KEY is not set on the server.');
-  const auth = { Authorization: `Bearer ${key}` };
-  const form = new FormData();
-  form.append('file', audio, filename);
-  const up = await fetch(`${SONIOX}/v1/files`, { method: 'POST', headers: auth, body: form });
-  if (!up.ok) throw new Error(`Soniox upload failed (${up.status}): ${await up.text()}`);
-  const fileId = (await up.json()).id as string;
-  let tid: string | null = null;
-  try {
-    const tr = await fetch(`${SONIOX}/v1/transcriptions`, {
-      method: 'POST', headers: { ...auth, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: process.env.SONIOX_MODEL || 'stt-async-v5', file_id: fileId, language_hints: ['en', 'hi', 'te', 'kn'], enable_speaker_diarization: true }),
-    });
-    if (!tr.ok) throw new Error(`Soniox transcription failed (${tr.status}): ${await tr.text()}`);
-    tid = (await tr.json()).id as string;
-    for (let i = 0; ; i++) {
-      if (i > 120) throw new Error('Soniox took too long (over 4 minutes).');
-      await sleep(2000);
-      const st = await (await fetch(`${SONIOX}/v1/transcriptions/${tid}`, { headers: auth })).json();
-      if (st.status === 'completed') break;
-      if (st.status === 'error') throw new Error('Soniox: ' + (st.error_message || 'transcription error'));
-    }
-    const out = await (await fetch(`${SONIOX}/v1/transcriptions/${tid}/transcript`, { headers: auth })).json();
-    const segments: Segment[] = [];
-    for (const t of out.tokens || []) {
-      const sp = t.speaker == null ? '1' : String(t.speaker);
-      const last = segments[segments.length - 1];
-      if (last && last.speaker === sp) { last.text += t.text; last.end_ms = t.end_ms ?? last.end_ms; }
-      else segments.push({ speaker: sp, start_ms: t.start_ms ?? 0, end_ms: t.end_ms ?? 0, text: t.text });
-    }
-    segments.forEach((s) => (s.text = s.text.trim()));
-    return { text: out.text || segments.map((s) => s.text).join(' '), segments: segments.filter((s) => s.text) };
-  } finally {
-    if (tid) await fetch(`${SONIOX}/v1/transcriptions/${tid}`, { method: 'DELETE', headers: auth }).catch(() => {});
-    await fetch(`${SONIOX}/v1/files/${fileId}`, { method: 'DELETE', headers: auth }).catch(() => {});
+  const key = process.env.DEEPGRAM_API_KEY;
+  if (!key) throw new Error('DEEPGRAM_API_KEY is not set on the server.');
+  const q = new URLSearchParams({
+    model: process.env.DEEPGRAM_MODEL || 'nova-3', language: process.env.DEEPGRAM_LANGUAGE || 'multi',
+    diarize: 'true', utterances: 'true', smart_format: 'true', punctuate: 'true',
+  });
+  const ext = filename.split('.').pop()?.toLowerCase();
+  const type = audio.type || (ext === 'webm' ? 'audio/webm' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4');
+  const res = await fetch(`https://api.deepgram.com/v1/listen?${q}`, {
+    method: 'POST', headers: { Authorization: `Token ${key}`, 'Content-Type': type }, body: audio,
+  });
+  if (!res.ok) throw new Error(`Deepgram failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+  const out = await res.json();
+  const segments: Segment[] = [];
+  for (const u of out?.results?.utterances || []) {
+    const sp = String((u.speaker ?? 0) + 1), text = String(u.transcript || '').trim();
+    if (!text) continue;
+    const start_ms = Math.round((u.start ?? 0) * 1000), end_ms = Math.round((u.end ?? 0) * 1000);
+    const last = segments[segments.length - 1];
+    if (last && last.speaker === sp) { last.text += ' ' + text; last.end_ms = end_ms; }
+    else segments.push({ speaker: sp, start_ms, end_ms, text });
   }
+  const text = String(out?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '') || segments.map((s) => s.text).join(' ');
+  return { text, segments };
 }
 
 export type Draft = { summary: string; outcome: string | null; follow_up: string | null; follow_up_when: string | null };

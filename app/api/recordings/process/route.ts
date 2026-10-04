@@ -3,7 +3,7 @@ import { asCaller, processRecording, service } from '@/lib/server/recordings';
 
 export const maxDuration = 300;
 
-// Transcribe (Soniox) and summarise (Gemini) a recording the caller is allowed to see.
+// Transcribe (Deepgram) and summarise (Gemini) a recording the caller is allowed to see.
 export async function POST(request: Request) {
   const { id } = await request.json().catch(() => ({}));
   if (!id) return NextResponse.json({ error: 'Which recording?' }, { status: 400 });

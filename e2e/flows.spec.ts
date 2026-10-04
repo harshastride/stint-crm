@@ -271,8 +271,7 @@ test('tables: a role without edit rights gets no bulk actions', async ({ page })
 test('dashboard: trends, target and tiles follow the role', async ({ page }) => {
   await login(page, 'harsha');
   await expect(page.getByRole('heading', { name: 'New leads and enrolments' })).toBeVisible();
-  await expect(page.getByText('This month’s target')).toBeVisible();
-  await expect(page.getByRole('progressbar', { name: 'Target progress' })).toBeVisible();
+  await expect(page.getByTestId('target-ring')).toBeVisible();
   await expect(page.getByRole('link', { name: 'View →' }).first()).toBeVisible();
   await login(page, 'suresh');   // Finance: fees, no leads
   await expect(page.getByRole('heading', { name: 'Fees collected' })).toBeVisible();

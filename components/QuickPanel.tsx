@@ -12,7 +12,7 @@ import { Timeline } from './Timeline';
 import { trackRecent } from '@/lib/recent';
 import { QuickDate } from './QuickDate';
 import { useToast } from './Toasts';
-import { MentionText } from './MentionText';
+import { MentionInput } from './kit/MentionInput';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
 import { STEP_ICON } from '@/lib/icons';
@@ -21,6 +21,7 @@ import { STAGES, STAGE_OWNER as OWNER, STAGE_INDEX } from '@/lib/journey';
 import { PanelSkeleton } from './Skeletons';
 import { Meter } from './kit/Meter';
 import { Viewers } from './kit/Viewers';
+import { ChatThread } from './kit/ChatThread';
 import { mayActFor } from '@/lib/pages';
 import { Reveal, contactStatus, revealOnce } from './kit/Reveal';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
@@ -37,8 +38,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const [priv, setPriv] = useState<Row | null>(null);
   const [prog, setProg] = useState<{ fees?: [number, number]; docs?: [number, number] }>({});
   // the tab you were on is kept for the next person
-  const [tab, setTabRaw] = useState<'Log' | 'Timeline' | 'Details'>(() => { try { return (localStorage.getItem('stint-panel-tab') as 'Log') || 'Log'; } catch { return 'Log'; } });
-  const setTab = (t: 'Log' | 'Timeline' | 'Details') => { setTabRaw(t); try { localStorage.setItem('stint-panel-tab', t); } catch {} };
+  const [tab, setTabRaw] = useState<'Log' | 'Timeline' | 'Chat' | 'Details'>(() => { try { return (localStorage.getItem('stint-panel-tab') as 'Log') || 'Log'; } catch { return 'Log'; } });
+  const setTab = (t: 'Log' | 'Timeline' | 'Chat' | 'Details') => { setTabRaw(t); try { localStorage.setItem('stint-panel-tab', t); } catch {} };
   // width you dragged it to, remembered
   const [width, setWidth] = useState(() => { try { return Number(localStorage.getItem('stint-panel-w')) || 380; } catch { return 380; } });
   const at = list.findIndex((x) => x.kind === person.kind && x.id === person.id);
@@ -149,7 +150,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const saveNote = async () => {
     if (!String(form.body || '').trim()) { setMsg({ tone: 'bad', text: 'Write the note first.' }); return; }
     setBusy(true);
-    const { error } = await supabase().from('note').insert({ [idCol]: person.id, kind: form.kind || 'Note', body: String(form.body).trim(), by_id: s.staff.id });
+    const { error } = await supabase().from('note').insert({ [idCol]: person.id, kind: form.kind || 'Note', body: String(form.body).trim(), by_id: s.staff.id, mentioned: form.mentioned || [] });
     setBusy(false);
     if (error) return fail(error); done('Note saved on the timeline.');
   };
@@ -295,8 +296,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         </div>
       )}
 
-      <div className="grid grid-cols-3 rounded-[10px] bg-surface2 p-1" role="tablist">
-        {(['Log', 'Timeline', 'Details'] as const).map((t) => (
+      <div className="grid grid-cols-4 rounded-[10px] bg-surface2 p-1" role="tablist">
+        {(['Log', 'Timeline', 'Chat', 'Details'] as const).map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cx('min-h-[36px] rounded-lg text-[13px] font-semibold', tab === t ? 'bg-surface text-text shadow-sm' : 'text-text2')}>{t}</button>
         ))}
       </div>
@@ -328,7 +329,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
               <select aria-label="Kind of note" className="h-10 px-2 text-sm" value={form.kind || 'Note'} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
                 {['Note', 'Message', 'Training', 'Resume', 'Fee', 'Placement'].map((k) => <option key={k}>{k}</option>)}
               </select>
-              <MentionText label="Note" placeholder="What happened? Type @ to notify a colleague" value={form.body || ''} onChange={(v) => setForm({ ...form, body: v })} />
+              <MentionInput label="Note" placeholder="What happened? Type @ to notify a colleague" value={form.body || ''} onChange={(v) => setForm((f) => ({ ...f, body: v }))} mentions={form.mentioned || []} onMentionsChange={(ids) => setForm((f) => ({ ...f, mentioned: ids }))} />
               <Button variant="primary" disabled={busy} onClick={saveNote}>Save note</Button>
             </div>
           )}
@@ -354,6 +355,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
       )}
 
       {tab === 'Timeline' && <Timeline items={timeline} />}
+      {tab === 'Chat' && <ChatThread kind={isLead ? 'lead' : 'candidate'} id={person.id} />}
 
       {tab === 'Details' && (
         <div className="anim-fade flex flex-col gap-2.5">

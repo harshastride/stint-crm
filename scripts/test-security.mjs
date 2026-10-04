@@ -347,6 +347,27 @@ const mobile = '9' + String(Date.now()).slice(-9);
     check('Phone app upload is stored and matched to the lead by number', ok.status === 201 && pr?.lead_id === myLead.id && !!pr?.audio_path, JSON.stringify(ok.json));
     if (pr?.audio_path) await svc.storage.from('recordings').remove([pr.audio_path]);
     if (ok.json.recording_id) await svc.from('recording').delete().eq('id', ok.json.recording_id);
+
+    // Stint Notes phone app: staff sign-in token instead of the shared key
+    const ml = (email, password) => fetch('http://localhost:3100/api/mobile/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) }).then(async (x) => ({ status: x.status, json: await x.json() }));
+    const wrong = await ml('teja@demo.stint.local', 'not-the-password');
+    const teja = await ml('teja@demo.stint.local', 'stint-demo-1234');
+    check('Phone app sign-in: wrong password refused, right one gives a token', wrong.status === 401 && teja.status === 200 && !!teja.json.access_token && !!teja.json.refresh_token);
+    const talk = () => { const f = new FormData(); f.append('audio', new Blob(['fake'], { type: 'audio/mp4' }), 'note.m4a'); f.append('duration_sec', '5'); f.append('direction', 'talk'); f.append('consent', 'yes'); return f; };
+    const junk = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { authorization: 'Bearer junk' }, body: talk() }).then((x) => x.status);
+    const mine = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { authorization: 'Bearer ' + teja.json.access_token }, body: talk() }).then(async (x) => ({ status: x.status, json: await x.json() }));
+    const mr = mine.json.recording_id && (await svc.from('recording').select('captured_by, source').eq('id', mine.json.recording_id).single()).data;
+    const tejaId = (await svc.from('staff').select('id').eq('email', 'teja@demo.stint.local').single()).data.id;
+    check('Phone app upload with a sign-in token is saved as that staff member', junk === 401 && mine.status === 201 && mr?.captured_by === tejaId && mr?.source === 'Phone app · in person', JSON.stringify(mine.json));
+    const notes = (t, q = '') => fetch('http://localhost:3100/api/mobile/notes' + q, { headers: { authorization: 'Bearer ' + t } }).then(async (x) => ({ status: x.status, json: await x.json() }));
+    const own = await notes(teja.json.access_token);
+    const kiran = await ml('kiran@demo.stint.local', 'stint-demo-1234');
+    const other = await notes(kiran.json.access_token, '?id=' + mine.json.recording_id);
+    const none = await notes('junk');
+    check('Phone app notes: own notes only; others and bad tokens refused', own.status === 200 && own.json.notes.some((n) => n.id === mine.json.recording_id) && other.status === 404 && none.status === 401);
+    const mp = mine.json.recording_id && (await svc.from('recording').select('audio_path').eq('id', mine.json.recording_id).single()).data;
+    if (mp?.audio_path) await svc.storage.from('recordings').remove([mp.audio_path]);
+    if (mine.json.recording_id) await svc.from('recording').delete().eq('id', mine.json.recording_id);
   }
   // make a lead from an unknown caller's recording
   const u = (await admin.from('recording').insert({ captured_by: (await admin.auth.getUser()).data.user.id, consent: true, number: '9' + String(Date.now()).slice(-9), status: 'Unmatched' }).select('id, number').single()).data;
@@ -729,6 +750,35 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const bad = b1 ? await admin.from('batch').update({ class_days: [9] }).eq('id', b1.id) : { error: null };
   check('Batch class days outside Mon–Sun are refused', !!b1 && !!bad.error, 'update allowed'); }
 
+// Team leaderboard (migration 053): names and counts only; signed-out refused
+{ const a = await admin.rpc('leaderboard', { p_metric: 'calls', p_period: 'month' });
+  check('Admin reads the calls leaderboard', !a.error && Array.isArray(a.data), a.error?.message);
+  const keys = new Set((a.data || []).flatMap((r) => Object.keys(r)));
+  check('Leaderboard returns only names, roles and counts', [...keys].every((k) => ['staff_id', 'full_name', 'role', 'total', 'rank', 'prev_rank', 'is_me'].includes(k)), [...keys].join(','));
+  const leadNames = new Set(((await service.from('lead').select('full_name').limit(1000)).data || []).map((x) => x.full_name));
+  const t = await tele.rpc('leaderboard', { p_metric: 'enrolments', p_period: 'week' });
+  check('Leaderboard rows are staff only (no lead or candidate names)', !t.error && (t.data || []).every((r) => ['Sales', 'HR / Counsellor'].includes(r.role) && !leadNames.has(r.full_name)), t.error?.message);
+  const me = await tele.rpc('leaderboard', { p_metric: 'calls', p_period: 'week' });
+  check('Telecaller sees own row marked', !me.error && (me.data || []).some((r) => r.is_me), me.error?.message);
+  const an = await anon.rpc('leaderboard', { p_metric: 'calls', p_period: 'week' });
+  check('Signed-out users cannot read the leaderboard', !!an.error, 'rows returned');
+  const bad = await admin.rpc('leaderboard', { p_metric: 'mobile', p_period: 'week' });
+  check('Leaderboard refuses unknown measures', !!bad.error, 'allowed'); }
+
+// @mentions in notes (migration 055): stored on the note, trigger notifies only staff who can open the record
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const ids = Object.fromEntries(((await svc.from('staff').select('id,email').in('email', ['harsha@demo.stint.local', 'manish@demo.stint.local', 'kiran@demo.stint.local'])).data || []).map((r) => [r.email.split('@')[0], r.id]));
+  const l1 = (await admin.from('lead').select('id').limit(1)).data?.[0];
+  const n = await admin.from('note').insert({ lead_id: l1?.id, body: 'mention test ' + startedAt, by_id: ids.harsha, mentioned: [ids.manish, ids.kiran] }).select('id,mentioned').single();
+  check('Note saves picked mentions', !n.error && (n.data?.mentioned || []).includes(ids.manish), n.error?.message);
+  check('Mention of staff who cannot open leads is dropped', !n.error && !(n.data?.mentioned || []).includes(ids.kiran), JSON.stringify(n.data?.mentioned));
+  const got = (await svc.from('notification').select('staff_id').eq('kind', 'mention').like('body', 'mention test ' + startedAt + '%')).data || [];
+  check('Mentioned Sales gets a notification', got.some((r) => r.staff_id === ids.manish), JSON.stringify(got));
+  check('Trainer without lead access gets no mention notification', !got.some((r) => r.staff_id === ids.kiran), JSON.stringify(got));
+  const mine = await trainer.from('notification').select('id').like('body', 'mention test ' + startedAt + '%');
+  check('Staff cannot read others\' mention notifications', !mine.error && (mine.data || []).length === 0, 'rows returned');
+  if (n.data) await svc.from('note').delete().eq('id', n.data.id); }
+
 // remove the people this run created, then the events it raised (test records must not reach Activepieces)
 { const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   await svc.from('candidate').delete().eq('full_name', 'Test Walkin').gte('created_at', startedAt);
@@ -736,5 +786,23 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Test Again', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller', 'Block Lead']).gte('created_at', startedAt); }
 await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }).from('integration_event').delete().gte('created_at', startedAt);
 
+// ---- Funnel (migration 052) ----
+{ const a = await admin.rpc('funnel_counts', { p_from: null, p_to: null });
+  check('funnel: admin gets 5 steps', !a.error && a.data?.length === 5 && a.data.every((x) => x.n != null), a.error?.message);
+  const t = await trainer.rpc('funnel_counts', { p_from: null, p_to: null });
+  check('funnel: trainer gets no lead counts', !t.error && t.data.filter((x) => x.page === 'lead').every((x) => x.n == null), JSON.stringify(t.data || t.error));
+  const z = await anon.rpc('funnel_counts', { p_from: null, p_to: null });
+  check('funnel: anon cannot call', !!z.error); }
+
+// Sidebar counts use the India day (migration 057)
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const tid = (await svc.from('staff').select('id').eq('email', 'teja@demo.stint.local').single()).data.id;
+  const ist = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);   // today's date in India
+  const before = (await tele.rpc('sidebar_counts')).data?.followups ?? 0;
+  const f = (await svc.from('follow_up').insert({ title: 'IST day check', owner_id: tid, due_at: ist + 'T23:00:00+05:30', status: 'Open', created_by: tid }).select('id').single()).data;
+  const after = (await tele.rpc('sidebar_counts')).data?.followups ?? 0;
+  check('Sidebar counts a follow-up due late tonight India time as today', after === before + 1, before + ' -> ' + after);
+  await svc.from('follow_up').delete().eq('id', f.id);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

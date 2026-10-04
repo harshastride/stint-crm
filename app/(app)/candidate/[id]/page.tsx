@@ -16,6 +16,7 @@ import { Pill, cx, fmtDate, fmtDateTime, initials, money } from '@/components/ui
 import { PageSkeleton } from '@/components/Skeletons';
 import { Reveal } from '@/components/kit/Reveal';
 import { Lock } from 'lucide-react';
+import { AvatarStack, type StackPerson } from '@/components/kit/AvatarStack';
 
 const GROUPS: [string, string][] = [['contact', 'Contact and address'], ['family', 'Family'], ['identity', 'Identity'], ['bank', 'Bank']];
 
@@ -32,7 +33,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
     const db = supabase();
     const opt = (page: string, q: PromiseLike<{ data: Row[] | null }>) => (s.can(page) ? q : Promise.resolve({ data: [] as Row[] }));
     (async () => {
-      const one = await db.from('candidate').select('*, program:program_id(name), batch:batch_id(code), poc:poc_id(full_name)').eq('id', id).maybeSingle();
+      const one = await db.from('candidate').select('*, program:program_id(name), batch:batch_id(code, trainer:trainer_id(id,full_name)), poc:poc_id(id,full_name)').eq('id', id).maybeSingle();
       if (!one.data) { setMissing(true); return; }
       setC(one.data);
       const ids = [id, one.data.lead_id].filter(Boolean);
@@ -83,6 +84,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
           <h1 className="text-[26px] font-semibold leading-tight">{c.full_name}</h1>
           <div className="mt-1.5 flex flex-wrap gap-1.5"><Pill>{(c.program?.name || 'No program') + (c.batch?.code ? ' · ' + c.batch.code : '')}</Pill><Pill>{'Stage: ' + c.stage}</Pill><TagChips tags={c.tags} max={6} /></div>
         </div>
+        <CandidateTeam c={c} />
         {[['Owner', c.poc?.full_name || '—'], ['Attendance', present], ['Fee due', plan ? money(plan.balance) : '—']].map(([l, v]) => (
           <div key={l} className="rounded-xl bg-surface2 px-3.5 py-2.5"><div className="text-[11px] font-medium text-muted">{l}</div><div className="num text-base font-semibold">{v}</div></div>
         ))}
@@ -169,4 +171,21 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
       )}
     </main>
   );
+}
+
+/** Faces of the staff who worked on this candidate: owner, trainer (from the batch) and counsellor (from the lead's counselling). */
+function CandidateTeam({ c }: { c: Row }) {
+  const s = useSession();
+  const [counsellor, setCounsellor] = useState<StackPerson | null>(null);
+  useEffect(() => {
+    if (!c.lead_id || !s.can('counsel')) return;
+    supabase().from('counselling_session').select('counsellor:counsellor_id(id,full_name)').eq('lead_id', c.lead_id).not('counsellor_id', 'is', null).order('scheduled_at', { ascending: false }).limit(1)
+      .then(({ data }) => { const p = (data?.[0] as Row | undefined)?.counsellor; if (p) setCounsellor({ id: p.id, name: p.full_name, role: 'Counsellor' }); });
+  }, [c.lead_id, s]);
+  const people: StackPerson[] = [];
+  if (c.poc) people.push({ id: c.poc.id, name: c.poc.full_name, role: 'Owner' });
+  if (c.batch?.trainer) people.push({ id: c.batch.trainer.id, name: c.batch.trainer.full_name, role: 'Trainer' });
+  if (counsellor) people.push(counsellor);
+  if (!people.length) return null;
+  return <div className="rounded-xl bg-surface2 px-3.5 py-2"><div className="mb-1 text-[11px] font-medium text-muted">Worked with</div><AvatarStack people={people} label="Staff who worked with this candidate" /></div>;
 }

@@ -36,7 +36,7 @@ Nothing here has been run on a real server yet. Follow it top to bottom on a fre
 | 4 | Existing leads | Admin settings → Import / export (CSV; duplicates skipped) |
 | 5 | Existing students | `node scripts/import-candidates.mjs students.csv` (dry run) then `--apply` |
 | 6 | Activepieces | Automation log → paste the webhook URL; give the incoming API key to the lead flows (`docs/activepieces/`) |
-| 7 | Recordings | Put `SONIOX_API_KEY` and `GEMINI_API_KEY` in `deploy/app.env`, restart the app, record a test call and check the Recordings page |
+| 7 | Recordings | Put `DEEPGRAM_API_KEY` and `GEMINI_API_KEY` in `deploy/app.env`, restart the app, record a test call and check the Recordings page |
 
 ## Open decisions before go-live
 

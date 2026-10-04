@@ -42,5 +42,5 @@ Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita 
 11. Lead `mobile`/`email` are not selectable by signed-in users: read `lead_list` / `mobile_masked` and use `reveal_contact` (logged in `data_access_log`). Time limits come from settings `old_data_days`, `alumni_lock_days`, `idle_signout_minutes`, `reveal_seconds`.
 
 ## Where to look next
-Integrations: `docs/activepieces/` (events, incoming leads), recordings need `SONIOX_API_KEY` and `GEMINI_API_KEY` (server only).
+Integrations: `docs/activepieces/` (events, incoming leads), recordings need `DEEPGRAM_API_KEY` and `GEMINI_API_KEY` (server only).
 `docs/BACKLOG.md` lists the remaining work in order, with acceptance checks. The visual reference is the "Stint CRM Role Dashboards" design (screenshots in the mockup zip, if present under `docs/design/`).

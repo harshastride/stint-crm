@@ -381,7 +381,7 @@ insert into public.follow_rule (trigger, suggest_next, after, stage, stuck_after
 insert into public.connection (service, used_for) values
   ('Activepieces', 'Runs every automation'), ('WhatsApp Business', 'Messages to leads and candidates'),
   ('Email sender', 'Receipts, quotes, vendor emails'), ('Meta lead ads', 'Leads in'), ('Google lead forms', 'Leads in'),
-  ('Online payments', 'Payments in, receipts'), ('SMS', 'Backup when WhatsApp fails'), ('Soniox', 'Live transcripts'), ('Gemini', 'Summaries')
+  ('Online payments', 'Payments in, receipts'), ('SMS', 'Backup when WhatsApp fails'), ('Deepgram', 'Transcripts'), ('Gemini', 'Summaries')
 on conflict do nothing;
 
 insert into public.automation (name, direction, trigger, channel, recipient, message) values
