@@ -33,3 +33,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .logo-dark { display: none; }
 :root[data-theme='dark'] .logo-light { display: none; }
 :root[data-theme='dark'] .logo-dark { display: block; }
+
+/* Dashboard cards rise in one after another (skipped when the person prefers less motion) */
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.anim-rise { animation: rise .35s cubic-bezier(.2,.7,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .anim-rise { animation: none; } }

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
-import { Pill, fmtDateTime, money } from '../ui';
+import { Pill, cx, fmtDateTime, money } from '../ui';
+import { DashboardInsights, change, thisAndLast } from './DashboardInsights';
 
 const JOURNEY: [string, 'lead' | 'candidate', string[]][] = [
   ['Leads', 'lead', ['New']], ['Calls', 'lead', ['Callback', 'Interested']], ['Counselling', 'lead', ['Counselling']], ['Enrolled', 'candidate', ['Enrolled']],
@@ -19,19 +20,30 @@ const TITLES: Record<string, [string, string]> = {
 
 export function Dashboard() {
   const s = useSession();
-  const [d, setD] = useState<{ leads: Row[]; cands: Row[]; tasks: Row[]; alerts: Row[]; fees: Row[] } | null>(null);
+  const [d, setD] = useState<{ leads: Row[]; cands: Row[]; tasks: Row[]; alerts: Row[]; fees: Row[]; target: number | null; sources: Record<string, string> } | null>(null);
 
   useEffect(() => {
     const db = supabase();
     (async () => {
       const [leads, cands, tasks, alerts, fees] = await Promise.all([
-        s.can('lead') ? db.from('lead').select('id,stage,created_at,owner_id').limit(2000) : Promise.resolve({ data: [] }),
-        s.can('candidate') ? db.from('candidate').select('id,stage').limit(2000) : Promise.resolve({ data: [] }),
+        s.can('lead') ? db.from('lead').select('id,stage,created_at,owner_id,source_id').limit(5000) : Promise.resolve({ data: [] }),
+        s.can('candidate') ? db.from('candidate').select('id,stage,created_at').limit(5000) : Promise.resolve({ data: [] }),
         db.from('follow_up').select('*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name)').eq('status', 'Open').order('due_at').limit(12),
         s.can('alert') ? db.from('alert').select('*, lead:lead_id(full_name), candidate:candidate_id(full_name)').eq('status', 'Open').order('raised_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
         s.can('payment') ? db.from('fee_payment').select('amount,status,paid_on').limit(5000) : Promise.resolve({ data: [] }),
       ]);
-      setD({ leads: leads.data || [], cands: cands.data || [], tasks: tasks.data || [], alerts: alerts.data || [], fees: fees.data || [] });
+      // this month's enrolment target: your own (Sales) or the whole team's (anyone who can see Sales targets)
+      const m = new Date(); const month = new Date(m.getFullYear(), m.getMonth(), 1);
+      const monthIso = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}-01`;
+      let target: number | null = null;
+      if (s.can('target')) {
+        let q = db.from('sales_target').select('target, staff_id').eq('month', monthIso);
+        if (s.staff.role === 'Sales' && s.staff.level !== 'Head') q = q.eq('staff_id', s.staff.id);
+        const { data: t } = await q;
+        if (t && t.length) target = t.reduce((a: number, r: Row) => a + Number(r.target || 0), 0);
+      }
+      const sources = Object.fromEntries(s.refs.lead_source.map((x) => [x.id, x.label]));
+      setD({ leads: leads.data || [], cands: cands.data || [], tasks: tasks.data || [], alerts: alerts.data || [], fees: fees.data || [], target, sources });
     })();
   }, [s]);
 
@@ -40,11 +52,27 @@ export function Dashboard() {
 
   const today = new Date().toDateString();
   const overdueTasks = d.tasks.filter((t) => new Date(t.due_at).getTime() < Date.now() && new Date(t.due_at).toDateString() !== today).length;
-  const kpis: [string, string | number, string?][] = [];
-  if (s.can('lead')) { kpis.push(['Open leads', d.leads.filter((l) => !['Converted', 'Not interested'].includes(l.stage)).length]); kpis.push(['New leads today', d.leads.filter((l) => new Date(l.created_at).toDateString() === today).length]); }
-  if (s.can('candidate')) { kpis.push(['Active candidates', d.cands.filter((c) => !['Placed', 'Alumni'].includes(c.stage)).length]); kpis.push(['Placed', d.cands.filter((c) => ['Placed', 'Alumni'].includes(c.stage)).length]); }
-  if (s.can('payment')) { kpis.push(['Collected', money(d.fees.filter((f) => f.status === 'Received').reduce((a, f) => a + Number(f.amount), 0))]); kpis.push(['Overdue', money(d.fees.filter((f) => f.status === 'Overdue').reduce((a, f) => a + Number(f.amount), 0)), 'bad']); }
-  kpis.push(['My follow-ups', d.tasks.length, overdueTasks ? 'bad' : undefined]);
+  // headline tiles: value, change vs last month (when it means something), and where to go next
+  type Tile = { label: string; value: string | number; delta?: number | null; goodWhenUp?: boolean; bad?: boolean; href: string; note?: string };
+  const tiles: Tile[] = [];
+  const received = d.fees.filter((f) => f.status === 'Received');
+  if (s.can('lead')) {
+    const [nowL, lastL] = thisAndLast(d.leads, 'created_at');
+    tiles.push({ label: 'Open leads', value: d.leads.filter((l) => !['Converted', 'Not interested'].includes(l.stage)).length, href: '/p/lead' });
+    tiles.push({ label: 'New leads this month', value: nowL, delta: change(nowL, lastL), goodWhenUp: true, href: '/p/lead', note: d.leads.filter((l) => new Date(l.created_at).toDateString() === today).length + ' today' });
+  }
+  if (s.can('candidate')) {
+    const [nowC, lastC] = thisAndLast(d.cands, 'created_at');
+    tiles.push({ label: 'Enrolled this month', value: nowC, delta: change(nowC, lastC), goodWhenUp: true, href: '/p/candidate', note: d.cands.filter((c) => !['Placed', 'Alumni'].includes(c.stage)).length + ' active' });
+    tiles.push({ label: 'Placed', value: d.cands.filter((c) => ['Placed', 'Alumni'].includes(c.stage)).length, href: '/p/placement' });
+  }
+  if (s.can('payment')) {
+    const [nowF, lastF] = thisAndLast(received, 'paid_on', (f) => Number(f.amount));
+    const overdue = d.fees.filter((f) => f.status === 'Overdue').reduce((a, f) => a + Number(f.amount), 0);
+    tiles.push({ label: 'Collected this month', value: money(nowF), delta: change(nowF, lastF), goodWhenUp: true, href: '/p/payment', note: money(received.reduce((a, f) => a + Number(f.amount), 0)) + ' in all' });
+    tiles.push({ label: 'Overdue fees', value: money(overdue), bad: overdue > 0, href: '/p/payment' });
+  }
+  tiles.push({ label: 'My follow-ups', value: d.tasks.length, bad: overdueTasks > 0, href: '/p/followups', note: overdueTasks ? overdueTasks + ' overdue' : undefined });
 
   const showJourney = s.can('lead') && s.can('candidate');
   const max = Math.max(1, ...JOURNEY.map(([, kind, st]) => (kind === 'lead' ? d.leads : d.cands).filter((x) => st.includes(x.stage)).length));
@@ -57,13 +85,30 @@ export function Dashboard() {
         <p className="mt-1 text-text2">{sub}</p>
       </header>
 
-      <section aria-label="Headline numbers" className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-        {kpis.map(([l, v, tone]) => (
-          <div key={l} className="rounded-2xl border border-line bg-surface px-5 py-4">
-            <div className="text-[13px] font-medium text-muted">{l}</div>
-            <div className={'num mt-1.5 text-[28px] font-semibold ' + (tone === 'bad' && v !== 0 && v !== '₹0' ? 'text-badText' : '')}>{v}</div>
-          </div>
-        ))}
+      <DashboardInsights leads={d.leads} cands={d.cands} fees={d.fees} target={d.target} sources={d.sources}
+        targetLabel={s.staff.role === 'Sales' && s.staff.level !== 'Head' ? 'My enrolments' : 'Team enrolments'} showLeads={s.can('lead')} showFees={s.can('payment')} />
+
+      <section aria-label="Headline numbers" className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+        {tiles.map((t, i) => {
+          const up = (t.delta ?? 0) >= 0, good = t.goodWhenUp ? up : !up;
+          return (
+            <div key={t.label} className="anim-rise flex flex-col rounded-2xl border border-line bg-surface" style={{ animationDelay: 200 + i * 50 + 'ms' }}>
+              <div className="px-5 pb-3 pt-4">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[13px] font-medium text-muted">{t.label}</span>
+                  {t.delta != null && (
+                    <span title="Compared with last month" className={cx('num whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold', good ? 'bg-goodBg text-goodText' : 'bg-badBg text-badText')}>
+                      {up ? '▲' : '▼'} {Math.abs(t.delta)}%
+                    </span>
+                  )}
+                </div>
+                <div className={cx('num mt-1.5 text-[28px] font-semibold', t.bad && 'text-badText')}>{t.value}</div>
+                {t.note && <div className="mt-0.5 text-xs text-muted">{t.note}</div>}
+              </div>
+              <Link href={t.href} className="mt-auto flex justify-end border-t border-line px-5 py-2.5 text-[13px] font-medium text-accentText hover:bg-surface2">View →</Link>
+            </div>
+          );
+        })}
       </section>
 
       {showJourney && (
