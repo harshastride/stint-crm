@@ -108,11 +108,10 @@ export const PAGES: Record<string, PageCfg> = {
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), by:captured_by(full_name)', order: { col: 'created_at' },
     columns: [{ key: 'who', label: 'Number / person', get: (r) => r.lead?.full_name || r.candidate?.full_name || r.number || 'No number' }, { key: 'by.full_name', label: 'Captured by' }, { key: 'source', label: 'From' },
       { key: 'length_sec', label: 'Length', type: 'duration' }, { key: 'summary', label: 'Summary' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'created_at', label: 'When', type: 'datetime' }],
-    views: [{ label: 'Unmatched', where: (r) => r.status === 'Unmatched' }, { label: 'Matched', where: (r) => r.status !== 'Unmatched' }],
+    views: [{ label: 'To confirm', where: (r) => r.status === 'Waiting to confirm' }, { label: 'Unmatched', where: (r) => r.status === 'Unmatched' }, { label: 'Confirmed', where: (r) => r.status === 'Confirmed' }, { label: 'All' }],
     kpis: [count('Captured'), count('Unmatched', (r) => r.status === 'Unmatched'), count('Waiting to confirm', (r) => r.status === 'Waiting to confirm')],
     fields: [{ key: 'lead_id', label: 'Lead this belongs to', type: 'person', person: 'lead' }, { key: 'candidate_id', label: 'Or candidate', type: 'person', person: 'candidate' },
-      { key: 'summary', label: 'Summary', type: 'textarea' }, { key: 'outcome', label: 'Outcome', type: 'select', list: 'call_outcome' },
-      { key: 'status', label: 'Status', type: 'select', options: ['Unmatched', 'Waiting to confirm', 'Confirmed'] }],
+      { key: 'summary', label: 'Summary (confirmed)', type: 'textarea' }, { key: 'outcome', label: 'Outcome', type: 'select', list: 'call_outcome' }, { key: 'follow_up', label: 'Next step', type: 'text' }],
     rowTitle: (r) => r.lead?.full_name || r.candidate?.full_name || r.number || 'Recording',
   },
   counsel: {

@@ -7,6 +7,7 @@ import { Button, Notice, SidePanel } from './ui';
 import { FieldInput, friendlyError } from './Fields';
 import { JobPapers } from './JobPapers';
 import { FileField } from './FileField';
+import { RecordingExtras } from './RecordingExtras';
 import { InstalmentsEditor, quoteAmount, type Instalment } from './InstalmentsEditor';
 
 /** Create form and record editor in one: `row` null (or a summary row with no id yet) means a new record, prefilled from the row. */
@@ -109,6 +110,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
           )}
         </div>
       )}
+      {cfg.id === 'recordings' && row?.id && <RecordingExtras row={row} values={values} setValue={set} onDone={onSaved} />}
       {cfg.id === 'deliveries' && row?.id && (
         <div className="flex flex-col gap-2">
           <div className="text-xs font-medium text-text2">What was sent</div>

@@ -118,3 +118,13 @@ test('enquiry form records marketing consent', async ({ page }) => {
   await db.from('integration_event').delete().eq('entity_id', data!.id);
   await db.from('lead').delete().eq('id', data!.id);
 });
+
+test('record button needs the consent tick before recording', async ({ page }) => {
+  await login(page, 'teja');
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'Record', exact: true }).click();
+  const start = page.getByRole('button', { name: /Start recording/ });
+  await expect(start).toBeDisabled();
+  await page.getByLabel(/they agreed/).check();
+  await expect(start).toBeEnabled();
+});

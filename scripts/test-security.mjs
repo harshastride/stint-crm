@@ -270,6 +270,56 @@ const mobile = '9' + String(Date.now()).slice(-9);
   }
   await admin.from('lead').delete().eq('id', lead.id); }
 
+// Slice 4 · Recordings
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const me = (await tele.auth.getUser()).data.user.id;
+  const myLead = (await tele.from('lead').select('id').eq('owner_id', me).limit(1).single()).data;
+  const noConsent = await tele.from('recording').insert({ lead_id: myLead.id, captured_by: me, consent: false });
+  check('A recording without consent is refused', !!noConsent.error);
+  const r = (await tele.from('recording').insert({ lead_id: myLead.id, captured_by: me, consent: true, status: 'Recorded', length_sec: 3 }).select('id').single()).data;
+  const up = await tele.storage.from('recordings').upload(`${r.id}.webm`, new Blob(['fake audio'], { type: 'audio/webm' }), { contentType: 'audio/webm' });
+  check('The person recording can store the audio privately', !up.error, up.error?.message);
+  await tele.from('recording').update({ audio_path: `${r.id}.webm` }).eq('id', r.id);
+  const tr = await trainer.storage.from('recordings').createSignedUrl(`${r.id}.webm`, 60);
+  check('A trainer cannot play someone else’s recording', !tr.data?.signedUrl);
+  const own = await tele.storage.from('recordings').createSignedUrl(`${r.id}.webm`, 60);
+  check('The person who recorded can play it', !!own.data?.signedUrl, own.error?.message);
+  const stray = await tele.storage.from('recordings').upload(`${crypto.randomUUID()}.webm`, new Blob(['x']));
+  check('Audio cannot be stored without its recording row', !!stray.error);
+
+  // clean-up: audio past the retention period is removed, transcript kept
+  await svc.from('recording').update({ created_at: '2020-01-01', transcript_text: 'kept' }).eq('id', r.id);
+  const secret = (await svc.from('integration_config').select('value').eq('key', 'cron_secret').single()).data.value;
+  const cu = await fetch('http://localhost:3100/api/recordings/cleanup', { method: 'POST', headers: { 'x-cron-secret': secret } }).then((x) => x.json()).catch(() => null);
+  if (!cu) console.log('SKIP recording route checks: the app is not running on port 3100');
+  else {
+    const after = (await svc.from('recording').select('audio_path, audio_deleted_at, transcript_text').eq('id', r.id).single()).data;
+    const file = await svc.storage.from('recordings').list('', { search: r.id });
+    check('Old audio is removed after the retention period; the transcript stays', cu.removed >= 1 && !after.audio_path && !!after.audio_deleted_at && after.transcript_text === 'kept' && (file.data || []).length === 0, JSON.stringify(cu));
+    const cuBad = await fetch('http://localhost:3100/api/recordings/cleanup', { method: 'POST' }).then((x) => x.status);
+    check('The clean-up call needs the secret', cuBad === 401);
+
+    // Android companion upload
+    const key = (await svc.from('integration_config').select('value').eq('key', 'incoming_api_key').single()).data.value;
+    const leadMobile = (await admin.from('lead').select('mobile').eq('id', myLead.id).single()).data.mobile;
+    const form = (consent) => { const f = new FormData(); f.append('audio', new Blob(['fake'], { type: 'audio/mp4' }), 'call.m4a'); f.append('staff_email', 'teja@demo.stint.local'); f.append('number', '+91' + leadMobile); f.append('duration_sec', '42'); f.append('direction', 'out'); if (consent) f.append('consent', 'yes'); return f; };
+    const bad = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { 'x-api-key': 'nope' }, body: form(true) }).then((x) => x.status);
+    const noC = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { 'x-api-key': key }, body: form(false) }).then((x) => x.status);
+    const ok = await fetch('http://localhost:3100/api/recordings/upload', { method: 'POST', headers: { 'x-api-key': key }, body: form(true) }).then(async (x) => ({ status: x.status, json: await x.json() }));
+    check('Phone app upload needs the key and consent', bad === 401 && noC === 400);
+    const pr = ok.json.recording_id && (await svc.from('recording').select('lead_id, audio_path, source').eq('id', ok.json.recording_id).single()).data;
+    check('Phone app upload is stored and matched to the lead by number', ok.status === 201 && pr?.lead_id === myLead.id && !!pr?.audio_path, JSON.stringify(ok.json));
+    if (pr?.audio_path) await svc.storage.from('recordings').remove([pr.audio_path]);
+    if (ok.json.recording_id) await svc.from('recording').delete().eq('id', ok.json.recording_id);
+  }
+  // make a lead from an unknown caller's recording
+  const u = (await admin.from('recording').insert({ captured_by: (await admin.auth.getUser()).data.user.id, consent: true, number: '9' + String(Date.now()).slice(-9), status: 'Unmatched' }).select('id, number').single()).data;
+  const nl = await admin.rpc('lead_from_recording', { rid: u.id, p_name: 'Unknown Caller', p_mobile: u.number });
+  const ur = (await admin.from('recording').select('lead_id, status').eq('id', u.id).single()).data;
+  check('A new lead can be made from a recording', !nl.error && ur.lead_id === nl.data && ur.status === 'Recorded', nl.error?.message);
+  await admin.from('recording').delete().eq('id', u.id); await admin.from('lead').delete().eq('id', nl.data);
+  await svc.from('recording').delete().eq('id', r.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

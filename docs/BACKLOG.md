@@ -28,10 +28,13 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 ## Slice 4 — recordings (see project plan "conversation-capture-plan")
 | # | Task | Done when |
 |---|---|---|
-| 4.1 | Record button in the quick panel | Consent tick required; audio captured in the browser and stored privately |
-| 4.2 | Soniox transcript, Gemini summary | Server routes; keys only on the server; summary is a draft the staff member confirms |
-| 4.3 | Recordings page actions | Attach to a person, create a lead from it, delete; audio removed after `audio_retention_days` |
-| 4.4 | Android companion app | Separate project; uploads call recordings with number and time |
+| 4.1 ✅ | Record button in the quick panel | Consent tick required; audio captured in the browser and stored privately |
+| 4.2 ✅* | Soniox transcript, Gemini summary | Server routes; keys only on the server; summary is a draft the staff member confirms |
+| 4.3 ✅ | Recordings page actions | Attach to a person, create a lead from it, delete; audio removed after `audio_retention_days` |
+| 4.4 ◐ | Android companion app | Separate project; uploads call recordings with number and time |
+
+4.2 ✅*: built and wired; not yet run against the live Soniox and Gemini APIs (needs `SONIOX_API_KEY`, `GEMINI_API_KEY` in `.env.local`).
+4.4 ◐: CRM upload endpoint and app spec (`docs/android-companion.md`) done; the Android app itself is a separate project.
 
 ## Slice 5 — go live
 | # | Task | Done when |

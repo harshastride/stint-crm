@@ -6,6 +6,7 @@ import { useSession } from '@/lib/session';
 import type { PersonRef, Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
+import { Recorder } from './Recorder';
 
 const STAGES = ['Lead', 'Calls', 'Counselling', 'Enrolled', 'Training', 'Mocks', 'Resume + docs', 'Placement', 'Alumni'];
 const OWNER = ['Marketing', 'Telecaller', 'Sales', 'Front desk and HR', 'Trainer', 'SME', 'HR', 'Placement', 'Placement'];
@@ -21,7 +22,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
   const [tasks, setTasks] = useState<Row[]>([]);
   const [priv, setPriv] = useState<Row | null>(null);
   const [tab, setTab] = useState<'Log' | 'Timeline' | 'Details'>('Log');
-  const [action, setAction] = useState<'note' | 'call' | 'task' | null>(null);
+  const [action, setAction] = useState<'note' | 'call' | 'task' | 'record' | null>(null);
   const [form, setForm] = useState<Row>({});
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,6 +30,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
   const canWritePerson = isLead ? s.can('lead', 'w') : s.can('candidate', 'w');
   const canCall = isLead && s.can('call', 'w');
   const idCol = isLead ? 'lead_id' : 'candidate_id';
+  const canRecord = s.can('recordings', 'w') || (isLead ? s.can('lead', 'w') : s.can('candidate', 'r'));
 
   const load = useCallback(async () => {
     const db = supabase();
@@ -150,8 +152,10 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
           <div className="grid grid-cols-2 gap-2">
             {canCall && <Button className={action === 'call' ? '!border-accent' : ''} onClick={() => { setAction('call'); setForm({}); setMsg(null); }}>Log call</Button>}
             <Button className={action === 'note' ? '!border-accent' : ''} onClick={() => { setAction('note'); setForm({ kind: 'Note' }); setMsg(null); }}>Add note</Button>
+            {canRecord && <Button className={action === 'record' ? '!border-accent' : ''} onClick={() => { setAction('record'); setMsg(null); }}>Record</Button>}
             <Button className={action === 'task' ? '!border-accent' : ''} onClick={() => { setAction('task'); setForm({}); setMsg(null); }}>Add follow-up</Button>
           </div>
+          {action === 'record' && <Recorder person={person} onSaved={(t) => { setMsg({ tone: 'good', text: t }); setAction(null); }} />}
           {action === 'call' && (
             <div className="flex flex-col gap-2 rounded-[12px] border border-accent p-3">
               <div className="text-sm font-semibold">Log call</div>
