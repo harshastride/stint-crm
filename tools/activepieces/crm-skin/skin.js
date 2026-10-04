@@ -8,7 +8,12 @@
     '.stint-hide{display:none!important}';
   document.documentElement.appendChild(css);
   document.title = 'Automations';
+  // the slim icon bar inside a flow has no labels: recognise Explore (compass), Impact (chart), Leaderboard (trophy), Platform Admin (shield) by icon shape
+  var ICONS = ['polygon[points^="16.24 7.76"]', 'path[d^="M3 3v16a2 2 0 0 0 2 2h16"]', 'path[d^="M10 14.66"]', 'path[d^="M20 13c0 5-3.5 7.5"]'];
   function sweep() {
+    document.querySelectorAll('[data-sidebar="menu-button"]').forEach(function (el) {
+      if (ICONS.some(function (q) { return el.querySelector(q); })) (el.closest('li,[data-sidebar="menu-item"]') || el).classList.add('stint-hide');
+    });
     document.querySelectorAll('[data-sidebar="menu-button"],button,a').forEach(function (el) {
       var t = (el.textContent || '').trim();
       if (HIDE_TEXT.indexOf(t) >= 0) { (el.closest('li,[data-sidebar="menu-item"]') || el).classList.add('stint-hide'); }
