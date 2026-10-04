@@ -11,6 +11,13 @@ const EVENT_NAME: Record<string, string> = {
   'mock.result': 'Mock result', 'resume.rejected': 'Resume rejected', 'vendor_request.created': 'Vendor request', 'placement.recorded': 'Placement recorded',
 };
 
+/** Opens Activepieces in its own browser tab, reusing that tab if it is already open, so the CRM tab stays put. */
+export function openBuilder(url: string) {
+  const w = window.open(url, 'stint-automations');
+  if (w) w.focus();
+  else window.alert('Your browser blocked the new tab. Allow pop-ups for this site, or open ' + url + ' yourself.');
+}
+
 /** Top of the Automations page: open Activepieces, and see which CRM events have a live flow. */
 export function AutomationBuilder() {
   const s = useSession();
@@ -30,7 +37,9 @@ export function AutomationBuilder() {
           <p className="mt-1 text-[13px] text-text2">In a flow pick <b>Stint CRM</b>: a trigger such as “New lead” or “Payment recorded”, then actions like WhatsApp, email, or “Create follow-up” back in the CRM. Publish and it runs.</p>
         </div>
         {info.url && (
-          <a href={info.url} target="_blank" rel="noreferrer" className="flex min-h-[44px] items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-semibold text-white">
+          <a href={info.url} target="stint-automations" rel="noopener"
+            onClick={(e) => { e.preventDefault(); openBuilder(info.url); }}
+            className="flex min-h-[44px] items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-semibold text-white">
             Open automation builder <ExternalLink size={14} />
           </a>
         )}
