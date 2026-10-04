@@ -415,6 +415,26 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('A custom field gets a key from its name', a.data?.key === 'test_field_x', JSON.stringify(a.data));
   await admin.from('custom_field').delete().eq('label', 'Test Field X'); }
 
+// Student portal: a student sees only their own record, and nothing of the CRM
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const email = `sec${Date.now()}@example.com`, pw = 'Student-sec-12345';
+  const c = (await svc.from('candidate').insert({ code: 'STA-SEC-' + String(Date.now()).slice(-5), full_name: 'Portal Sec', stage: 'Enrolled' }).select('id').single()).data;
+  const u = (await svc.auth.admin.createUser({ email, password: pw, email_confirm: true })).data.user;
+  await svc.from('student_account').insert({ user_id: u.id, candidate_id: c.id, must_change_password: false });
+  const st = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  await st.auth.signInWithPassword({ email, password: pw });
+  const me = await st.rpc('portal_me');
+  check('A student sees their own record in the portal', me.data?.candidate?.id === c.id, me.error?.message);
+  const leads = (await st.from('lead').select('id')).data || [], cands = (await st.from('candidate').select('id')).data || [], pays = (await st.from('fee_payment').select('id')).data || [];
+  check('A student cannot read leads, students or payments', leads.length + cands.length + pays.length === 0, [leads.length, cands.length, pays.length].join('/'));
+  const other = (await svc.from('candidate').select('id').neq('id', c.id).limit(1).single()).data;
+  const up = await st.storage.from('candidate-files').upload(`${other.id}/doc/x.pdf`, new Blob(['x']));
+  check('A student cannot upload into another student’s files', !!up.error);
+  await svc.from('candidate').update({ stage: 'Placed' }).eq('id', c.id);
+  const locked = await st.rpc('portal_save', { p_profile: { x: 1 }, p_education: null, p_experience: null, p_private: {} });
+  check('Details are locked once the student moves past Training', !!locked.error);
+  await svc.auth.admin.deleteUser(u.id); await svc.from('candidate').delete().eq('id', c.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

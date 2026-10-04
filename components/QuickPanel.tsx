@@ -259,6 +259,15 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
                   : <Group key={g} title={GROUP_LABEL[g]} tag={priv.modes[g] === 'm' ? 'Masked' : 'Full'} rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' '), String(v)])} />
               ))}
               <Link href={'/candidate/' + person.id} className="flex min-h-[44px] items-center justify-center rounded-[10px] border border-ink bg-surface text-sm font-semibold">Open full profile</Link>
+              {(s.can('candidate', 'w') || s.can('enrolform', 'w')) && (
+                <Button disabled={busy} onClick={async () => {
+                  setBusy(true);
+                  const res = await fetch('/api/portal/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate_id: person.id }) });
+                  const out = await res.json(); setBusy(false);
+                  setMsg(res.ok ? { tone: 'good', text: `${out.reset ? 'Portal password reset' : 'Invited to the student portal'}. Login: ${out.email} · temporary password: ${out.password} — share it privately; they choose their own at first sign-in. Portal address: ${window.location.origin}/login` }
+                    : { tone: 'bad', text: out.error || 'Could not invite.' });
+                }}>Invite to student portal</Button>
+              )}
             </>
           )}
         </div>

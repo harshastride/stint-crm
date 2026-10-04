@@ -57,6 +57,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       db.from('campaign').select('id,name').order('name'),
       db.from('custom_field').select('*').order('sort').order('created_at'),
     ]);
+    if (!me.error && !me.data?.staff) {
+      // a student account belongs in the portal, not the staff CRM
+      const { data: student } = await db.rpc('my_candidate');
+      if (student) { window.location.replace('/portal'); return; }
+    }
     if (me.error || !me.data?.staff) {
       setError(me.error?.message || 'Your login is not set up as a staff member yet. Ask an admin to add you under Users & staff.');
       return;

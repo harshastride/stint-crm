@@ -455,3 +455,60 @@ test('custom fields: admin adds one, it shows in the form and the list', async (
   await db.from('candidate').update({ custom: c!.custom || {} }).eq('id', c!.id);
   await db.from('custom_field').delete().eq('label', 'E2E Laptop issued');
 });
+
+test('student portal: invite, first password, details, document upload, receipt', async ({ page }) => {
+  const db = service();
+  const email = `portal${Date.now()}@example.com`;
+  const { data: c } = await db.from('candidate').insert({ code: 'STA-TEST-' + String(Date.now()).slice(-5), full_name: 'Portal Test', stage: 'Enrolled' }).select('id').single();
+  await db.from('candidate_private').insert({ candidate_id: c!.id, contact: { email, mobile: '9' + String(Date.now()).slice(-9) } });
+  await db.from('fee_plan').insert({ candidate_id: c!.id, total: 30000, plan: '2 instalments' });
+  await db.from('fee_payment').insert({ candidate_id: c!.id, amount: 15000, status: 'Received', mode: 'UPI' });
+  const { data: doc } = await db.from('candidate_document').insert({ candidate_id: c!.id, doc_type: 'PAN', status: 'Missing' }).select('id').single();
+  let userId: string | undefined;
+  try {
+    await login(page, 'harsha');
+    const inv = await page.request.post('/api/portal/invite', { data: { candidate_id: c!.id } });
+    expect(inv.status()).toBe(200);
+    const { password } = await inv.json();
+    userId = (await db.from('student_account').select('user_id').eq('candidate_id', c!.id).single()).data!.user_id;
+    await page.context().clearCookies();
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password').fill(password);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect(page).toHaveURL(/\/portal/, { timeout: 20000 });
+    await page.getByLabel('New password').fill('Student-pass-2026');
+    await page.getByLabel('Type it again').fill('Student-pass-2026');
+    await page.getByRole('button', { name: 'Save and continue' }).click();
+    await expect(page.getByRole('heading', { name: 'Hi Portal' })).toBeVisible();
+    await expect(page.getByText('₹15,000 still due of ₹30,000')).toBeVisible();
+    // details
+    await page.getByRole('tab', { name: 'My details' }).click();
+    await page.getByLabel('City').fill('Mysuru');
+    await page.getByRole('button', { name: 'Save my details' }).click();
+    await expect(page.getByText(/Saved\. The institute can see/)).toBeVisible();
+    const { data: priv } = await db.from('candidate_private').select('contact').eq('candidate_id', c!.id).single();
+    expect(priv!.contact.city).toBe('Mysuru');
+    // document
+    await page.getByRole('tab', { name: 'Documents' }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Upload' }).click();
+    await (await chooser).setFiles({ name: 'pan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') });
+    await expect(page.getByText('PAN uploaded. The institute will verify it.')).toBeVisible();
+    const { data: d } = await db.from('candidate_document').select('status, file_path').eq('id', doc!.id).single();
+    expect(d!.status).toBe('Received');
+    // receipt
+    await page.getByRole('tab', { name: 'Fees' }).click();
+    const href = await page.getByRole('link', { name: 'Receipt' }).getAttribute('href');
+    const pdf = await page.request.get(href!);
+    expect(pdf.status()).toBe(200);
+    // a student cannot use the staff CRM
+    await page.goto('/p/lead');
+    await expect(page).toHaveURL(/\/portal/);
+    if (d!.file_path) await db.storage.from('candidate-files').remove([d!.file_path]);
+  } finally {
+    if (userId) await db.auth.admin.deleteUser(userId);
+    await db.from('candidate').delete().eq('id', c!.id);
+    await db.from('integration_event').delete().eq('person_name', 'Portal Test');
+  }
+});
