@@ -294,3 +294,18 @@ test('PDF: fee quote and receipt download for allowed roles only', async ({ page
   expect((await page.request.get('/api/pdf/quote/' + q!.id)).status()).toBe(404);
   expect((await page.request.get('/api/pdf/receipt/' + p!.id)).status()).toBe(404);
 });
+
+test('calendar: month and week views, items open their record, role filtering', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/calendar');
+  await expect(page.getByRole('button', { name: 'Counselling', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2 })).toContainText(new Date().toLocaleDateString('en-IN', { month: 'long' }));
+  await page.getByRole('button', { name: 'week', exact: true }).click();
+  await expect(page.getByText(/items in this week/)).toBeVisible();
+  const first = page.locator('section button').first();
+  if (await first.count()) { await first.click(); await expect(page).toHaveURL(/\/p\/(counsel|mock|followups|batch)/); }
+  await login(page, 'kiran');   // Trainer: no counselling legend
+  await page.goto('/p/calendar');
+  await expect(page.getByRole('button', { name: 'Mock interview' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Counselling', exact: true })).toHaveCount(0);
+});

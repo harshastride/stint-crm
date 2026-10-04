@@ -1,14 +1,14 @@
 // One icon per page and per action, from the Lucide family (one of the families on 21st.dev/community/icons).
 // Used by the sidebar, the dashboard tiles and the quick panel's next-step buttons.
 import {
-  AlarmClock, BadgeIndianRupee, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable,
+  AlarmClock, BadgeIndianRupee, CalendarDays, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable,
   FileCheck2, FileSpreadsheet, FileStack, FileText, Filter, GitBranch, GraduationCap, HandCoins, History, Home, Inbox, IndianRupee, LayoutGrid,
   ListChecks, ListTodo, type LucideIcon, Megaphone, MessageSquareText, Mic, NotebookPen, Palette, PhoneCall, PieChart, Receipt, Route, ScrollText,
   Send, Shield, Shuffle, SlidersHorizontal, Target, TrendingUp, Upload, UserPlus, UserRoundCheck, Users, UsersRound, Wallet, Workflow, Zap,
 } from 'lucide-react';
 
 export const PAGE_ICON: Record<string, LucideIcon> = {
-  home: Home, followups: ListTodo, enquiry: UserPlus, enrolform: ClipboardList,
+  home: Home, calendar: CalendarDays, followups: ListTodo, enquiry: UserPlus, enrolform: ClipboardList,
   campaign: Megaphone, source: Filter, lead: Inbox, call: PhoneCall, recordings: Mic,
   counsel: MessageSquareText, quote: Receipt, target: Target,
   candidate: UsersRound, program: BookOpen, branch: Building2, batch: GraduationCap,
