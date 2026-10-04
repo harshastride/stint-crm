@@ -133,6 +133,25 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Logged-out visitors cannot open files', !pub.data?.signedUrl);
   await hr.storage.from('candidate-files').remove([path]); }
 
+// 2.4 Automatic alerts: raised from the data, never twice, closed when fixed
+{ const c2 = (await admin.from('candidate').select('id').eq('full_name', 'Asha K').single()).data;
+  const old = new Date(Date.now() - 20 * 864e5).toISOString().slice(0, 10);
+  const pay = (await admin.from('fee_payment').insert({ candidate_id: c2.id, amount: 1000, status: 'Due', due_on: old }).select('id').single()).data;
+  await admin.rpc('raise_alerts_now'); await admin.rpc('raise_alerts_now');
+  const open = (await admin.from('alert').select('id, title').eq('candidate_id', c2.id).eq('reason', 'fee_overdue').eq('status', 'Open')).data || [];
+  check('Overdue fee raises one alert, even when the check runs twice', open.length === 1 && /overdue/.test(open[0].title), JSON.stringify(open));
+  const st = (await admin.from('fee_payment').select('status').eq('id', pay.id).single()).data;
+  check('Payment past its due day is marked Overdue', st.status === 'Overdue');
+  await admin.from('fee_payment').delete().eq('id', pay.id);
+  await admin.rpc('raise_alerts_now');
+  const after = (await admin.from('alert').select('status').eq('id', open[0]?.id).single()).data;
+  const stillOverdue = ((await admin.from('fee_payment').select('id').eq('candidate_id', c2.id).eq('status', 'Overdue')).data || []).length > 0;
+  check('Alert closes itself once nothing is overdue', stillOverdue || after?.status === 'Resolved', after?.status);
+  const t = await tele.rpc('raise_alerts_now');
+  check('Only an admin can run the alert check', !!t.error);
+  const d = await tele.rpc('raise_alerts');
+  check('The raw alert job is not callable by staff', !!d.error); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

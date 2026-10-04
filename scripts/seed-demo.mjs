@@ -202,12 +202,8 @@ await must(db.from('follow_up').insert([
   { title: 'Review L1 mock', candidate_id: C['Lavanya G'], owner_id: S.Hemanth, owner_role: 'SME', due_at: at(2, 16) },
   { title: 'Put forward to companies', candidate_id: C['Nitin S'], owner_id: S.Lakshmi, owner_role: 'Placement', due_at: at(3) },
 ]), 'follow-ups');
-await must(db.from('alert').insert([
-  { title: 'Fee 21 days overdue', area: 'Fees', candidate_id: C['Rakesh B'], owner_id: S.Suresh, priority: 'High' },
-  { title: 'Resume rejected twice', area: 'Resume', candidate_id: C['Priya Reddy'], owner_id: S.Praveen, priority: 'High' },
-  { title: 'Follow-up missed', area: 'Telecalling', lead_id: L['Ravi Kumar'], owner_id: S.Teja, priority: 'Medium' },
-  { title: 'Mock failed twice', area: 'Mocks', candidate_id: C['Vikas N'], owner_id: S.Praveen, priority: 'Medium' },
-]), 'alerts');
+// Alerts are raised by the database from the sample data (raise_alerts, also run every 15 minutes)
+await must(db.rpc('raise_alerts'), 'alerts');
 await must(db.from('note').insert([
   { candidate_id: C['Priya Reddy'], kind: 'Resume', body: 'Resume sent to vendor', by_id: S.Praveen },
   { candidate_id: C['Lavanya G'], kind: 'Training', body: 'Asked for extra Spark session', by_id: S.Kiran },

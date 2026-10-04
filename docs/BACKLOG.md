@@ -8,7 +8,7 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 | 2.1 ✅ | Git: `git init`, first commit | History exists; `.env.local` is not committed |
 | 2.2 ✅ | Head vs Junior scoping | A Junior sees only records they own (lead.owner_id, candidate.poc_id, and child rows of those); a Head sees their whole team; Admin sees all. Enforced in RLS, with tests |
 | 2.3 ✅ | File uploads (Supabase Storage) | Resume versions and candidate documents can attach a file; private bucket; storage policies follow the page grid; download via signed URL |
-| 2.4 | Automatic alerts | Scheduled job (pg_cron or a Next route called by cron) raises alerts: fee overdue, follow-up missed, stuck past `follow_rule.stuck_after_days`, mock failed twice, resume rejected twice. No duplicates for the same record and reason |
+| 2.4 ✅ | Automatic alerts | Scheduled job (pg_cron or a Next route called by cron) raises alerts: fee overdue, follow-up missed, stuck past `follow_rule.stuck_after_days`, mock failed twice, resume rejected twice. No duplicates for the same record and reason |
 | 2.5 | Follow-up rules in use | Logging an outcome suggests the next follow-up from `follow_rule`; assignment uses `assignment_rule` instead of the fixed "least busy telecaller" |
 | 2.6 | Quote approval | Sales head (level Head, role Sales) or Admin can approve a quote with `needs_approval`; unapproved quotes cannot move to Accepted |
 | 2.7 | Fee plan → instalments | Creating a fee plan generates the due payments by plan; recording a payment marks the matching instalment Received with a receipt number |
