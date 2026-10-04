@@ -1,5 +1,5 @@
 'use client';
-import { Pencil } from 'lucide-react';
+import { ArrowDown, ArrowUp, Pencil, Search } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +21,18 @@ const cell = (c: Col, r: Row) => {
   if (c.type === 'pct') return <span className="num">{String(v)}%</span>;
   if (c.type === 'number') return <span className="num">{Number(v).toLocaleString('en-IN')}</span>;
   return String(v);
+};
+const PAGE = 100;      // rows per page in the table
+const CHUNK = 1000;    // rows fetched per request
+const MAX_ROWS = 20000;
+const raw = (c: Col, r: Row) => (c.get ? c.get(r) : getPath(r, c.key));
+const NUMERIC = ['money', 'number', 'pct', 'duration'];
+const compare = (c: Col, a: Row, b: Row) => {
+  const x = raw(c, a), y = raw(c, b);
+  if (x == null || x === '') return y == null || y === '' ? 0 : 1;   // empty values always last
+  if (y == null || y === '') return -1;
+  if (NUMERIC.includes(c.type || '')) return Number(x) - Number(y);
+  return String(x).localeCompare(String(y), 'en-IN', { numeric: true, sensitivity: 'base' });
 };
 const plain = (c: Col, r: Row) => { const v = c.get ? c.get(r) : getPath(r, c.key); return v == null ? '' : String(v); };
 const short = (c: Col, r: Row) => {
@@ -59,14 +71,25 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [notice, setNotice] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [panelOpen, setPanelOpen] = useState(true);
 
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState<{ key: string; asc: boolean } | null>(null);
+  const [page, setPage] = useState(0);
+
+  // Fetch everything the person may see, in chunks, so search, sort, views and totals cover all rows.
   const load = useCallback(async () => {
-    let q = supabase().from(cfg.readFrom || cfg.table).select(cfg.select || '*').limit(500);
-    if (cfg.order) q = q.order(cfg.order.col, { ascending: !!cfg.order.asc, nullsFirst: false });
-    const { data, error } = await q;
-    if (error) { setError(friendlyError(error)); setRows([]); return; }
-    setError(null); setRows((data as Row[]) || []);
+    const all: Row[] = [];
+    for (let from = 0; from < MAX_ROWS; from += CHUNK) {
+      let query = supabase().from(cfg.readFrom || cfg.table).select(cfg.select || '*').range(from, from + CHUNK - 1);
+      if (cfg.order) query = query.order(cfg.order.col, { ascending: !!cfg.order.asc, nullsFirst: false });
+      const { data, error } = await query;
+      if (error) { setError(friendlyError(error)); setRows([]); return; }
+      all.push(...((data as Row[]) || []));
+      if (!data || data.length < CHUNK) break;
+    }
+    setError(null); setRows(all);
   }, [cfg]);
 
+  useEffect(() => { setQ(''); setSort(null); setPage(0); }, [cfg]);
   useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board ? 'board' : 'table'); load(); }, [cfg, load]);
 
   // open a person straight from the search box: /p/lead?person=lead:<id>
@@ -76,7 +99,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   }, [params]);
 
   const views = cfg.views || [{ label: 'All' }];
-  const shown = useMemo(() => (rows || []).filter((r) => !views[view]?.where || views[view].where!(r, s.staff.id)), [rows, views, view, s.staff.id]);
+  const shown = useMemo(() => {
+    let out = (rows || []).filter((r) => !views[view]?.where || views[view].where!(r, s.staff.id));
+    const term = q.trim().toLowerCase();
+    if (term) out = out.filter((r) => cfg.columns.some((c) => short(c, r).toLowerCase().includes(term) || plain(c, r).toLowerCase().includes(term)));
+    const col = sort && cfg.columns.find((c) => c.key === sort.key);
+    if (col) out = [...out].sort((a, b) => (sort!.asc ? 1 : -1) * compare(col, a, b) || 0);
+    return out;
+  }, [rows, views, view, s.staff.id, q, sort, cfg.columns]);
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+  const pageRows = useMemo(() => shown.slice(page * PAGE, page * PAGE + PAGE), [shown, page]);
+  useEffect(() => { setPage(0); }, [q, sort, view]);
+  useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
 
   // people pages always show somebody in the panel: default to the first row
   useEffect(() => {
@@ -132,6 +166,12 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 className={cx('min-h-[38px] rounded-[10px] px-3.5 text-[13px] font-medium', view === i ? 'bg-ink text-white' : 'text-text2')}>{v.label}</button>
             ))}
           </div>
+          <div className="ml-auto flex items-center gap-2">
+          <label className="relative">
+            <span className="sr-only">Search this list</span>
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this list" className="h-[38px] w-[220px] pl-8 pr-3 text-[13px]" />
+          </label>
           {cfg.board && (
             <div className="flex rounded-[10px] bg-surface2 p-1">
               {(['table', 'board'] as const).map((l) => (
@@ -139,6 +179,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               ))}
             </div>
           )}
+          </div>
         </div>
 
         {cfg.kpis && rows && (
@@ -159,8 +200,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <div className="rounded-xl border border-line bg-surface p-6 text-muted">Loading…</div>
         ) : shown.length === 0 ? (
           <div className="rounded-xl border border-line bg-surface p-8 text-center">
-            <div className="font-semibold">Nothing here yet</div>
-            <div className="mt-1 text-text2">{canWrite && cfg.cta && !cfg.noCreate ? 'Use “' + cfg.cta + '” to add the first one.' : 'There is nothing to show in this view.'}</div>
+            <div className="font-semibold">{q.trim() ? 'No matches' : 'Nothing here yet'}</div>
+            <div className="mt-1 text-text2">{q.trim() ? 'Nothing in this view matches “' + q.trim() + '”.' : canWrite && cfg.cta && !cfg.noCreate ? 'Use “' + cfg.cta + '” to add the first one.' : 'There is nothing to show in this view.'}</div>
           </div>
         ) : layout === 'board' && cfg.board ? (
           <div className="flex min-w-0 gap-3 overflow-x-auto pb-2">
@@ -189,12 +230,22 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             <table className="w-full border-collapse text-left text-[13px]">
               <thead>
                 <tr className="bg-surface2 text-xs text-text2">
-                  {cfg.columns.map((c) => <th key={c.key} className="whitespace-nowrap px-4 py-3 font-semibold">{c.label}</th>)}
+                  {cfg.columns.map((c) => {
+                    const on = sort?.key === c.key;
+                    return (
+                      <th key={c.key} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className="whitespace-nowrap px-2 py-1.5 font-semibold">
+                        <button type="button" onClick={() => setSort(on ? (sort!.asc ? { key: c.key, asc: false } : null) : { key: c.key, asc: true })}
+                          className={cx('flex min-h-[36px] items-center gap-1 rounded-md px-2 hover:bg-surface', on && 'text-text')}>
+                          {c.label}{on && (sort!.asc ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                        </button>
+                      </th>
+                    );
+                  })}
                   {cfg.person && cfg.fields && <th className="w-10" />}
                 </tr>
               </thead>
               <tbody>
-                {shown.map((r) => (
+                {pageRows.map((r) => (
                   <tr key={r.id ?? r.key ?? JSON.stringify(r)} onClick={() => openRow(r)} className={cx('cursor-pointer border-t border-line', selId === r.id && cfg.person ? 'bg-accentSoft' : 'hover:bg-surface2')}>
                     {cfg.columns.map((c, i) => <td key={c.key} className={cx('px-4 py-3 align-middle', i === 0 ? 'font-semibold' : 'text-text2')}>{cell(c, r)}</td>)}
                     {cfg.person && cfg.fields && (
@@ -208,7 +259,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             </table>
           </div>
         )}
-        <p className="text-xs text-muted">{rows ? shown.length + ' shown' + (rows.length >= 500 ? ' (first 500 loaded)' : '') : ''}</p>
+        {rows && (
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+            <span>{layout === 'table' && pages > 1 ? `${page * PAGE + 1}–${Math.min(shown.length, page * PAGE + PAGE)} of ${shown.length}` : shown.length + ' shown'}{rows.length >= MAX_ROWS ? ` (first ${MAX_ROWS.toLocaleString('en-IN')} loaded)` : ''}</span>
+            {layout === 'table' && pages > 1 && (
+              <div className="flex items-center gap-1">
+                <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>
+                <span className="px-2">Page {page + 1} of {pages}</span>
+                <Button disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Next</Button>
+              </div>
+            )}
+          </div>
+        )}
       </main>
       {editing && <EditorPanel key={editing === 'new' ? 'new' : editing.id ?? editing.key} cfg={cfg} row={editing === 'new' ? null : editing} canWrite={canWrite} onClose={() => setEditing(null)} onSaved={saved} />}
       {showPanel && <QuickPanel person={person!} onClose={() => setPanelOpen(false)} onChanged={load} />}
