@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start -p 3100",
     "seed": "node scripts/seed-demo.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test": "node scripts/test-security.mjs && playwright test"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -18,6 +20,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

@@ -39,11 +39,21 @@ Day to day: `supabase stop` / `supabase start` to stop and start the database; `
 - Rules in the database: auto-assign a new lead, duplicate mobile refused, lead → candidate on Converted (with fee plan and follow-ups), quote amount and discount approval flag, status history, masked and hidden candidate details
 - Job papers checklist that follows the job’s dates; CSV lead import with duplicate check; CSV export on reports and history
 
+## What is built (slice 2)
+
+- Head vs Junior: a Junior in a lead- or candidate-owning role sees only their own records; a Head sees the team (row security)
+- Sales picks up Interested leads; booking counselling hands the lead to the counsellor
+- File uploads on resumes and documents (private bucket, one-minute download links)
+- Alerts raised every 15 minutes by the database (fee overdue, follow-up missed, stuck, mock failed twice, resume rejected twice), never duplicated, closed when fixed
+- Follow-up rules suggest the next step after a call; failed mocks, absences and rejected resumes raise follow-ups; assignment rules pick owners
+- Quote approval by the Sales head or Admin; custom instalments; fee plans create due payments; payments settle them with receipt numbers
+- Change own password, admin reset, temporary passwords must be changed first
+- Every list: search, column sort, paging over all rows
+- `npm test`: database rules and security checks, then browser flows (Playwright)
+
 ## Not built yet
 
-- Activepieces: Automations and Connections pages only store the list; nothing is sent
-- Recording, Soniox transcript and Gemini summary: the Recordings page lists rows but nothing records
-- File uploads (resumes, documents), alerts raised automatically, stuck-record job, password reset by email, phone layout
+See `docs/BACKLOG.md` (Activepieces, recordings, go-live).
 
 ## How it is put together
 
@@ -52,7 +62,8 @@ Day to day: `supabase stop` / `supabase start` to stop and start the database; `
 | `supabase/migrations` | Tables, security, rules, report views |
 | `supabase/seed.sql` | Roles, pages, permission grid, dropdown values, programs (no people) |
 | `scripts/seed-demo.mjs` | Demo logins and sample people |
-| `scripts/test-security.mjs` | 33 checks that the database enforces roles and rules |
+| `scripts/test-security.mjs` | Checks that the database enforces roles and rules |
+| `e2e/` | Browser tests of the main flows (`npm run test:e2e`) |
 | `lib/pages.ts` | One config entry per list page (columns, views, fields, board) |
 | `components/` | The four blocks and the special screens |
 

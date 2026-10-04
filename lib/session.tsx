@@ -32,8 +32,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [mustChange, setMustChange] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (attempt = 0): Promise<void> => {
     const db = supabase();
+    // Right after sign-in the database can be a moment behind the login server's clock and reject the
+    // brand-new token as "issued at future". Wait and try again instead of showing an error.
+    const early = await db.rpc('my_session');
+    if (early.error && /issued at future/i.test(early.error.message) && attempt < 8) {
+      await new Promise((r) => setTimeout(r, 750));
+      return load(attempt + 1);
+    }
     const [me, pages, roles, values, staff, programs, batches, branches, companies, sources, campaigns] = await Promise.all([
       db.rpc('my_session'),
       db.from('page').select('*').order('sort'),

@@ -14,7 +14,7 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 | 2.7 ✅ | Fee plan → instalments | Creating a fee plan generates the due payments by plan; recording a payment marks the matching instalment Received with a receipt number |
 | 2.8 ✅ | Password: change own password, admin reset | Invited staff must change the temporary password on first login |
 | 2.9 ✅ | Lists: search box, column sort, paging beyond 500 rows | Works on every list page |
-| 2.10 | Playwright end-to-end tests in the repo | The flows in README "What is built" run with one command |
+| 2.10 ✅ | Playwright end-to-end tests in the repo | The flows in README "What is built" run with one command |
 
 ## Slice 3 — Activepieces (see project plan "activepieces-integration-plan")
 | # | Task | Done when |
