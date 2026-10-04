@@ -252,7 +252,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
               <Group title="Candidate" rows={[['ID', p.code], ['Program', p.program?.name], ['Batch', p.batch?.code], ['Joined', p.joined_on]]} />
               {priv && Object.keys(GROUP_LABEL).map((g) => (
                 priv.modes[g] === 'h'
-                  ? <div key={g} className="rounded-[10px] bg-warnBg px-3 py-2 text-xs font-medium text-warnText">{GROUP_LABEL[g]}: hidden for your role</div>
+                  ? null   // hidden groups are left out entirely, not announced
                   : <Group key={g} title={GROUP_LABEL[g]} tag={priv.modes[g] === 'm' ? 'Masked' : 'Full'} rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' '), String(v)])} />
               ))}
               <Link href={'/candidate/' + person.id} className="flex min-h-[44px] items-center justify-center rounded-[10px] border border-ink bg-surface text-sm font-semibold">Open full profile</Link>

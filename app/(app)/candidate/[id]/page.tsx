@@ -79,7 +79,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
           <section className={card}><h2 className="mb-2 text-base font-semibold">Personal</h2>
             <Lines empty="Not filled in yet." rows={[['Full name', c.full_name], ...Object.entries(c.profile || {}).filter(([, v]) => v).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()), String(v)] as [string, string]), ['Joined', fmtDate(c.joined_on)]]} />
           </section>
-          {priv && GROUPS.map(([g, label]) => (
+          {priv && GROUPS.filter(([g]) => priv.modes[g] !== 'h').map(([g, label]) => (
             <section key={g} className={card}>
               <div className="mb-2 flex items-center justify-between"><h2 className="text-base font-semibold">{label}</h2>
                 <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-semibold', priv.modes[g] === 'f' ? 'bg-goodBg text-goodText' : 'bg-warnBg text-warnText')}>{priv.modes[g] === 'f' ? 'Full' : priv.modes[g] === 'm' ? 'Masked for ' + s.staff.role : 'Hidden for ' + s.staff.role}</span></div>
