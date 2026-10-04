@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -21,7 +22,9 @@ const EXP: [string, string][] = [['company', 'Company'], ['role', 'Role'], ['joi
 export function EnrolmentForm() {
   const s = useSession();
   const canWrite = s.can('enrolform', 'w');
-  const [id, setId] = useState<string | null>(null);
+  // ?candidate=<id> opens that student's data sheet directly (quick panel "Open data sheet")
+  const params = useSearchParams();
+  const [id, setId] = useState<string | null>(params.get('candidate'));
   const [c, setC] = useState<Row | null>(null);
   const [priv, setPriv] = useState<Row | null>(null);
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);

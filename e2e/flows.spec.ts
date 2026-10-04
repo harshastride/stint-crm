@@ -177,3 +177,19 @@ test('change password: the window opens and the new password works', async ({ pa
     await db.auth.admin.deleteUser(data.user!.id);
   }
 });
+
+test('next-step buttons: by stage, on follow-ups, and forms open with the person filled in', async ({ page }) => {
+  const db = service();
+  const { data: c } = await db.from('candidate').select('id, full_name').eq('full_name', 'Priya Reddy').single();
+  await login(page, 'harsha');
+  await page.goto('/p/candidate?person=candidate:' + c!.id);
+  const panel = page.getByRole('complementary', { name: 'Quick panel' });
+  await expect(panel.getByText(/Next steps ·/)).toBeVisible();
+  await page.goto('/p/payment?new=candidate:' + c!.id);
+  const editor = page.getByRole('complementary', { name: 'New payment' });
+  await expect(editor.getByText(c!.full_name)).toBeVisible();
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'table' }).click();
+  await page.locator('tbody tr').filter({ hasText: 'New' }).first().click();
+  await expect(panel.getByRole('button', { name: 'Log call' }).first()).toBeVisible();
+});

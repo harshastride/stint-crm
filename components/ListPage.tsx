@@ -98,6 +98,22 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   useEffect(() => { setQ(''); setSort(null); setPage(0); }, [cfg]);
   useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board && !phone() ? 'board' : 'table'); load(); }, [cfg, load]);
 
+  // open a new record with the person filled in: /p/payment?new=candidate:<id> (quick panel "Next steps")
+  useEffect(() => {
+    const n = params.get('new');
+    if (!n || !n.includes(':') || !canWrite || !cfg.fields) return;
+    const [kind, id] = n.split(':');
+    if (kind === 'lead' || kind === 'candidate') { setEditing({ [kind + '_id']: id }); router.replace('/p/' + cfg.id); }
+  }, [params, canWrite, cfg, router]);
+
+  // open an existing record's editor: /p/candidate?edit=candidate:<id> (e.g. "Assign batch")
+  useEffect(() => {
+    const e = params.get('edit');
+    if (!e || !rows || !cfg.fields) return;
+    const row = rows.find((r) => r.id === e.split(':')[1]);
+    if (row) { setEditing(row); router.replace('/p/' + cfg.id); }
+  }, [params, rows, cfg, router]);
+
   // open a person straight from the search box: /p/lead?person=lead:<id>
   useEffect(() => {
     const p = params.get('person');

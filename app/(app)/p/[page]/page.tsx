@@ -28,7 +28,7 @@ export default function Page({ params }: { params: Promise<{ page: string }> }) 
     );
   }
   const Special = SPECIAL[page];
-  if (Special) return <Special />;
+  if (Special) return <Suspense fallback={<main className="p-6 text-muted">Loading…</main>}><Special /></Suspense>;
   const cfg = PAGES[page];
   if (!cfg) return <main className="p-6 text-text2">This page has not been built yet.</main>;
   return <Suspense fallback={<main className="p-6 text-muted">Loading…</main>}><ListPage cfg={cfg} /></Suspense>;

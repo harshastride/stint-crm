@@ -7,6 +7,8 @@ import type { PersonRef, Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
+import { useRouter } from 'next/navigation';
+import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
 
 const STAGES = ['Lead', 'Calls', 'Counselling', 'Enrolled', 'Training', 'Mocks', 'Resume + docs', 'Placement', 'Alumni'];
 const OWNER = ['Marketing', 'Telecaller', 'Sales', 'Front desk and HR', 'Trainer', 'SME', 'HR', 'Placement', 'Placement'];
@@ -16,6 +18,7 @@ const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Famil
 
 export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; onClose: () => void; onChanged: () => void }) {
   const s = useSession();
+  const router = useRouter();
   const isLead = person.kind === 'lead';
   const [p, setP] = useState<Row | null>(null);
   const [timeline, setTimeline] = useState<Row[]>([]);
@@ -102,6 +105,14 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
     if (error) return fail(error); done('Done: ' + t.title);
   };
 
+  const allowed = (st: Step) => (st.inline === 'call' ? canCall : st.inline === 'convert' ? canWritePerson && isLead : s.can(st.page, 'w'));
+  const runStep = (st: Step) => {
+    if (st.inline === 'call') { setTab('Log'); setAction('call'); setForm({}); setMsg(null); return; }
+    if (st.inline === 'convert') { setTab('Log'); moveStage('Converted'); return; }
+    if (st.href) router.push(st.href(person));
+  };
+  const nextSteps = stepsForStage(p.stage).filter(allowed);
+
   return (
     <aside aria-label="Quick panel" className="anim-slide fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none flex shrink-0 flex-col gap-3 overflow-y-auto bg-surface p-4 md:w-[380px]">
       <div className="mx-auto -mb-1 h-1.5 w-10 rounded-full bg-line2 md:hidden" aria-hidden />
@@ -130,13 +141,29 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
       {overdue > 0 && <Notice tone="bad">Overdue: {overdue} follow-up{overdue > 1 ? 's are' : ' is'} past the due date.</Notice>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
+      {nextSteps.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <div className="text-xs font-semibold text-text2">Next steps · {p.stage}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {nextSteps.map((st, i) => (
+              <button key={st.key} type="button" onClick={() => runStep(st)}
+                className={cx('min-h-[40px] rounded-[10px] px-3 text-[13px] font-semibold', i === 0 ? 'bg-accent text-white' : 'border border-line2 bg-surface text-text')}>{st.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {tasks.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <div className="text-xs font-semibold text-text2">Follow-ups</div>
           {tasks.map((t) => (
             <div key={t.id} className="flex items-center justify-between gap-2 rounded-[10px] border border-line px-3 py-2 text-[13px]">
               <span><span className="font-medium">{t.title}</span> <span className="text-muted">· {t.owner_role} · {fmtDateTime(t.due_at)}</span></span>
-              <button type="button" className="rounded-md border border-line2 bg-surface px-2 py-1 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
+              <span className="flex shrink-0 gap-1.5">
+                {(() => { const st = stepForFollowUp(t.title, person.kind); return st && allowed(st) ? (
+                  <button type="button" className="min-h-[32px] rounded-md bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}>{st.label}</button>) : null; })()}
+                <button type="button" className="min-h-[32px] rounded-md border border-line2 bg-surface px-2 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
+              </span>
             </div>
           ))}
         </div>
