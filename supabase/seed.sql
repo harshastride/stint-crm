@@ -367,9 +367,9 @@ insert into public.lead_source (name, type, connection) values
 on conflict do nothing;
 
 insert into public.assignment_rule (when_text, give_to, method, limit_per_person) values
-  ('New lead', 'Telecallers', 'Least busy first', '60 open leads each'),
-  ('Lead marked Interested', 'Sales team', 'Least busy first', null),
-  ('Lead converted', 'HR / Counsellors', 'By branch', '70 candidates each');
+  ('New lead', 'Telecaller', 'Least busy first', '60 open leads each'),
+  ('Lead marked Interested', 'Sales', 'Least busy first', null),
+  ('Lead converted', 'HR / Counsellor', 'By branch', '70 candidates each');
 
 insert into public.follow_rule (trigger, suggest_next, after, stage, stuck_after_days) values
   ('Call: No answer', 'Call again', '1 day', 'Calls', 2),

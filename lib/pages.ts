@@ -332,14 +332,14 @@ export const PAGES: Record<string, PageCfg> = {
   assign: {
     id: 'assign', table: 'assignment_rule', kind: 'Assignment rule', purpose: 'Who gets a new lead or candidate, decided automatically.', cta: 'New rule', order: { col: 'when_text', asc: true },
     columns: [{ key: 'when_text', label: 'When' }, { key: 'give_to', label: 'Give to' }, { key: 'method', label: 'Method' }, { key: 'limit_per_person', label: 'Limit' }, { key: 'status', label: 'Status', type: 'pill' }],
-    fields: [{ key: 'when_text', label: 'When', type: 'text', required: true }, { key: 'give_to', label: 'Give to', type: 'text', required: true }, { key: 'method', label: 'Method', type: 'select', options: ['Round-robin, in turn', 'Least busy first', 'By branch', 'By course'] },
+    fields: [{ key: 'when_text', label: 'When', type: 'select', options: ['New lead', 'Lead marked Interested', 'Lead converted'], required: true }, { key: 'give_to', label: 'Give to (role)', type: 'select', list: '__roles', required: true }, { key: 'method', label: 'Method', type: 'select', options: ['Round-robin, in turn', 'Least busy first', 'By branch', 'By course'] },
       { key: 'limit_per_person', label: 'Limit per person', type: 'text' }, { key: 'status', label: 'Status', type: 'select', options: ['Live', 'Off'] }],
     rowTitle: (r) => r.when_text,
   },
   followrules: {
     id: 'followrules', table: 'follow_rule', kind: 'Follow-up rule', purpose: 'What the quick panel suggests next, and when a record counts as stuck.', cta: 'New rule', order: { col: 'trigger', asc: true },
     columns: [{ key: 'trigger', label: 'When this is logged' }, { key: 'suggest_next', label: 'Suggest next' }, { key: 'after', label: 'After' }, { key: 'stage', label: 'Stage' }, { key: 'stuck_after_days', label: 'Stuck after (days)', type: 'number' }, { key: 'status', label: 'Status', type: 'pill' }],
-    fields: [{ key: 'trigger', label: 'When this is logged', type: 'text', required: true }, { key: 'suggest_next', label: 'Suggest next', type: 'text', required: true }, { key: 'after', label: 'After', type: 'text' }, { key: 'stage', label: 'Stage', type: 'text' },
+    fields: [{ key: 'trigger', label: 'When this is logged', type: 'select', options: ['Call: No answer', 'Call: Callback', 'Call: Connected', 'Call: Interested', 'Call: Booked counselling', 'Call: Wrong number', 'Mock: Failed', 'Attendance: Absent', 'Resume: Rejected', 'Fee: Overdue'], required: true }, { key: 'suggest_next', label: 'Suggest next', type: 'text', required: true }, { key: 'after', label: 'After', type: 'select', options: ['Same day', '1 day', '2 days', '3 days', '7 days', 'Every 3 days', 'At agreed time'], other: true }, { key: 'stage', label: 'Stage', type: 'text' },
       { key: 'stuck_after_days', label: 'Stuck after (days)', type: 'number' }, { key: 'status', label: 'Status', type: 'select', options: ['Live', 'Off'] }],
     rowTitle: (r) => r.trigger,
   },

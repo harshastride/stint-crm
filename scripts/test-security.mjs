@@ -152,6 +152,24 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const d = await tele.rpc('raise_alerts');
   check('The raw alert job is not callable by staff', !!d.error); }
 
+// 2.5 Follow-up rules and assignment rules in use
+{ const sug = await tele.rpc('suggest_follow_up', { p_trigger: 'Call: No answer' });
+  check('Logging "No answer" suggests the next follow-up from the rule', sug.data?.title === 'Call again' && !!sug.data?.due_at, JSON.stringify(sug.data));
+  const m = '8' + String(Date.now()).slice(-9);
+  const nl = (await desk.from('lead').insert({ full_name: 'Rule Test', mobile: m }).select('id, owner_id').single()).data;
+  const ow = (await admin.from('staff').select('role').eq('id', nl.owner_id).single()).data;
+  check('New lead goes to the role in the "New lead" rule', ow?.role === 'Telecaller', ow?.role);
+  await admin.from('lead').update({ stage: 'Interested' }).eq('id', nl.id);
+  const after = (await admin.from('lead').select('owner:owner_id(role)').eq('id', nl.id).single()).data;
+  check('Lead marked Interested is handed to Sales by the rule', after?.owner?.role === 'Sales', JSON.stringify(after));
+  await admin.from('lead').update({ stage: 'Converted' }).eq('id', nl.id);
+  const nc = (await admin.from('candidate').select('id, poc:poc_id(role)').eq('lead_id', nl.id).single()).data;
+  check('Converted candidate gets an HR owner by the rule', nc?.poc?.role === 'HR / Counsellor', JSON.stringify(nc));
+  await admin.from('mock_session').insert({ candidate_id: nc.id, status: 'Failed' });
+  const fu = (await admin.from('follow_up').select('title').eq('candidate_id', nc.id).eq('title', 'Rebook mock')).data || [];
+  check('A failed mock raises "Rebook mock" for the candidate owner', fu.length === 1, JSON.stringify(fu));
+  await admin.from('candidate').delete().eq('id', nc.id); await admin.from('lead').delete().eq('id', nl.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

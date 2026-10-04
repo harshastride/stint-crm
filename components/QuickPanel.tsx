@@ -73,13 +73,15 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
       const up = await db.from('lead').update({ stage: next }).eq('id', person.id);
       if (!up.error) extra = ` Stage moved to ${next}.`;
     }
-    if (['Callback', 'No answer'].includes(form.outcome)) {
-      const due = new Date(Date.now() + 86400000);
-      await db.from('follow_up').insert({ title: form.outcome === 'Callback' ? 'Call back' : 'Call again', lead_id: person.id, owner_id: s.staff.id, owner_role: s.staff.role, due_at: due.toISOString(), created_by: s.staff.id });
-      extra += ' Follow-up set for tomorrow.';
-    }
+    // Follow-up rules (Admin settings) suggest what comes next; the caller confirms or changes it
+    const { data: sug } = await db.rpc('suggest_follow_up', { p_trigger: 'Call: ' + form.outcome });
     setBusy(false);
     done('Call logged.' + extra);
+    if (sug?.title) {
+      const d = new Date(sug.due_at);
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      setAction('task'); setForm({ title: sug.title, due: local, suggested: sug.after ? `Suggested by the follow-up rule (${sug.after}).` : 'Suggested by the follow-up rule.' });
+    }
   };
   const saveTask = async () => {
     if (!String(form.title || '').trim() || !form.due) { setMsg({ tone: 'bad', text: 'Add what needs doing and when.' }); return; }
@@ -175,6 +177,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
           {action === 'task' && (
             <div className="flex flex-col gap-2 rounded-[12px] border border-accent p-3">
               <div className="text-sm font-semibold">Follow-up</div>
+              {form.suggested && <div className="text-[12px] text-text2">{form.suggested} Change it if needed, or close this.</div>}
               <input aria-label="What needs doing" placeholder="What needs doing" className="h-10 px-3 text-sm" value={form.title || ''} onChange={(e) => setForm({ ...form, title: e.target.value })} />
               <input aria-label="Due" type="datetime-local" className="h-10 px-3 text-sm" value={form.due || ''} onChange={(e) => setForm({ ...form, due: e.target.value })} />
               <Button variant="primary" disabled={busy} onClick={saveTask}>Save follow-up</Button>
