@@ -56,6 +56,14 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const dup = await desk.from('lead').insert({ full_name: 'Test Again', mobile });
   check('Same mobile twice is refused', dup.error?.code === '23505', dup.error?.message);
   const prog = (await admin.from('program').select('id,fee').eq('name', 'Python').single()).data;
+  const before = await sales.from('lead').select('id').eq('id', r.data.id);
+  check('Sales cannot see a new lead still with telecalling', (before.data || []).length === 0, 'visible');
+  await admin.from('lead').update({ stage: 'Interested' }).eq('id', r.data.id);
+  const handed = await sales.from('lead').select('id').eq('id', r.data.id);
+  check('Sales sees the lead once it is Interested', (handed.data || []).length === 1, handed.error?.message);
+  const cs = await sales.from('counselling_session').insert({ lead_id: r.data.id, counsellor_id: (await sales.auth.getUser()).data.user.id, scheduled_at: new Date().toISOString() });
+  const owned = (await admin.from('lead').select('owner_id, stage').eq('id', r.data.id).single()).data;
+  check('Booking counselling hands the lead to the counsellor', !cs.error && owned.stage === 'Counselling' && owned.owner_id === (await sales.auth.getUser()).data.user.id, cs.error?.message);
   const q = await sales.from('fee_quote').insert({ lead_id: r.data.id, program_id: prog.id, list_price: prog.fee, discount_pct: 15, amount: 1 }).select().single();
   const expected = Math.round((Number(prog.fee) * 0.85) / 100) * 100;
   check('Quote amount is worked out by the database', Number(q.data?.amount) === expected, String(q.data?.amount));
@@ -90,6 +98,24 @@ const mobile = '9' + String(Date.now()).slice(-9);
 { const r = await hr.from('job_record').insert({ candidate_id: cand.id, company: 'X', joined_on: '2026-05-01', last_working_day: '2026-01-01' }); check('Last working day before joining is refused', !!r.error); }
 { const r = await tele.from('follow_up').select('owner_role'); check('Telecaller sees only their team’s follow-ups', (r.data || []).every((x) => x.owner_role === 'Telecaller'), JSON.stringify(r.data)); }
 { const r = await tele.rpc('person_timeline', { p_lead: null, p_candidate: cand.id }); check('Telecaller gets no candidate timeline', (r.data || []).length === 0); }
+
+// 2.2 Head vs Junior: a Junior sees only their own records; a Head sees the whole team
+{ const pooja = await as('pooja');
+  const pl = (await pooja.from('lead').select('id, owner_id')).data || [];
+  const pid = (await pooja.auth.getUser()).data.user.id;
+  check('Junior telecaller sees only leads they own', pl.length > 0 && pl.every((l) => l.owner_id === pid), pl.length + ' leads');
+  const tl = (await tele.from('lead').select('owner_id')).data || [];
+  check('Head telecaller sees the whole telecalling team', tl.some((l) => l.owner_id === pid) && tl.length > pl.length, tl.length + ' leads');
+  const al = (await admin.from('lead').select('id')).data || [];
+  check('Admin sees every lead', al.length >= tl.length);
+  const theirs = (await admin.from('lead').select('id').neq('owner_id', pid).limit(1).single()).data;
+  const calls = await pooja.from('call_log').select('lead_id');
+  check('Junior telecaller sees call logs only for their own leads', (calls.data || []).every((c) => pl.some((l) => l.id === c.lead_id)));
+  const upd = await pooja.from('lead').update({ city: 'X' }).eq('id', theirs.id).select();
+  check('Junior telecaller cannot change someone else\'s lead', (upd.data || []).length === 0);
+  const hrj = await as('kiran');
+  const kc = (await hrj.from('candidate').select('id')).data || [];
+  check('Trainer (role that does not own candidates) still sees candidates', kc.length > 0); }
 
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];

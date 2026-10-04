@@ -403,3 +403,8 @@ insert into public.automation (name, direction, trigger, channel, recipient, mes
   ('Placement congratulations', 'Outgoing', 'Offer recorded', 'WhatsApp', 'Candidate', 'Congratulations {name} on your offer from {company}! Your joining checklist is here: {link}'),
   ('Alumni check-in', 'Outgoing', 'Every 3 months', 'WhatsApp', 'Alumni', 'Hi {name}, how is it going at {company}? If a friend wants to join Stint, share this link: {link}'),
   ('Daily summary', 'Outgoing', 'Every day 9 AM', 'Email', 'Admin', 'Yesterday: {newLeads} new leads, {enrolled} enrolled, {collected} collected, {overdue} overdue, {stuck} stuck.');
+
+-- Which roles own leads or candidates (Head vs Junior scoping, see migration team_scope)
+update public.app_role set owns = '{lead}' where name in ('Telecaller', 'Sales');
+update public.app_role set owns = '{candidate}' where name = 'HR / Counsellor';
+update public.app_role set picks_up = '{Interested}' where name = 'Sales';
