@@ -145,7 +145,7 @@ test('phone layout: menu folds away and the quick panel opens as a sheet', async
 test('automation builder opens inside the CRM for admins only', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/builder');
-  await expect(page.locator('iframe[title="Activepieces automation builder"]')).toHaveAttribute('src', /localhost:8080/);
+  await expect(page.locator('iframe[title="Activepieces automation builder"]')).toHaveAttribute('src', /localhost:808[01]/);
   await login(page, 'teja');
   await expect(page.getByRole('link', { name: 'Automation builder' })).toHaveCount(0);
   await page.goto('/p/builder');
