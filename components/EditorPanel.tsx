@@ -6,6 +6,7 @@ import type { PageCfg, Row } from '@/lib/pages';
 import { Button, Notice, SidePanel } from './ui';
 import { FieldInput, friendlyError } from './Fields';
 import { JobPapers } from './JobPapers';
+import { FileField } from './FileField';
 import { InstalmentsEditor, quoteAmount, type Instalment } from './InstalmentsEditor';
 
 /** Create form and record editor in one: `row` null (or a summary row with no id yet) means a new record, prefilled from the row. */
@@ -81,9 +82,11 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={onClose}>
       <div className="flex flex-col gap-2.5">
         {fields.map((f) => (
-          <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments' && !f.addable}>
+          <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments' && f.type !== 'file' && !f.addable}>
             <span>{f.label}{f.required && <span className="text-badText"> *</span>}</span>
-            {f.type === 'instalments'
+            {f.type === 'file'
+              ? <FileField page={cfg.id} candidateId={values.candidate_id || null} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />
+              : f.type === 'instalments'
               ? <InstalmentsEditor total={planTotal} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />
               : (readOnly || f.readOnly) && f.type !== 'person'
               ? <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm font-normal text-text">{displayValue(values[f.key], f, s.refs)}</div>

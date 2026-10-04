@@ -7,7 +7,7 @@ export type Row = Record<string, any>;
 export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number'; get?: (r: Row) => unknown };
 export type Field = {
   key: string; label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file';
   list?: string;                 // dropdown list id (values come from Dropdown values)
   options?: string[];            // fixed options
   ref?: string;                  // small reference table: staff, program, batch, branch, company, lead_source, campaign
@@ -204,19 +204,19 @@ export const PAGES: Record<string, PageCfg> = {
   },
   resume: {
     id: 'resume', table: 'resume_version', kind: 'Resume', purpose: 'Every resume version and whether it was approved.', cta: 'Add resume version', select: '*, candidate:candidate_id(id,full_name), reviewer:reviewer_id(full_name)', order: { col: 'created_at' },
-    columns: [candCol, { key: 'version', label: 'Version' }, { key: 'reviewer.full_name', label: 'Reviewer' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'reason', label: 'Reason' }, { key: 'created_at', label: 'Date', type: 'date' }],
+    columns: [candCol, { key: 'version', label: 'Version' }, { key: 'reviewer.full_name', label: 'Reviewer' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'reason', label: 'Reason' }, { key: 'created_at', label: 'Date', type: 'date' }, { key: 'file', label: 'File', get: (r) => (r.file_path ? 'Attached' : '—') }],
     views: [{ label: 'Pending review', where: (r) => r.status === 'Pending' }, { label: 'Approved', where: (r) => r.status === 'Approved' }, { label: 'Rejected', where: (r) => r.status === 'Rejected' }, { label: 'All' }],
     kpis: [count('Pending', (r) => r.status === 'Pending'), count('Approved', (r) => r.status === 'Approved'), count('Rejected', (r) => r.status === 'Rejected')],
     board: { field: 'status', list: 'resume_status' }, person: candPerson,
-    fields: [cand, { key: 'version', label: 'Version (v1, v2…)', type: 'text', required: true }, { key: 'reviewer_id', label: 'Reviewer', type: 'ref', ref: 'staff' }, { key: 'status', label: 'Status', type: 'select', list: 'resume_status' }, { key: 'reason', label: 'Reason if rejected', type: 'text' }],
+    fields: [cand, { key: 'version', label: 'Version (v1, v2…)', type: 'text', required: true }, { key: 'reviewer_id', label: 'Reviewer', type: 'ref', ref: 'staff' }, { key: 'status', label: 'Status', type: 'select', list: 'resume_status' }, { key: 'reason', label: 'Reason if rejected', type: 'text' }, { key: 'file_path', label: 'Resume file', type: 'file' }],
     rowTitle: (r) => 'Resume ' + r.version + ' · ' + (r.candidate?.full_name || ''),
   },
   doc: {
     id: 'doc', table: 'candidate_document', kind: 'Document', purpose: 'ID, education and experience proofs.', cta: 'Request document', select: '*, candidate:candidate_id(id,full_name), verifier:verified_by(full_name)', order: { col: 'created_at' },
-    columns: [candCol, { key: 'doc_type', label: 'Document' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'verifier.full_name', label: 'Verified by' }, { key: 'verified_at', label: 'Verified', type: 'date' }],
+    columns: [candCol, { key: 'doc_type', label: 'Document' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'verifier.full_name', label: 'Verified by' }, { key: 'verified_at', label: 'Verified', type: 'date' }, { key: 'file', label: 'File', get: (r) => (r.file_path ? 'Attached' : '—') }],
     views: [{ label: 'Missing', where: (r) => r.status === 'Missing' }, { label: 'Received', where: (r) => r.status === 'Received' }, { label: 'Verified', where: (r) => r.status === 'Verified' }, { label: 'All' }],
     kpis: [count('Missing', (r) => r.status === 'Missing'), count('Verified', (r) => r.status === 'Verified')], board: { field: 'status', list: 'document_status' }, person: candPerson,
-    fields: [cand, { key: 'doc_type', label: 'Document', type: 'select', list: 'document_type', required: true, other: true }, { key: 'status', label: 'Status', type: 'select', list: 'document_status' }, { key: 'verified_by', label: 'Verified by', type: 'ref', ref: 'staff' }],
+    fields: [cand, { key: 'doc_type', label: 'Document', type: 'select', list: 'document_type', required: true, other: true }, { key: 'status', label: 'Status', type: 'select', list: 'document_status' }, { key: 'verified_by', label: 'Verified by', type: 'ref', ref: 'staff' }, { key: 'file_path', label: 'File', type: 'file' }],
     rowTitle: (r) => r.doc_type + ' · ' + (r.candidate?.full_name || ''),
   },
   vendor: {

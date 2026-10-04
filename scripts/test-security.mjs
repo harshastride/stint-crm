@@ -117,6 +117,22 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const kc = (await hrj.from('candidate').select('id')).data || [];
   check('Trainer (role that does not own candidates) still sees candidates', kc.length > 0); }
 
+// 2.3 File uploads: private bucket, access follows the page grid
+{ const path = `${cand.id}/doc/${Date.now()}-test.txt`;
+  const up = await hr.storage.from('candidate-files').upload(path, new Blob(['hello']), { contentType: 'text/plain' });
+  check('HR can attach a document file', !up.error, up.error?.message);
+  const link = await hr.storage.from('candidate-files').createSignedUrl(path, 60);
+  check('HR gets a signed download link', !!link.data?.signedUrl, link.error?.message);
+  const tl = await tele.storage.from('candidate-files').createSignedUrl(path, 60);
+  check('Telecaller cannot open candidate files', !tl.data?.signedUrl);
+  const tu = await tele.storage.from('candidate-files').upload(`${cand.id}/doc/${Date.now()}-x.txt`, new Blob(['x']));
+  check('Telecaller cannot upload candidate files', !!tu.error);
+  const bad = await hr.storage.from('candidate-files').upload(`${cand.id}/payment/${Date.now()}-x.txt`, new Blob(['x']));
+  check('Files only go under known pages', !!bad.error);
+  const pub = await anon.storage.from('candidate-files').createSignedUrl(path, 60);
+  check('Logged-out visitors cannot open files', !pub.data?.signedUrl);
+  await hr.storage.from('candidate-files').remove([path]); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];
