@@ -221,7 +221,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await svc.from('integration_config').update({ value: 'http://host.docker.internal:3999/hook' }).eq('key', 'activepieces_webhook_url');
   const m = '6' + String(Date.now()).slice(-9);
   const lead = (await desk.from('lead').insert({ full_name: 'Event Test', mobile: m, marketing_consent: true }).select('id').single()).data;
-  const ev = (await admin.from('integration_event').select('id, event, payload').eq('entity_id', lead.id).eq('event', 'lead.created').single()).data;
+  const ev = (await admin.from('integration_event').select('id, event, payload').eq('entity_id', lead.id).eq('event', 'lead.created').is('subscription_id', null).single()).data;
   check('A new lead raises a lead.created event', !!ev && ev.payload.data.lead.marketing_consent === true, JSON.stringify(ev?.payload));
   // send only this test's event: park the others for a while, then put them back
   const parked = ((await svc.from('integration_event').select('id').neq('id', ev.id).eq('status', 'Pending')).data || []).map((x) => x.id);
@@ -273,7 +273,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
     const m3 = '3' + String(Date.now()).slice(-9);
     const nl = (await desk.from('lead').insert({ full_name: 'Block Lead', mobile: m3 }).select('id').single()).data;
     const evs = (await svc.from('integration_event').select('id, subscription_id').eq('entity_id', nl.id).eq('event', 'lead.created')).data || [];
-    check('A new lead is queued for the main webhook and for each subscribed flow', evs.length === 2 && evs.some((e) => e.subscription_id === sub.json.id), JSON.stringify(evs));
+    check('A new lead is queued for the main webhook and for each subscribed flow', evs.length >= 2 && evs.some((e) => e.subscription_id === null) && evs.some((e) => e.subscription_id === sub.json.id), JSON.stringify(evs));
     const real = await api('GET', 'event?id=' + evs[0].id);
     const fake = await api('GET', 'event?id=' + crypto.randomUUID());
     check('The block can confirm a real event and spots a fake one', real.json.event === 'lead.created' && fake.status === 404);
