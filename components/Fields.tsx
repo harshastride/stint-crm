@@ -166,6 +166,7 @@ export function friendlyError(e: { code?: string; message?: string } | null, wha
   if (e.code === '23505') return /mobile/.test(e.message || '') ? 'A lead with this mobile number already exists.' : 'That already exists.';
   if (e.code === '42501' || /row-level security/.test(e.message || '')) return 'Your role can’t change ' + what + '.';
   if (e.code === '23503') return 'This is still used by other records, so it can’t be removed.';
+  if (e.code === '23502') { const col = /column "([^"]+)"/.exec(e.message || '')?.[1]; return (col ? 'Please choose a ' + col.replace(/_/g, ' ') : 'A required field is empty') + ' before saving.'; }
   if (e.code === '23514') return 'One of the values is not allowed. Check the dates and numbers.';
   return e.message || 'Something went wrong.';
 }

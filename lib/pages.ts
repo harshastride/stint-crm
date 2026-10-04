@@ -362,7 +362,7 @@ export const PAGES: Record<string, PageCfg> = {
     id: 'connections', table: 'connection', kind: 'Connection', purpose: 'The outside services the CRM talks to. They are connected inside Activepieces; record the state here.', cta: 'Add connection', order: { col: 'service', asc: true },
     columns: [{ key: 'service', label: 'Service' }, { key: 'used_for', label: 'Used for' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'last_checked_at', label: 'Last checked', type: 'datetime' }],
     kpis: [count('Connected', (r) => r.status === 'Connected'), count('Not set up', (r) => r.status === 'Not set up')],
-    fields: [{ key: 'service', label: 'Service', type: 'text', required: true }, { key: 'used_for', label: 'Used for', type: 'text' }, { key: 'status', label: 'Status', type: 'select', options: ['Not set up', 'Connected', 'Token expired'] }],
+    fields: [{ key: 'service', label: 'Service', type: 'text', required: true }, { key: 'used_for', label: 'Used for', type: 'text' }, { key: 'status', label: 'Status', type: 'select', options: ['Not set up', 'Connected', 'Token expired'], required: true }],
     rowTitle: (r) => r.service,
   },
   branding: {
