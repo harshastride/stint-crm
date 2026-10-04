@@ -48,8 +48,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
       <nav aria-label="Pages" className={cx('fixed inset-y-0 left-0 z-40 flex w-[264px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface p-2.5 transition-transform duration-200 md:static md:w-[232px] md:translate-x-0',
         navOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full')}>
         <div className="flex items-center gap-2.5 px-2.5 py-3">
-          <span className="inline-block h-4 w-4 rotate-45 rounded-[3px] bg-accent" aria-hidden />
-          <span className="flex-1 text-[15px] font-semibold">Stint CRM</span>
+          <span className="flex flex-1 items-end gap-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/stint-logo.svg" alt="Stint" width={110} height={36} className="logo-light h-9 w-auto" />
+            <img src="/brand/stint-logo-dark.svg" alt="" width={110} height={36} className="logo-dark h-9 w-auto" />
+            <span className="mb-[13px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">CRM</span>
+          </span>
           <button type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-[10px] md:hidden"><X size={18} /></button>
         </div>
         {groups.map((g) => {

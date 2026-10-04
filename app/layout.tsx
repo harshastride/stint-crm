@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 
-export const metadata: Metadata = { title: 'Stint CRM', description: 'Stint Academy training and placement CRM' };
+export const metadata: Metadata = { title: 'Stint CRM', description: 'Stint Academy training and placement CRM', icons: { icon: '/brand/stint-icon.svg' } };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

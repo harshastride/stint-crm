@@ -28,3 +28,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .anim-fade { animation: fadeIn .2s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .anim-slide, .anim-fade { animation: none; } }
 .num { font-variant-numeric: tabular-nums; }
+
+/* Stint logo: lighter version on the dark theme so the wordmark and tagline stay readable */
+.logo-dark { display: none; }
+:root[data-theme='dark'] .logo-light { display: none; }
+:root[data-theme='dark'] .logo-dark { display: block; }
