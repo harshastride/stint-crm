@@ -186,6 +186,24 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('A failed mock raises "Rebook mock" for the candidate owner', fu.length === 1, JSON.stringify(fu));
   await admin.from('candidate').delete().eq('id', nc.id); await admin.from('lead').delete().eq('id', nl.id); }
 
+// 2.8 Temporary passwords must be changed before anything else works
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const email = `temp${Date.now()}@demo.stint.local`, temp = 'Temp-pass-123456';
+  const u = (await svc.auth.admin.createUser({ email, password: temp, email_confirm: true })).data.user;
+  await svc.from('staff').insert({ id: u.id, full_name: 'Temp Person', email, role: 'Telecaller', level: 'Head', status: 'Active', must_change_password: true });
+  const c = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  await c.auth.signInWithPassword({ email, password: temp });
+  const blocked = (await c.from('lead').select('id')).data || [];
+  const sess = await c.rpc('my_session');
+  check('A temporary password gives no access to records', blocked.length === 0 && sess.data?.staff?.must_change_password === true, blocked.length + ' leads');
+  await c.auth.updateUser({ password: 'My-own-pass-98765' });
+  await c.rpc('password_changed');
+  const open = (await c.from('lead').select('id')).data || [];
+  check('After changing the password, access works', open.length > 0, open.length + ' leads');
+  const self = await c.from('staff').update({ must_change_password: false }).eq('id', u.id).select();
+  check('Staff cannot edit their own staff row', (self.data || []).length === 0);
+  await svc.auth.admin.deleteUser(u.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

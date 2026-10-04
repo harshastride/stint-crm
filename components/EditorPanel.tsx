@@ -109,6 +109,14 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
           )}
         </div>
       )}
+      {cfg.id === 'users' && row?.id && !readOnly && row.id !== s.staff.id && (
+        <Button disabled={busy} onClick={async () => {
+          setBusy(true);
+          const res = await fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staff_id: row.id }) });
+          const out = await res.json(); setBusy(false);
+          setMsg(res.ok ? { tone: 'good', text: `New temporary password: ${out.password} — share it privately. They must change it when they sign in.` } : { tone: 'bad', text: out.error || 'Could not reset.' });
+        }}>Reset password</Button>
+      )}
       {readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {!readOnly && (

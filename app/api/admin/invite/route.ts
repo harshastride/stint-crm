@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   if (created.error || !created.data.user) return NextResponse.json({ error: /already/.test(created.error?.message || '') ? 'That email already has a login.' : created.error?.message || 'Could not create the login.' }, { status: 400 });
 
   const { error } = await admin.from('staff').insert({
-    id: created.data.user.id, full_name, email, role: body.role, level: body.level || 'Junior', branch_id: body.branch_id || null, status: 'Active',
+    id: created.data.user.id, full_name, email, role: body.role, level: body.level || 'Junior', branch_id: body.branch_id || null, status: 'Active', must_change_password: true,
   });
   if (error) { await admin.auth.admin.deleteUser(created.data.user.id); return NextResponse.json({ error: error.message }, { status: 400 }); }
   return NextResponse.json({ ok: true, password });

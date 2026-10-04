@@ -1,8 +1,9 @@
 'use client';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabase';
+import { ChangePassword } from '@/components/ChangePassword';
 
-export type Staff = { id: string; full_name: string; email: string; role: string; level: string; branch_id: string | null; status: string };
+export type Staff = { id: string; full_name: string; email: string; role: string; level: string; branch_id: string | null; status: string; must_change_password?: boolean };
 export type RefRow = { id: string; label: string; extra?: Record<string, unknown> };
 export type PageRow = { id: string; grp: string; title: string; sort: number };
 
@@ -29,6 +30,7 @@ export const useSession = () => {
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<Omit<Session, 'can' | 'reload' | 'signOut'> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mustChange, setMustChange] = useState(false);
 
   const load = useCallback(async () => {
     const db = supabase();
@@ -49,6 +51,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       setError(me.error?.message || 'Your login is not set up as a staff member yet. Ask an admin to add you under Users & staff.');
       return;
     }
+    if (me.data.staff.must_change_password) { setMustChange(true); return; }
+    setMustChange(false);
     if (me.data.staff.status !== 'Active') { setError('Your login is ' + me.data.staff.status.toLowerCase() + '. Ask an admin to activate it.'); return; }
     const lists: Record<string, string[]> = {};
     (values.data || []).forEach((v: { list_id: string; value: string }) => { (lists[v.list_id] ||= []).push(v.value); });
@@ -78,6 +82,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     signOut: async () => { await supabase().auth.signOut(); window.location.href = '/login'; },
   }), [state, load]);
 
+  if (mustChange) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg p-4">
+        <div className="w-full max-w-[380px] rounded-2xl border border-line bg-surface p-7">
+          <h1 className="mb-3 text-[22px] font-semibold">Set your password</h1>
+          <ChangePassword forced onDone={() => { setMustChange(false); load(); }} />
+          <button className="mt-3 h-11 w-full rounded-[10px] text-sm font-medium text-text2" onClick={async () => { await supabase().auth.signOut(); window.location.href = '/login'; }}>Sign out</button>
+        </div>
+      </div>
+    );
+  }
   if (error) {
     return (
       <div className="flex h-screen items-center justify-center p-6">

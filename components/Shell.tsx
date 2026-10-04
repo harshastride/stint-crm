@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/lib/session';
 import { PersonSearch } from './Fields';
 import { cx, initials } from './ui';
+import { ChangePassword } from './ChangePassword';
 
 const ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   Home, 'Front desk': UserPlus, Marketing: Megaphone, Telecalling: Phone, Sales: IndianRupee, Enrolment: Users, Training: BookOpen, Mocks: MessageSquare,
@@ -17,6 +18,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
   const [theme, setTheme] = useState('light');
+  const [pwOpen, setPwOpenRaw] = useState(false);
+  const [pwDone, setPwDone] = useState(false);
+  const setPwOpen = (v: boolean) => { setPwOpenRaw(v); if (v) setPwDone(false); };
   const [searchKind, setSearchKind] = useState<'lead' | 'candidate'>('lead');
 
   useEffect(() => { const t = localStorage.getItem('stint-theme') || 'light'; setTheme(t); document.documentElement.dataset.theme = t; }, []);
@@ -67,7 +71,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <div className="truncate text-[11px] text-muted">{s.staff.role}{s.staff.level === 'Head' ? ' · Head' : ''}</div>
           </div>
         </div>
-        <button type="button" onClick={s.signOut} className="mx-2.5 mb-1 mt-2 min-h-[36px] rounded-lg border border-line2 bg-surface text-[13px] font-medium">Sign out</button>
+        <button type="button" onClick={() => setPwOpen(true)} className="mx-2.5 mt-2 min-h-[36px] rounded-lg text-[13px] font-medium text-text2 hover:bg-surface2">Change password</button>
+        <button type="button" onClick={s.signOut} className="mx-2.5 mb-1 mt-1 min-h-[36px] rounded-lg border border-line2 bg-surface text-[13px] font-medium">Sign out</button>
+        {pwOpen && (
+          <div role="dialog" aria-label="Change password" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPwOpen(false)}>
+            <div className="w-full max-w-[380px] rounded-2xl border border-line bg-surface p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold">Change password</h2>
+                <button type="button" aria-label="Close" onClick={() => setPwOpen(false)} className="h-9 w-9 rounded-lg border border-line2">×</button></div>
+              {pwDone ? <p className="text-text2">Password changed. Use it next time you sign in.</p> : <ChangePassword onDone={() => setPwDone(true)} />}
+            </div>
+          </div>
+        )}
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-3 border-b border-line bg-surface px-5 py-2.5">
