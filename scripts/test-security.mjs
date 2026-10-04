@@ -804,5 +804,9 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   check('Sidebar counts a follow-up due late tonight India time as today', after === before + 1, before + ' -> ' + after);
   await svc.from('follow_up').delete().eq('id', f.id);
 }
+// Voice input route: signed-out callers are refused (needs the app on port 3100)
+{ const r = await fetch('http://localhost:3100/api/voice/dictate', { method: 'POST', body: new FormData() }).catch(() => null);
+  if (!r) console.log('SKIP voice dictate check: the app is not running on port 3100');
+  else check('voice dictate: signed-out caller gets 401', r.status === 401, String(r.status)); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

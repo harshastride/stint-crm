@@ -13,6 +13,7 @@ import { trackRecent } from '@/lib/recent';
 import { QuickDate } from './QuickDate';
 import { useToast } from './Toasts';
 import { MentionInput } from './kit/MentionInput';
+import { VoiceInput, appendText } from './kit/VoiceInput';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
 import { STEP_ICON } from '@/lib/icons';
@@ -320,6 +321,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
                 ))}
               </div>
               <textarea aria-label="Call notes" placeholder="Notes (optional)" className="min-h-[64px] px-3 py-2 text-sm" value={form.body || ''} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+              <VoiceInput context="call" onText={(t, r) => setForm((f) => ({ ...f, body: appendText(f.body || '', t), outcome: f.outcome || ((s.lists.call_outcome || []).includes(r.outcome || '') ? r.outcome : f.outcome) }))} />
               <Button variant="primary" disabled={busy} onClick={saveCall}>Save call</Button>
             </div>
           )}

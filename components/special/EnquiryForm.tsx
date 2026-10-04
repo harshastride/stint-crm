@@ -8,6 +8,7 @@ import type { Row } from '@/lib/pages';
 import { Button, Notice } from '../ui';
 import { PageHeader } from '../ListPage';
 import { PhoneInput, phoneProblem } from '../PhoneInput';
+import { VoiceInput, appendText } from '../kit/VoiceInput';
 
 const blank = { full_name: '', mobile: '', email: '', city: '', program_id: '', course_other: '', preferred_mode: '', preferred_start: '', currently: '', source_id: '', referred_by: '', notes: '', consent: false };
 const ctl = 'h-11 w-full px-3 text-sm';
@@ -118,7 +119,10 @@ export function EnquiryForm() {
               <select className={ctl} value={v.source_id} onChange={set('source_id')}><option value="">Select</option>{s.refs.lead_source.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
             </label>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Referred by<input className={ctl} value={v.referred_by} onChange={set('referred_by')} placeholder="Name, if any" /></label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-text2">Notes<input className={ctl} value={v.notes} onChange={set('notes')} placeholder="Anything they asked about" /></label>
+            <div className="flex flex-col gap-1">
+              <label className="flex flex-col gap-1 text-xs font-medium text-text2">Notes<input className={ctl} value={v.notes} onChange={set('notes')} placeholder="Anything they asked about" /></label>
+              <VoiceInput context="enquiry" label="Speak the notes" onText={(t) => setV((x) => ({ ...x, notes: appendText(String(x.notes || ''), t) }))} />
+            </div>
           </div>
           <label className="mt-3 flex min-h-[44px] cursor-pointer items-center gap-3 rounded-[10px] bg-surface2 px-3 text-sm">
             <input type="checkbox" className="h-5 w-5" checked={!!v.consent} onChange={(e) => setV({ ...v, consent: e.target.checked })} />

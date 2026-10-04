@@ -8,6 +8,7 @@ import { useSession } from '@/lib/session';
 import type { Field, Row } from '@/lib/pages';
 import { QuickDate } from './QuickDate';
 import { PhoneInput } from './PhoneInput';
+import { VoiceInput, appendText } from './kit/VoiceInput';
 
 const inputCls = 'h-[42px] w-full px-3 text-sm';
 
@@ -134,7 +135,12 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
   const s = useSession();
   const v = value == null ? '' : String(value);
   if (field.type === 'person') return <PersonSearch kind={field.person!} value={(value as string) || null} onChange={(id) => onChange(id)} disabled={disabled} label={field.label} />;
-  if (field.type === 'textarea') return <textarea className="min-h-[84px] w-full px-3 py-2 text-sm" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
+  if (field.type === 'textarea') return (
+    <div className="flex flex-col gap-1.5">
+      <textarea className="min-h-[84px] w-full px-3 py-2 text-sm" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      {!disabled && <VoiceInput context="field" label={'Speak ' + field.label} onText={(t) => onChange(appendText(v, t))} />}
+    </div>
+  );
   if (field.type === 'ref' && field.addable) return <RefPicker field={field} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
   if (field.type === 'ref') {
     const opts = s.refs[field.ref!] || [];

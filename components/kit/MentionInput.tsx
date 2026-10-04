@@ -2,6 +2,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useSession } from '@/lib/session';
 import { cx } from '../ui';
+import { VoiceInput, appendText } from './VoiceInput';
 
 type Person = { id: string; label: string; extra?: { role?: string } };
 
@@ -82,6 +83,7 @@ export function MentionInput({ value, onChange, mentions, onMentionsChange, plac
           ))}
         </div>
       )}
+      <div className="mt-1.5"><VoiceInput context="note" onText={(t) => onChange(appendText(value, t))} /></div>
       <p className="mt-1 text-[11.5px] text-muted">Type @ to notify a colleague. Only people who can open this record are told.</p>
     </div>
   );

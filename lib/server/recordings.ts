@@ -123,3 +123,40 @@ export async function processRecording(db: SupabaseClient, id: string) {
     return { ok: false, error: msg };
   }
 }
+
+export type Dictation = { clean_text: string; summary: string; outcome: string | null; follow_up: string | null; follow_up_when: string | null };
+const DICTATION_CONTEXT: Record<string, string> = {
+  note: 'a note on a lead or candidate record', call: 'notes about a phone call that just happened',
+  enquiry: 'notes taken at the front desk about a walk-in enquiry', field: 'text for a form field',
+};
+
+/** Gemini: turn a staff member's spoken dictation into clean English text. Staff review it before saving. */
+export async function cleanDictation(transcript: string, context: string): Promise<Dictation> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error('GEMINI_API_KEY is not set on the server.');
+  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: 'You clean up dictated notes for staff at Stint Academy, a training and placement institute in India (courses such as Data Analytics, Data Science, Full Stack, Python, Power BI, SQL, Azure, AWS, Testing). The speech may mix English, Telugu and Hindi. Fix transcription mistakes, names and course terms, add punctuation, and translate everything into clear, plain English in the first person as the staff member said it. Keep every fact; do not add facts. Never include ID, bank or card numbers.' }] },
+      contents: [{ role: 'user', parts: [{ text: `This is ${DICTATION_CONTEXT[context] || DICTATION_CONTEXT.field}.\n\nRaw transcript:\n${transcript}\n\nReturn: clean_text (the cleaned note), summary (1–2 lines), outcome (the call outcome if one is clearly said, else null), follow_up (next action if one is said, else null), follow_up_when (when, e.g. "tomorrow 11 am", else null).` }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            clean_text: { type: 'STRING' }, summary: { type: 'STRING' },
+            outcome: { type: 'STRING', nullable: true }, follow_up: { type: 'STRING', nullable: true }, follow_up_when: { type: 'STRING', nullable: true },
+          },
+          required: ['clean_text', 'summary'],
+        },
+      },
+    }),
+  });
+  if (!res.ok) throw new Error(`Gemini failed (${res.status})`);
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error('Gemini returned nothing.');
+  const d = JSON.parse(text);
+  return { clean_text: String(d.clean_text || '').trim(), summary: String(d.summary || '').trim(), outcome: d.outcome || null, follow_up: d.follow_up || null, follow_up_when: d.follow_up_when || null };
+}

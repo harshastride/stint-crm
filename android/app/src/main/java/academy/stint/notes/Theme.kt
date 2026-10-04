@@ -1,6 +1,7 @@
 package academy.stint.notes
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -53,7 +54,7 @@ val Poppins = FontFamily(
 fun StintTheme(content: @Composable () -> Unit) {
     val dark = isSystemInDarkTheme()
     val t = if (dark) Dark else Light
-    val base = TextStyle(fontFamily = Poppins, color = t.text)
+    val base = TextStyle(fontFamily = Poppins) // colour comes from LocalContentColor, so buttons can turn text white
     val type = Typography().run {
         copy(
             displayLarge = displayLarge.merge(base), displayMedium = displayMedium.merge(base), displaySmall = displaySmall.merge(base),
@@ -68,7 +69,7 @@ fun StintTheme(content: @Composable () -> Unit) {
         surfaceContainer = t.surface, surfaceContainerLow = t.surface, surfaceContainerHigh = t.surface, onSurface = t.text,
         onSurfaceVariant = t.muted, outline = t.line2, outlineVariant = t.line, error = t.badText,
     )
-    CompositionLocalProvider(LocalTokens provides t) {
+    CompositionLocalProvider(LocalTokens provides t, LocalContentColor provides t.text) {
         MaterialTheme(colorScheme = scheme, typography = type, content = content)
     }
 }

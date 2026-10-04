@@ -771,7 +771,7 @@ test('announcement bar, discount slider, placement tracker and who-is-viewing', 
     // Admin posts an announcement; it shows at the top for everyone
     await login(page, 'harsha');
     await page.goto('/p/announcement?new=x:');
-    await page.getByLabel('Message (one or two lines)').fill('E2E: office closed Friday');
+    await page.getByRole('textbox', { name: /Message \(one or two lines\)/ }).fill('E2E: office closed Friday');
     await page.getByRole('radio', { name: 'Important' }).click();
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByRole('cell', { name: 'E2E: office closed Friday' }).first()).toBeVisible();

@@ -32,6 +32,7 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 | 4.2 ✅* | Deepgram transcript, Gemini summary | Server routes; keys only on the server; summary is a draft the staff member confirms |
 | 4.3 ✅ | Recordings page actions | Attach to a person, create a lead from it, delete; audio removed after `audio_retention_days` |
 | 4.4 ✅ | Android app (Stint Notes) | Records talks on the phone mic after a consent tick, uploads with retry, shows own notes; `android/` |
+| 4.5 ✅ | Voice input for notes | Mic on the quick-panel note box, call notes, every long-text form field and enquiry notes; Deepgram + Gemini clean it into English; draft only, staff edit and save; no audio stored; `/api/voice/dictate` |
 
 4.2 ✅*: built and wired; not yet run against the live Deepgram and Gemini APIs (needs `DEEPGRAM_API_KEY`, `GEMINI_API_KEY` in `.env.local`).
 4.4 ✅: `android/README.md`. Reading call recordings saved by the phone dialer is not built (see `docs/android-companion.md`).
