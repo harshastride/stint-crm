@@ -425,3 +425,33 @@ test('@mention: suggestion, note saved, bell shows it to the colleague', async (
   await db.from('note').delete().like('body', 'E2E check this%');
   await db.from('notification').delete().eq('staff_id', pr!.id);
 });
+
+test('custom fields: admin adds one, it shows in the form and the list', async ({ page }) => {
+  const db = service();
+  await db.from('custom_field').delete().eq('label', 'E2E Laptop issued');
+  const { data: c } = await db.from('candidate').select('id, full_name, custom').eq('full_name', 'Priya Reddy').single();
+  await login(page, 'harsha');
+  await page.goto('/p/fields');
+  await page.getByRole('button', { name: 'Add field' }).click();
+  const form = page.getByRole('complementary', { name: 'New custom field' });
+  await form.getByLabel('Add it to').selectOption('candidate');
+  await form.getByLabel('Field name').fill('E2E Laptop issued');
+  await form.getByLabel('Type').selectOption('Yes / No');
+  await form.getByLabel('Show as a column in the list').selectOption('Yes');
+  await form.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Custom field added.')).toBeVisible();
+  await page.goto('/p/candidate?edit=candidate:' + c!.id);
+  await page.getByRole('button', { name: 'table' }).click().catch(() => {});
+  await page.goto('/p/candidate');
+  await page.getByRole('button', { name: 'table' }).click();
+  await expect(page.locator('thead')).toContainText('E2E Laptop issued');
+  await page.goto('/p/candidate?edit=candidate:' + c!.id);
+  const ed = page.getByRole('complementary', { name: 'Candidate' });
+  await ed.getByLabel('E2E Laptop issued').selectOption('Yes');
+  await ed.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByText('Saved.')).toBeVisible();
+  const { data: after } = await db.from('candidate').select('custom').eq('id', c!.id).single();
+  expect(after!.custom.e2e_laptop_issued).toBe(true);
+  await db.from('candidate').update({ custom: c!.custom || {} }).eq('id', c!.id);
+  await db.from('custom_field').delete().eq('label', 'E2E Laptop issued');
+});

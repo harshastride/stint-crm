@@ -6,6 +6,7 @@ import { ChangePassword } from '@/components/ChangePassword';
 export type Staff = { id: string; full_name: string; email: string; role: string; level: string; branch_id: string | null; status: string; must_change_password?: boolean };
 export type RefRow = { id: string; label: string; extra?: Record<string, unknown> };
 export type PageRow = { id: string; grp: string; title: string; sort: number };
+export type CustomField = { id: string; page_id: string; label: string; key: string; type: string; options: string | null; in_list: string; sort: number };
 
 type Session = {
   staff: Staff;
@@ -15,6 +16,7 @@ type Session = {
   roles: string[];
   lists: Record<string, string[]>;           // dropdown values by list id (active only)
   refs: Record<string, RefRow[]>;            // small reference tables for pickers
+  custom: CustomField[];                     // admin-defined fields (Admin settings → Custom fields)
   can: (page: string, need?: 'r' | 'w') => boolean;
   reload: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -41,7 +43,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       await new Promise((r) => setTimeout(r, 750));
       return load(attempt + 1);
     }
-    const [me, pages, roles, values, staff, programs, batches, branches, companies, sources, campaigns] = await Promise.all([
+    const [me, pages, roles, values, staff, programs, batches, branches, companies, sources, campaigns, custom] = await Promise.all([
       db.rpc('my_session'),
       db.from('page').select('*').order('sort'),
       db.from('app_role').select('name').order('sort'),
@@ -53,6 +55,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       db.from('company').select('id,name').order('name'),
       db.from('lead_source').select('id,name').order('name'),
       db.from('campaign').select('id,name').order('name'),
+      db.from('custom_field').select('*').order('sort').order('created_at'),
     ]);
     if (me.error || !me.data?.staff) {
       setError(me.error?.message || 'Your login is not set up as a staff member yet. Ask an admin to add you under Users & staff.');
@@ -68,6 +71,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       allPages: (pages.data || []) as PageRow[],
       roles: (roles.data || []).map((r: { name: string }) => r.name),
       lists,
+      custom: (custom.data || []) as CustomField[],
       refs: {
         staff: (staff.data || []).filter((s: { status: string }) => s.status !== 'Disabled').map((s: { id: string; full_name: string; role: string }) => ({ id: s.id, label: s.full_name, extra: { role: s.role } })),
         program: (programs.data || []).map((p: { id: string; name: string; fee: number }) => ({ id: p.id, label: p.name, extra: { fee: p.fee } })),

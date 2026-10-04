@@ -149,7 +149,15 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     try { localStorage.setItem('stint-cols:' + cfg.id, JSON.stringify([...n])); } catch {}
     return n;
   });
-  const cols = cfg.columns.filter((c) => !hidden.has(c.key));
+  // admin-defined fields shown as extra columns ("Show in list")
+  const columns = useMemo<Col[]>(() => [
+    ...cfg.columns,
+    ...s.custom.filter((f) => f.page_id === cfg.id && f.in_list === 'Yes').map((f) => ({
+      key: 'custom.' + f.key, label: f.label,
+      get: (r: Row) => { const v = r.custom?.[f.key]; return v === true ? 'Yes' : v === false ? 'No' : v ?? null; },
+    })),
+  ], [cfg, s.custom]);
+  const cols = columns.filter((c) => !hidden.has(c.key));
   const applySaved = (v: Row) => {
     const c = v.config || {};
     setView(Math.min(Number(c.view) || 0, (cfg.views || [{ label: 'All' }]).length - 1)); setQ(c.q || ''); setSort(c.sort || null);
@@ -218,11 +226,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const shown = useMemo(() => {
     let out = (rows || []).filter((r) => !views[view]?.where || views[view].where!(r, s.staff.id));
     const term = q.trim().toLowerCase();
-    if (term) out = out.filter((r) => cfg.columns.some((c) => short(c, r).toLowerCase().includes(term) || plain(c, r).toLowerCase().includes(term)));
-    const col = sort && cfg.columns.find((c) => c.key === sort.key);
+    if (term) out = out.filter((r) => columns.some((c) => short(c, r).toLowerCase().includes(term) || plain(c, r).toLowerCase().includes(term)));
+    const col = sort && columns.find((c) => c.key === sort.key);
     if (col) out = [...out].sort((a, b) => (sort!.asc ? 1 : -1) * compare(col, a, b) || 0);
     return out;
-  }, [rows, views, view, s.staff.id, q, sort, cfg.columns]);
+  }, [rows, views, view, s.staff.id, q, sort, columns]);
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const pageRows = useMemo(() => shown.slice(page * PAGE, page * PAGE + PAGE), [shown, page]);
   useEffect(() => { setPage(0); }, [q, sort, view]);
@@ -256,7 +264,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     const p = cfg.person?.(r);
     if (p) { setPerson(p); setSelId(r.id); setEditing(null); setPanelOpen(true); } else if (cfg.fields) setEditing(r);
   };
-  const saved = (text: string) => { setEditing(null); setNotice({ tone: 'good', text }); load(); if (['users', 'program', 'batch', 'branch', 'company', 'source', 'campaign'].includes(cfg.id)) s.reload(); };
+  const saved = (text: string) => { setEditing(null); setNotice({ tone: 'good', text }); load(); if (['users', 'program', 'batch', 'branch', 'company', 'source', 'campaign', 'fields'].includes(cfg.id)) s.reload(); };
 
   const move = async (r: Row, to: string) => {
     const { error } = await supabase().from(cfg.table).update({ [cfg.board!.field]: to }).eq('id', r.id);
@@ -308,12 +316,12 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           {layout === 'table' && (
             <div className="relative">
               <button type="button" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} className="flex h-[38px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">
-                <Columns3 size={14} /> Columns{hidden.size ? ` · ${cols.length}/${cfg.columns.length}` : ''}
+                <Columns3 size={14} /> Columns{hidden.size ? ` · ${cols.length}/${columns.length}` : ''}
               </button>
               {colsOpen && (
                 <div role="menu" className="absolute right-0 z-30 mt-1 w-56 rounded-xl border border-line bg-surface p-1 shadow-lg">
                   <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Show columns</div>
-                  {cfg.columns.map((c) => (
+                  {columns.map((c) => (
                     <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={!hidden.has(c.key)} onClick={() => toggleCol(c.key)}
                       className="flex min-h-[38px] w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
                       <span className={cx('flex h-4 w-4 items-center justify-center rounded-[4px] border', !hidden.has(c.key) ? 'border-accent bg-accent text-white' : 'border-line2')}>{!hidden.has(c.key) && <Check size={11} strokeWidth={3} />}</span>
@@ -425,8 +433,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                     <div key={r.id} draggable={canWrite} onDragStart={(e) => { setDragId(r.id); e.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => { setDragId(null); setDropOn(null); }}
                       aria-roledescription={canWrite ? 'Draggable card' : undefined}
                       className={cx('anim-fade cursor-pointer rounded-[10px] border bg-surface p-2.5', canWrite && 'active:cursor-grabbing', dragId === r.id && 'opacity-50', selId === r.id ? 'border-accent ring-1 ring-accent' : 'border-line')} onClick={() => openRow(r)}>
-                      <div className="text-[13px] font-semibold">{plain(cfg.columns[0], r) || cfg.rowTitle(r)}</div>
-                      <div className="mt-0.5 text-xs text-text2">{cfg.columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field).map((c) => short(c, r)).filter(Boolean).join(' · ')}</div>
+                      <div className="text-[13px] font-semibold">{plain(columns[0], r) || cfg.rowTitle(r)}</div>
+                      <div className="mt-0.5 text-xs text-text2">{columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field).map((c) => short(c, r)).filter(Boolean).join(' · ')}</div>
                       <div className="mt-2 flex gap-1.5">
                         {canWrite && next && <button type="button" className="min-h-[32px] flex-1 rounded-lg border border-line2 bg-surface text-xs font-medium text-accentText" onClick={(e) => { e.stopPropagation(); move(r, next); }}>Move to {next} →</button>}
                         {canWrite && cfg.fields && cfg.person && <button type="button" aria-label="Edit" className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>}

@@ -1,7 +1,7 @@
 // One icon per page and per action, from the Lucide family (one of the families on 21st.dev/community/icons).
 // Used by the sidebar, the dashboard tiles and the quick panel's next-step buttons.
 import {
-  AlarmClock, BadgeIndianRupee, CalendarDays, Copy, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable,
+  AlarmClock, BadgeIndianRupee, CalendarDays, Copy, ListPlus, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable,
   FileCheck2, FileSpreadsheet, FileStack, FileText, Filter, GitBranch, GraduationCap, HandCoins, History, Home, Inbox, IndianRupee, LayoutGrid,
   ListChecks, ListTodo, type LucideIcon, Megaphone, MessageSquareText, Mic, NotebookPen, Palette, PhoneCall, PieChart, Receipt, Route, ScrollText,
   Send, Shield, Shuffle, SlidersHorizontal, Target, TrendingUp, Upload, UserPlus, UserRoundCheck, Users, UsersRound, Wallet, Workflow, Zap,
@@ -17,7 +17,7 @@ export const PAGE_ICON: Record<string, LucideIcon> = {
   placement: Briefcase, checklist: ListChecks, alumni: Users,
   plan: Wallet, payment: HandCoins, alert: Bell, history: History, company: Building2,
   rep_funnel: Route, rep_roi: TrendingUp, rep_batch: BarChart3, rep_place: PieChart, rep_cash: BadgeIndianRupee,
-  users: Users, duplicates: Copy, roles: Shield, assign: Shuffle, followrules: AlarmClock, dropdowns: SlidersHorizontal, imports: Upload,
+  users: Users, duplicates: Copy, roles: Shield, assign: Shuffle, followrules: AlarmClock, dropdowns: SlidersHorizontal, fields: ListPlus, imports: Upload,
   automations: Zap, builder: Workflow, connections: Cable, deliveries: ScrollText, branding: Palette,
 };
 export const pageIcon = (id: string): LucideIcon => PAGE_ICON[id] || LayoutGrid;

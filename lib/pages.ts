@@ -377,6 +377,17 @@ export const PAGES: Record<string, PageCfg> = {
     fields: [{ key: 'event', label: 'Event', type: 'text', readOnly: true }, { key: 'status', label: 'Status', type: 'text', readOnly: true }, { key: 'last_error', label: 'Problem', type: 'text', readOnly: true }, { key: 'response_code', label: 'Answer code', type: 'number', readOnly: true }],
     rowTitle: (r) => r.event + (r.person_name ? ' · ' + r.person_name : ''),
   },
+  fields: {
+    id: 'fields', table: 'custom_field', kind: 'Custom field', purpose: 'Your own extra fields on leads, students, placements, batches and companies. They appear under “More details” in the form.', cta: 'Add field',
+    order: { col: 'page_id', asc: true },
+    columns: [{ key: 'label', label: 'Field' }, { key: 'page', label: 'On', get: (r) => ({ lead: 'Leads', candidate: 'Students', placement: 'Placements', batch: 'Batches', company: 'Companies' } as Record<string, string>)[r.page_id] || r.page_id },
+      { key: 'type', label: 'Type' }, { key: 'options', label: 'Choices' }, { key: 'in_list', label: 'Column in list' }, { key: 'key', label: 'Key' }],
+    fields: [{ key: 'page_id', label: 'Add it to', type: 'select', options: ['lead', 'candidate', 'placement', 'batch', 'company'], required: true, createOnly: true },
+      { key: 'label', label: 'Field name', type: 'text', required: true }, { key: 'type', label: 'Type', type: 'select', options: ['Text', 'Number', 'Date', 'Yes / No', 'Choice'], required: true },
+      { key: 'options', label: 'Choices (for Choice, comma-separated)', type: 'text' }, { key: 'in_list', label: 'Show as a column in the list', type: 'select', options: ['No', 'Yes'] },
+      { key: 'sort', label: 'Order (small numbers first)', type: 'number' }],
+    rowTitle: (r) => r.label,
+  },
   connections: {
     id: 'connections', table: 'connection', kind: 'Connection', purpose: 'The outside services the CRM talks to. They are connected inside Activepieces; record the state here.', cta: 'Add connection', order: { col: 'service', asc: true },
     columns: [{ key: 'service', label: 'Service' }, { key: 'used_for', label: 'Used for' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'last_checked_at', label: 'Last checked', type: 'datetime' }],

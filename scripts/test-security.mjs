@@ -408,6 +408,13 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await admin.from('note').delete().eq('id', n.data.id);
   await prav.from('notification').delete().eq('staff_id', pid); }
 
+// Custom fields: only roles with the Custom fields page can add them
+{ const t = await tele.from('custom_field').insert({ page_id: 'lead', label: 'Sneaky field' });
+  check('A telecaller cannot add custom fields', !!t.error);
+  const a = await admin.from('custom_field').insert({ page_id: 'lead', label: 'Test Field X' }).select('key').single();
+  check('A custom field gets a key from its name', a.data?.key === 'test_field_x', JSON.stringify(a.data));
+  await admin.from('custom_field').delete().eq('label', 'Test Field X'); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

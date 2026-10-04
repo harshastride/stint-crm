@@ -411,3 +411,4 @@ update public.app_role set sees_candidate_stages = '{Enrolled}' where name = 'Fr
 insert into public.page (id, grp, title, sort) values ('calendar', 'Home', 'Calendar', 2) on conflict (id) do nothing;
 insert into public.role_page_access (role, page_id, mode) select name, 'calendar', 'r' from public.app_role where name <> 'Admin' on conflict do nothing;
 insert into public.page (id, grp, title, sort) values ('duplicates', 'Admin settings', 'Duplicates', 42) on conflict (id) do nothing;
+insert into public.page (id, grp, title, sort) values ('fields', 'Admin settings', 'Custom fields', 41) on conflict (id) do nothing;

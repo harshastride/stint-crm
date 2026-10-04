@@ -25,12 +25,14 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       const first = f.type === 'select' && AUTO.includes(f.key) ? (f.options || s.lists[f.list || ''] || [])[0] ?? null : null;
       v[f.key] = f.def ? f.def({ me: s.staff.id }) : first;
     });
+    v.custom = (row?.custom as Row) || {};
     return cfg.derive ? cfg.derive(v, s.refs) : v;
   });
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const readOnly = !canWrite || !!cfg.readOnly;
+  const customFields = s.custom.filter((f) => f.page_id === cfg.id && !cfg.readFrom);
   const planTotal = cfg.id === 'quote' ? quoteAmount(values) : Number(values.total || 0);
 
   const set = (key: string, val: unknown) => setValues((old) => { const next = { ...old, [key]: val }; return cfg.derive ? cfg.derive(next, s.refs) : next; });
@@ -63,6 +65,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       onSaved('Saved.');
       return;
     }
+    if (customFields.length) payload.custom = values.custom || {};
     // on a new record, leave out what was not filled so the database defaults apply
     const fresh = Object.fromEntries(Object.entries(payload).filter(([, v]) => v != null));
     const { error } = isNew ? await db.from(cfg.table).insert(fresh) : await db.from(cfg.table).update(payload).eq('id', row!.id);
@@ -96,6 +99,24 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
           </FieldWrap>
         ))}
       </div>
+      {customFields.length > 0 && (
+        <div className="flex flex-col gap-2.5 border-t border-line pt-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted">More details</div>
+          {customFields.map((f) => {
+            const v = (values.custom || {})[f.key];
+            const setC = (x: unknown) => set('custom', { ...(values.custom || {}), [f.key]: x === '' ? null : x });
+            const cls = 'h-[42px] w-full px-3 text-sm font-normal';
+            return (
+              <label key={f.id} className="flex flex-col gap-1 text-xs font-medium text-text2">{f.label}
+                {readOnly ? <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm font-normal text-text">{v === true ? 'Yes' : v === false ? 'No' : v ?? '—'}</div>
+                  : f.type === 'Yes / No' ? <select className={cls} value={v === true ? 'Yes' : v === false ? 'No' : ''} onChange={(e) => setC(e.target.value === '' ? null : e.target.value === 'Yes')}><option value="">—</option><option>Yes</option><option>No</option></select>
+                  : f.type === 'Choice' ? <select className={cls} value={v ?? ''} onChange={(e) => setC(e.target.value)}><option value="">—</option>{(f.options || '').split(',').map((o) => o.trim()).filter(Boolean).map((o) => <option key={o}>{o}</option>)}</select>
+                  : <input className={cls} type={f.type === 'Number' ? 'number' : f.type === 'Date' ? 'date' : 'text'} value={v ?? ''} onChange={(e) => setC(f.type === 'Number' && e.target.value !== '' ? Number(e.target.value) : e.target.value)} />}
+              </label>
+            );
+          })}
+        </div>
+      )}
       {cfg.id === 'jobdocs' && row && <JobPapers job={{ ...row, ...values }} canWrite={!readOnly} />}
       {cfg.id === 'quote' && <QuoteMath values={values} />}
       {cfg.id === 'quote' && row?.id && row.needs_approval && (
