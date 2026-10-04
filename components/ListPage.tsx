@@ -107,6 +107,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [colsOpen, setColsOpen] = useState(false);
   const [savedViews, setSavedViews] = useState<Row[]>([]);
   const [activeSaved, setActiveSaved] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropOn, setDropOn] = useState<string | null>(null);
   const [saving, setSaving] = useState<{ name: string; shared: string } | null>(null);
   const loadSaved = useCallback(async () => {
     const { data } = await supabase().from('saved_view').select('*').eq('page_id', cfg.id).order('created_at');
@@ -384,10 +386,16 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               const cards = shown.filter((r) => r[cfg.board!.field] === st);
               const next = stages[i + 1];
               return (
-                <section key={st} aria-label={st} className="flex w-[240px] shrink-0 flex-col gap-2 rounded-xl bg-surface2 p-2.5">
+                <section key={st} aria-label={st}
+                  onDragOver={canWrite ? (e) => { if (dragId) { e.preventDefault(); setDropOn(st); } } : undefined}
+                  onDragLeave={() => setDropOn((d) => (d === st ? null : d))}
+                  onDrop={canWrite ? (e) => { e.preventDefault(); const r = shown.find((x) => x.id === dragId); setDragId(null); setDropOn(null); if (r && r[cfg.board!.field] !== st) move(r, st); } : undefined}
+                  className={cx('flex w-[240px] shrink-0 flex-col gap-2 rounded-xl p-2.5 transition-colors', dropOn === st ? 'bg-accentSoft ring-2 ring-accent' : 'bg-surface2')}>
                   <div className="flex items-center justify-between px-1 text-[13px] font-semibold"><span>{st}</span><span className="num rounded-full bg-surface px-2 py-0.5 text-xs">{cards.length}</span></div>
                   {cards.map((r) => (
-                    <div key={r.id} className={cx('anim-fade cursor-pointer rounded-[10px] border bg-surface p-2.5', selId === r.id ? 'border-accent ring-1 ring-accent' : 'border-line')} onClick={() => openRow(r)}>
+                    <div key={r.id} draggable={canWrite} onDragStart={(e) => { setDragId(r.id); e.dataTransfer.effectAllowed = 'move'; }} onDragEnd={() => { setDragId(null); setDropOn(null); }}
+                      aria-roledescription={canWrite ? 'Draggable card' : undefined}
+                      className={cx('anim-fade cursor-pointer rounded-[10px] border bg-surface p-2.5', canWrite && 'active:cursor-grabbing', dragId === r.id && 'opacity-50', selId === r.id ? 'border-accent ring-1 ring-accent' : 'border-line')} onClick={() => openRow(r)}>
                       <div className="text-[13px] font-semibold">{plain(cfg.columns[0], r) || cfg.rowTitle(r)}</div>
                       <div className="mt-0.5 text-xs text-text2">{cfg.columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field).map((c) => short(c, r)).filter(Boolean).join(' · ')}</div>
                       <div className="mt-2 flex gap-1.5">

@@ -353,3 +353,25 @@ test('saved views: save, share with team, reopen, delete', async ({ page }) => {
   await expect(page.getByRole('button', { name: /^E2E view ravi/ })).toHaveCount(0);
   await db.from('saved_view').delete().like('name', 'E2E view%');
 });
+
+test('board: drag a card to another column', async ({ page }) => {
+  const db = service();
+  const started = new Date().toISOString();
+  const { data: q } = await db.from('fee_quote').select('id, status, lead:lead_id(full_name)').neq('status', 'Expired').limit(1).single();
+  await login(page, 'harsha');
+  await page.goto('/p/quote');
+  await page.getByRole('tab', { name: 'All' }).click();
+  await page.getByRole('button', { name: 'board' }).click();
+  const name = (q!.lead as unknown as { full_name: string }).full_name;
+  const card = page.locator('[draggable="true"]').filter({ hasText: name });
+  await expect(card).toHaveCount(1);
+  const dt = await page.evaluateHandle(() => new DataTransfer());
+  await card.dispatchEvent('dragstart', { dataTransfer: dt });
+  const target = page.getByRole('region', { name: 'Expired' });
+  await target.dispatchEvent('dragover', { dataTransfer: dt });
+  await target.dispatchEvent('drop', { dataTransfer: dt });
+  await expect(page.getByText(new RegExp(name + '.*moved to Expired'))).toBeVisible();
+  await db.from('fee_quote').update({ status: q!.status }).eq('id', q!.id);
+  await db.from('status_history').delete().eq('entity_id', q!.id).gte('at', started);   // leave no trace in the history
+  await db.from('integration_event').delete().eq('person_name', name).gte('created_at', started);
+});
