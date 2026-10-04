@@ -39,10 +39,12 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 ## Slice 5 — go live
 | # | Task | Done when |
 |---|---|---|
-| 5.1 | Production Supabase | Official Docker Compose stack on a server, new JWT secret and keys, backups, SMTP for auth emails |
-| 5.2 | App deploy | Docker image or Node process behind HTTPS; env from a secret store |
-| 5.3 | Real data | Real staff invited; demo seed never run in production; import of existing leads and candidates |
+| 5.1 ◐ | Production Supabase | Official Docker Compose stack on a server, new JWT secret and keys, backups, SMTP for auth emails |
+| 5.2 ◐ | App deploy | Docker image or Node process behind HTTPS; env from a secret store |
+| 5.3 ◐ | Real data | Real staff invited; demo seed never run in production; import of existing leads and candidates |
 | 5.4 ✅ | Phone layout | Sidebar collapses; quick panel becomes a sheet |
+
+5.1–5.3 ◐: deploy kit ready and checked locally (`deploy/README.md`, Dockerfile builds and serves, secrets/admin/import scripts work); not yet run on a real server.
 
 ## Open decisions (ask Harsha, do not guess)
 - Discount approval limit (now 10%) and discount steps.

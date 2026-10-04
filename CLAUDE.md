@@ -16,6 +16,9 @@ Training and placement CRM for Stint Academy (single institute). The owner, Hars
 | Type check | `npm run typecheck` |
 | Security and rules tests | `node scripts/test-security.mjs` (needs seeded data; must stay 100% passing) |
 | Build | `npm run build` |
+| Browser tests | `npm run test:e2e` (Playwright; app on 3100, demo data) |
+| All tests | `npm test` |
+| Go live | `deploy/README.md` |
 
 Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita Front desk, divya Marketing, teja Telecaller, manish Sales, praveen HR / Counsellor, kiran Trainer, hemanth SME, lakshmi Placement, suresh Finance).
 
@@ -38,4 +41,5 @@ Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita 
 10. Job papers (`job_record`, `job_paper`) track documents for a job the candidate actually holds; the checklist is derived from the real joining and leaving dates. Do not add features that produce or back-date employment documents.
 
 ## Where to look next
+Integrations: `docs/activepieces/` (events, incoming leads), recordings need `SONIOX_API_KEY` and `GEMINI_API_KEY` (server only).
 `docs/BACKLOG.md` lists the remaining work in order, with acceptance checks. The visual reference is the "Stint CRM Role Dashboards" design (screenshots in the mockup zip, if present under `docs/design/`).

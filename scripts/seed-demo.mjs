@@ -10,6 +10,11 @@ const env = Object.fromEntries(
 );
 const url = env.NEXT_PUBLIC_SUPABASE_URL, key = env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) { console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local'); process.exit(1); }
+// Demo people must never land in the live CRM: refuse anything but a local database unless forced on purpose.
+if (!/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|host\.docker\.internal)(:\d+)?/.test(url) && !process.argv.includes('--i-know-this-is-not-production')) {
+  console.error(`Refusing to seed demo data into ${url}: this is not a local database. Demo data is for your own machine only.`);
+  process.exit(1);
+}
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 const PASSWORD = env.DEMO_PASSWORD || 'stint-demo-1234';
 const DOMAIN = 'demo.stint.local';
