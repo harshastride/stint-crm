@@ -7,6 +7,7 @@ import type { Row } from '@/lib/pages';
 import { Button, Notice, cx } from '../ui';
 import { PageHeader } from '../ListPage';
 import { PersonSearch } from '../Fields';
+import { PhoneInput } from '../PhoneInput';
 
 const ctl = 'h-11 w-full px-3 text-sm';
 const PROFILE: [string, string][] = [['date_of_birth', 'Date of birth (as in SSC)'], ['marital_status', 'Marital status'], ['identification_marks', 'Identification marks'], ['referred_by', 'Referred by']];
@@ -121,6 +122,7 @@ function Section({ title, tag, tone, children }: { title: string; tag: string; t
 }
 
 function Text({ label, value, onChange, disabled, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; type?: string }) {
+  if (/mobile/i.test(label) && !disabled) return <div className="flex flex-col gap-1 text-xs font-medium text-text2">{label}<PhoneInput label={label} value={value} onChange={onChange} /></div>;
   return <label className="flex flex-col gap-1 text-xs font-medium text-text2">{label}<input type={type} className={ctl} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} /></label>;
 }
 

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Field, Row } from '@/lib/pages';
 import { QuickDate } from './QuickDate';
+import { PhoneInput } from './PhoneInput';
 
 const inputCls = 'h-[42px] w-full px-3 text-sm';
 
@@ -153,6 +154,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
       </div>
     );
   }
+  if (field.type === 'phone') return <PhoneInput label={field.label} value={v} onChange={(d) => onChange(d || null)} disabled={disabled} />;
   if (field.type === 'datetime') return <QuickDate label={field.label} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
   return <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} className={inputCls} value={field.type === 'date' ? v.slice(0, 10) : v} disabled={disabled}
     onChange={(e) => onChange(field.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value || null)} />;

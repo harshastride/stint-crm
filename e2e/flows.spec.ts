@@ -20,13 +20,13 @@ test('front desk records a walk-in enquiry and it is assigned', async ({ page })
   await login(page, 'anita');
   await page.goto('/p/enquiry');
   await page.getByPlaceholder('As they say it').fill('E2E Walkin');
-  await page.getByPlaceholder('10 digits').fill(mobile);
+  await page.getByLabel('Mobile', { exact: true }).fill(mobile);
   await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
   await page.getByRole('button', { name: 'Save enquiry' }).click();
   await expect(page.getByText(/E2E Walkin saved as a new lead and assigned to/)).toBeVisible();
   // the same mobile again is refused
   await page.getByPlaceholder('As they say it').fill('E2E Again');
-  await page.getByPlaceholder('10 digits').fill(mobile);
+  await page.getByLabel('Mobile', { exact: true }).fill(mobile);
   await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
   await page.getByRole('button', { name: 'Save enquiry' }).click();
   await expect(page.getByText(/already in the CRM as E2E Walkin/)).toBeVisible();
@@ -103,11 +103,11 @@ test('admin sees the Activepieces setup and the automation log', async ({ page }
 });
 
 test('enquiry form records marketing consent', async ({ page }) => {
-  const m = '4' + String(Date.now()).slice(-9);
+  const m = '6' + String(Date.now()).slice(-9);
   await login(page, 'anita');
   await page.goto('/p/enquiry');
   await page.getByPlaceholder('As they say it').fill('E2E Consent');
-  await page.getByPlaceholder('10 digits').fill(m);
+  await page.getByLabel('Mobile', { exact: true }).fill(m);
   await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
   await page.getByLabel(/agree to get course updates/).check();
   await page.getByRole('button', { name: 'Save enquiry' }).click();
@@ -596,4 +596,15 @@ test('drag-and-drop upload: drop a resume onto the form', async ({ page }) => {
   const mine = (files || []).filter((f) => f.name.endsWith('priya-resume.pdf'));
   expect(mine.length).toBeGreaterThan(0);
   await db.storage.from('candidate-files').remove(mine.map((f) => c!.id + '/resume/' + f.name));
+});
+
+test('phone input: +91 shown, formats as you type, pasted numbers cleaned', async ({ page }) => {
+  await login(page, 'anita');
+  await page.goto('/p/enquiry');
+  const box = page.getByLabel('Mobile', { exact: true });
+  await box.fill('+91 98000-00310');
+  await expect(box).toHaveValue('98000 00310');
+  await expect(page.getByLabel('Looks right')).toBeVisible();
+  await box.fill('45678');
+  await expect(page.getByText('5 more digits')).toBeVisible();
 });

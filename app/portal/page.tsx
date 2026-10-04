@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Button, Notice, cx } from '@/components/ui';
 import { Journey } from '@/components/Journey';
 import { journey } from '@/lib/journey';
+import { PhoneInput } from '@/components/PhoneInput';
 import { PageSkeleton } from '@/components/Skeletons';
 
 // Student portal: the student's own details, documents, fees and schedule. Everything goes through portal_* functions.
@@ -155,7 +156,9 @@ function Details({ me, onSaved, onError }: { me: Me; onSaved: (t: string) => voi
       {Object.entries(PRIVATE).map(([g, [title, fields]]) => (
         <Card key={g} icon={UserRound} title={title}>
           <div className="grid gap-3 sm:grid-cols-2">
-            {fields.map(([k, l]) => <label key={k} className="flex flex-col gap-1 text-xs font-medium text-text2">{l}<input className={input} disabled={ro} value={priv[g]?.[k] || ''} onChange={(e) => setPriv({ ...priv, [g]: { ...(priv[g] || {}), [k]: e.target.value } })} /></label>)}
+            {fields.map(([k, l]) => /mobile/i.test(k) && !ro
+              ? <div key={k} className="flex flex-col gap-1 text-xs font-medium text-text2">{l}<PhoneInput label={l} value={priv[g]?.[k] || ''} onChange={(m) => setPriv({ ...priv, [g]: { ...(priv[g] || {}), [k]: m } })} /></div>
+              : <label key={k} className="flex flex-col gap-1 text-xs font-medium text-text2">{l}<input className={input} disabled={ro} value={priv[g]?.[k] || ''} onChange={(e) => setPriv({ ...priv, [g]: { ...(priv[g] || {}), [k]: e.target.value } })} /></label>)}
           </div>
         </Card>
       ))}

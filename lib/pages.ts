@@ -7,7 +7,7 @@ export type Row = Record<string, any>;
 export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number'; get?: (r: Row) => unknown };
 export type Field = {
   key: string; label: string;
-  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file';
+  type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone';
   list?: string;                 // dropdown list id (values come from Dropdown values)
   options?: string[];            // fixed options
   ref?: string;                  // small reference table: staff, program, batch, branch, company, lead_source, campaign
@@ -93,7 +93,7 @@ export const PAGES: Record<string, PageCfg> = {
     kpis: [count('New today', (r) => isToday(r.created_at)), count('Overdue calls', (r) => !['Converted', 'Not interested'].includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at)),
       count('Interested', (r) => r.stage === 'Interested'), count('Converted', (r) => r.stage === 'Converted')],
     board: { field: 'stage', list: 'lead_stage' }, person: (r) => ({ kind: 'lead', id: r.id }),
-    fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'mobile', label: 'Mobile', type: 'text', required: true }, { key: 'email', label: 'Email', type: 'text' },
+    fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'mobile', label: 'Mobile', type: 'phone', required: true }, { key: 'email', label: 'Email', type: 'text' },
       { key: 'city', label: 'City', type: 'text' }, { key: 'program_id', label: 'Course interested', type: 'ref', ref: 'program' }, { key: 'source_id', label: 'Source', type: 'ref', ref: 'lead_source' },
       { key: 'stage', label: 'Stage', type: 'select', list: 'lead_stage' }, { key: 'owner_id', label: 'Owner', type: 'ref', ref: 'staff' },
       { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'notes', label: 'Notes', type: 'textarea' }],

@@ -6,6 +6,7 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Button, Notice } from '../ui';
 import { PageHeader } from '../ListPage';
+import { PhoneInput, phoneProblem } from '../PhoneInput';
 
 const blank = { full_name: '', mobile: '', email: '', city: '', program_id: '', course_other: '', preferred_mode: '', preferred_start: '', currently: '', source_id: '', referred_by: '', notes: '', consent: false };
 const ctl = 'h-11 w-full px-3 text-sm';
@@ -23,7 +24,7 @@ export function EnquiryForm() {
     const mobile = String(v.mobile).replace(/\D/g, '').replace(/^91(?=\d{10}$)/, '');
     const missing = [];
     if (!String(v.full_name).trim()) missing.push('full name');
-    if (mobile.length !== 10) missing.push('a 10-digit mobile');
+    if (mobile.length !== 10 || phoneProblem(mobile)) missing.push('a 10-digit mobile starting with 6–9');
     if (!v.program_id && !String(v.course_other).trim()) missing.push('the course they want');
     if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); return; }
     setBusy(true); setMsg(null);
@@ -57,7 +58,7 @@ export function EnquiryForm() {
           <h2 className="mb-3 text-base font-semibold">Who is enquiring</h2>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Full name *<input className={ctl} value={v.full_name} onChange={set('full_name')} placeholder="As they say it" /></label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-text2">Mobile *<input className={ctl} inputMode="numeric" value={v.mobile} onChange={set('mobile')} placeholder="10 digits" /></label>
+            <div className="flex flex-col gap-1 text-xs font-medium text-text2">Mobile *<PhoneInput label="Mobile" value={v.mobile} onChange={(m) => setV({ ...v, mobile: m })} /></div>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Email<input className={ctl} type="email" value={v.email} onChange={set('email')} placeholder="Optional" /></label>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">City<input className={ctl} value={v.city} onChange={set('city')} /></label>
           </div>
