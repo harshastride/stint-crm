@@ -21,14 +21,16 @@ test('front desk records a walk-in enquiry and it is assigned', async ({ page })
   await page.goto('/p/enquiry');
   await page.getByPlaceholder('As they say it').fill('E2E Walkin');
   await page.getByLabel('Mobile', { exact: true }).fill(mobile);
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByText('E2E Walkin', { exact: true })).toBeVisible();   // review line on the last step
   await page.getByRole('button', { name: 'Save enquiry' }).click();
   await expect(page.getByText(/E2E Walkin saved as a new lead and assigned to/)).toBeVisible();
-  // the same mobile again is refused
+  // the same mobile again is caught on the first step
   await page.getByPlaceholder('As they say it').fill('E2E Again');
   await page.getByLabel('Mobile', { exact: true }).fill(mobile);
-  await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
-  await page.getByRole('button', { name: 'Save enquiry' }).click();
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(page.getByText(/already in the CRM as E2E Walkin/)).toBeVisible();
 });
 
@@ -108,7 +110,9 @@ test('enquiry form records marketing consent', async ({ page }) => {
   await page.goto('/p/enquiry');
   await page.getByPlaceholder('As they say it').fill('E2E Consent');
   await page.getByLabel('Mobile', { exact: true }).fill(m);
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
   await page.getByLabel(/agree to get course updates/).check();
   await page.getByRole('button', { name: 'Save enquiry' }).click();
   await expect(page.getByText(/E2E Consent saved as a new lead/)).toBeVisible();
