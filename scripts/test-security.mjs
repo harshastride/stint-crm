@@ -338,7 +338,10 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Telecaller cannot add companies', !!t.error, 'insert was allowed');
   await admin.from('company').delete().eq('id', r.data?.id); }
 
-// test records must not be sent to Activepieces: drop the events this run raised
+// remove the people this run created, then the events it raised (test records must not reach Activepieces)
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  await svc.from('candidate').delete().eq('full_name', 'Test Walkin').gte('created_at', startedAt);
+  await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller']).gte('created_at', startedAt); }
 await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }).from('integration_event').delete().gte('created_at', startedAt);
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -27,7 +27,8 @@ export function Pill({ children }: { children: ReactNode }) {
 
 export function SidePanel({ kind, title, onClose, children }: { kind: string; title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <aside aria-label={kind} className="anim-slide flex w-[420px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-line bg-surface p-[22px]">
+    <aside aria-label={kind} className="anim-slide fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none flex shrink-0 flex-col gap-4 overflow-y-auto bg-surface p-4 md:w-[420px] md:p-[22px]">
+      <div className="mx-auto -mb-2 h-1.5 w-10 rounded-full bg-line2 md:hidden" aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-xs font-medium text-muted">{kind}</div>

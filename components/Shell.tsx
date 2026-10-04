@@ -1,5 +1,5 @@
 'use client';
-import { BarChart3, Bell, Briefcase, CheckSquare, FileText, GraduationCap, Home, IndianRupee, Megaphone, MessageSquare, Phone, Search, Settings, UserPlus, Users, BookOpen } from 'lucide-react';
+import { Menu, X, BarChart3, Bell, Briefcase, CheckSquare, FileText, GraduationCap, Home, IndianRupee, Megaphone, MessageSquare, Phone, Search, Settings, UserPlus, Users, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -22,6 +22,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [pwDone, setPwDone] = useState(false);
   const setPwOpen = (v: boolean) => { setPwOpenRaw(v); if (v) setPwDone(false); };
   const [searchKind, setSearchKind] = useState<'lead' | 'candidate'>('lead');
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => { const t = localStorage.getItem('stint-theme') || 'light'; setTheme(t); document.documentElement.dataset.theme = t; }, []);
   const toggleTheme = () => { const t = theme === 'light' ? 'dark' : 'light'; setTheme(t); document.documentElement.dataset.theme = t; localStorage.setItem('stint-theme', t); };
@@ -36,16 +37,20 @@ export function Shell({ children }: { children: React.ReactNode }) {
     return out;
   }, [s.allPages, s.pages]);
 
+  useEffect(() => { setNavOpen(false); }, [path]);
   const current = path === '/' ? 'home' : path.startsWith('/p/') ? path.split('/')[2] : path.startsWith('/candidate/') ? 'candidate' : '';
   const canSearch = { lead: s.can('lead'), candidate: s.can('candidate') };
   useEffect(() => { if (!canSearch.lead && canSearch.candidate) setSearchKind('candidate'); }, [canSearch.lead, canSearch.candidate]);
 
   return (
-    <div className="flex h-screen">
-      <nav aria-label="Pages" className="flex w-[232px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface p-2.5">
+    <div className="flex h-[100dvh]">
+      {navOpen && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" aria-hidden onClick={() => setNavOpen(false)} />}
+      <nav aria-label="Pages" className={cx('fixed inset-y-0 left-0 z-40 flex w-[264px] shrink-0 flex-col overflow-y-auto border-r border-line bg-surface p-2.5 transition-transform duration-200 md:static md:w-[232px] md:translate-x-0',
+        navOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full')}>
         <div className="flex items-center gap-2.5 px-2.5 py-3">
           <span className="inline-block h-4 w-4 rotate-45 rounded-[3px] bg-accent" aria-hidden />
-          <span className="text-[15px] font-semibold">Stint CRM</span>
+          <span className="flex-1 text-[15px] font-semibold">Stint CRM</span>
+          <button type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-[10px] md:hidden"><X size={18} /></button>
         </div>
         {groups.map((g) => {
           const Icon = ICONS[g.name] || CheckSquare;
@@ -84,11 +89,12 @@ export function Shell({ children }: { children: React.ReactNode }) {
         )}
       </nav>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-line bg-surface px-5 py-2.5">
-          <div className="flex w-full max-w-[520px] items-center gap-2">
+        <div className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2.5 md:gap-3 md:px-5">
+          <button type="button" aria-label="Open menu" onClick={() => setNavOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-line2 md:hidden"><Menu size={18} /></button>
+          <div className="flex min-w-0 w-full max-w-[520px] items-center gap-2">
             {(canSearch.lead || canSearch.candidate) ? (
               <>
-                <Search size={16} className="shrink-0 text-muted" />
+                <Search size={16} className="hidden shrink-0 text-muted md:block" />
                 <div className="flex-1">
                   <PersonSearch key={searchKind + path} kind={searchKind} value={null} label="Search people"
                     onChange={(id) => { if (id) router.push('/p/' + searchKind + '?person=' + searchKind + ':' + id); }} />
@@ -101,7 +107,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </>
             ) : <span />}
           </div>
-          <button type="button" onClick={toggleTheme} className="min-h-[40px] shrink-0 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">{theme === 'light' ? 'Dark mode' : 'Light mode'}</button>
+          <button type="button" onClick={toggleTheme} aria-label={theme === 'light' ? 'Dark mode' : 'Light mode'} className="min-h-[44px] shrink-0 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium"><span className="md:hidden">{theme === 'light' ? '☾' : '☀'}</span><span className="hidden md:inline">{theme === 'light' ? 'Dark mode' : 'Light mode'}</span></button>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1">{children}</div>
       </div>

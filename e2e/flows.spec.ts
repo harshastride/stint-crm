@@ -128,3 +128,16 @@ test('record button needs the consent tick before recording', async ({ page }) =
   await page.getByLabel(/they agreed/).check();
   await expect(start).toBeEnabled();
 });
+
+test('phone layout: menu folds away and the quick panel opens as a sheet', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await login(page, 'harsha');
+  await page.goto('/p/lead');
+  await expect(page.getByRole('link', { name: 'Payments' })).not.toBeInViewport();
+  await page.getByRole('button', { name: 'Open menu' }).click();
+  await expect(page.getByRole('link', { name: 'Payments' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close menu' }).click();
+  await page.locator('tbody tr').first().click();
+  await expect(page.getByRole('complementary', { name: 'Quick panel' })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+});

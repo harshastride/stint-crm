@@ -46,7 +46,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
 
   useEffect(() => { setP(null); setMsg(null); setAction(null); setForm({}); load(); }, [load]);
 
-  if (!p) return <aside aria-label="Quick panel" className="w-[380px] shrink-0 border-l border-line bg-surface p-5 text-muted">Loading…</aside>;
+  if (!p) return <aside aria-label="Quick panel" className="fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none shrink-0 bg-surface p-5 text-muted md:w-[380px]">Loading…</aside>;
 
   const si = STAGE_INDEX[p.stage] ?? 0;
   const days = Math.floor((Date.now() - new Date(p.stage_changed_at).getTime()) / 86400000);
@@ -103,7 +103,8 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
   };
 
   return (
-    <aside aria-label="Quick panel" className="anim-slide flex w-[380px] shrink-0 flex-col gap-3 overflow-y-auto border-l border-line bg-surface p-4">
+    <aside aria-label="Quick panel" className="anim-slide fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none flex shrink-0 flex-col gap-3 overflow-y-auto bg-surface p-4 md:w-[380px]">
+      <div className="mx-auto -mb-1 h-1.5 w-10 rounded-full bg-line2 md:hidden" aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-base font-semibold">Quick panel</div>

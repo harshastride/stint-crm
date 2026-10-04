@@ -25,6 +25,7 @@ const cell = (c: Col, r: Row) => {
   if (c.type === 'number') return <span className="num">{Number(v).toLocaleString('en-IN')}</span>;
   return String(v);
 };
+const phone = () => typeof window !== 'undefined' && !window.matchMedia('(min-width: 768px)').matches;
 const PAGE = 100;      // rows per page in the table
 const CHUNK = 1000;    // rows fetched per request
 const MAX_ROWS = 20000;
@@ -67,12 +68,13 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState(0);
-  const [layout, setLayout] = useState<'table' | 'board'>(cfg.board ? 'board' : 'table');
+  const [layout, setLayout] = useState<'table' | 'board'>(cfg.board && !phone() ? 'board' : 'table');
   const [person, setPerson] = useState<PersonRef | null>(null);
   const [selId, setSelId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Row | 'new' | null>(null);
   const [notice, setNotice] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
+  // on a phone the quick panel is a sheet over the list, so it opens only when someone taps a row
+  const [panelOpen, setPanelOpen] = useState(() => typeof window === 'undefined' || window.matchMedia('(min-width: 768px)').matches);
 
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ key: string; asc: boolean } | null>(null);
@@ -93,7 +95,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   }, [cfg]);
 
   useEffect(() => { setQ(''); setSort(null); setPage(0); }, [cfg]);
-  useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board ? 'board' : 'table'); load(); }, [cfg, load]);
+  useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board && !phone() ? 'board' : 'table'); load(); }, [cfg, load]);
 
   // open a person straight from the search box: /p/lead?person=lead:<id>
   useEffect(() => {
@@ -154,7 +156,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1">
-      <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-6">
+      <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-4 md:p-6 [&>*]:shrink-0">
         <PageHeader group={meta?.grp || ''} title={meta?.title || cfg.id} purpose={cfg.purpose}
           scope={s.staff.role === 'Admin' ? 'Admin · all records' : s.staff.role + (canWrite ? ' · can edit' : ' · view only')}>
           {cfg.csv && <Button onClick={exportCsv}>Export</Button>}
@@ -175,7 +177,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <label className="relative">
             <span className="sr-only">Search this list</span>
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this list" className="h-[38px] w-[220px] pl-8 pr-3 text-[13px]" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this list" className="h-[44px] w-[180px] pl-8 pr-3 text-[13px] md:h-[38px] md:w-[220px]" />
           </label>
           {cfg.board && (
             <div className="flex rounded-[10px] bg-surface2 p-1">
@@ -188,11 +190,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         </div>
 
         {cfg.kpis && rows && (
-          <section className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+          <section className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
             {cfg.kpis.map((k) => (
-              <div key={k.label} className="rounded-xl border border-line bg-surface px-4 py-3.5">
+              <div key={k.label} className="rounded-xl border border-line bg-surface px-3 py-2.5 md:px-4 md:py-3.5">
                 <div className="text-xs font-medium text-muted">{k.label}</div>
-                <div className="num mt-1 text-2xl font-semibold">{k.calc(rows)}</div>
+                <div className="num mt-1 text-xl font-semibold md:text-2xl">{k.calc(rows)}</div>
               </div>
             ))}
           </section>
