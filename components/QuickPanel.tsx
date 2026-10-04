@@ -9,6 +9,7 @@ import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
+import { STEP_ICON } from '@/lib/icons';
 
 const STAGES = ['Lead', 'Calls', 'Counselling', 'Enrolled', 'Training', 'Mocks', 'Resume + docs', 'Placement', 'Alumni'];
 const OWNER = ['Marketing', 'Telecaller', 'Sales', 'Front desk and HR', 'Trainer', 'SME', 'HR', 'Placement', 'Placement'];
@@ -147,7 +148,8 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
           <div className="flex flex-wrap gap-1.5">
             {nextSteps.map((st, i) => (
               <button key={st.key} type="button" onClick={() => runStep(st)}
-                className={cx('min-h-[40px] rounded-[10px] px-3 text-[13px] font-semibold', i === 0 ? 'bg-accent text-white' : 'border border-line2 bg-surface text-text')}>{st.label}</button>
+                className={cx('flex min-h-[40px] items-center gap-1.5 rounded-[10px] px-3 text-[13px] font-semibold', i === 0 ? 'bg-accent text-white' : 'border border-line2 bg-surface text-text')}>
+                {(() => { const I = STEP_ICON[st.key]; return I ? <I size={15} strokeWidth={2} aria-hidden /> : null; })()}{st.label}</button>
             ))}
           </div>
         </div>
@@ -161,7 +163,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
               <span><span className="font-medium">{t.title}</span> <span className="text-muted">· {t.owner_role} · {fmtDateTime(t.due_at)}</span></span>
               <span className="flex shrink-0 gap-1.5">
                 {(() => { const st = stepForFollowUp(t.title, person.kind); return st && allowed(st) ? (
-                  <button type="button" className="min-h-[32px] rounded-md bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}>{st.label}</button>) : null; })()}
+                  <button type="button" className="flex min-h-[32px] items-center gap-1 rounded-md bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}>{(() => { const I = STEP_ICON[st.key]; return I ? <I size={13} strokeWidth={2.2} aria-hidden /> : null; })()}{st.label}</button>) : null; })()}
                 <button type="button" className="min-h-[32px] rounded-md border border-line2 bg-surface px-2 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
               </span>
             </div>

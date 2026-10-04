@@ -1,17 +1,14 @@
 'use client';
-import { Menu, X, BarChart3, Bell, Briefcase, CheckSquare, FileText, GraduationCap, Home, IndianRupee, Megaphone, MessageSquare, Phone, Search, Settings, UserPlus, Users, BookOpen } from 'lucide-react';
+import { Menu, X, Search } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from '@/lib/session';
 import { PersonSearch } from './Fields';
 import { cx, initials } from './ui';
+import { pageIcon } from '@/lib/icons';
 import { ChangePassword } from './ChangePassword';
 
-const ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
-  Home, 'Front desk': UserPlus, Marketing: Megaphone, Telecalling: Phone, Sales: IndianRupee, Enrolment: Users, Training: BookOpen, Mocks: MessageSquare,
-  'Resume & docs': FileText, Placement: Briefcase, Alumni: GraduationCap, Fees: IndianRupee, Ops: Bell, Reports: BarChart3, 'Admin settings': Settings,
-};
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const s = useSession();
@@ -57,7 +54,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <button type="button" aria-label="Close menu" onClick={() => setNavOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-[10px] md:hidden"><X size={18} /></button>
         </div>
         {groups.map((g) => {
-          const Icon = ICONS[g.name] || CheckSquare;
           return (
             <div key={g.name} className="mt-2">
               <div className="px-2.5 py-1.5 text-xs font-medium text-muted">{g.name}</div>
@@ -66,7 +62,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 return (
                   <Link key={p.id} href={p.id === 'home' ? '/' : '/p/' + p.id} aria-current={on ? 'page' : undefined}
                     className={cx('flex min-h-[36px] items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px]', on ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>
-                    <Icon size={15} /><span>{p.title}</span>
+                    {(() => { const Icon = pageIcon(p.id); return <Icon size={16} strokeWidth={1.8} className="shrink-0" aria-hidden />; })()}<span>{p.title}</span>
                   </Link>
                 );
               })}

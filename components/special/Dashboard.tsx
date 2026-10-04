@@ -6,6 +6,7 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Pill, cx, fmtDateTime, money } from '../ui';
 import { DashboardInsights, change, thisAndLast } from './DashboardInsights';
+import { pageIcon } from '@/lib/icons';
 
 const JOURNEY: [string, 'lead' | 'candidate', string[]][] = [
   ['Leads', 'lead', ['New']], ['Calls', 'lead', ['Callback', 'Interested']], ['Counselling', 'lead', ['Counselling']], ['Enrolled', 'candidate', ['Enrolled']],
@@ -95,7 +96,10 @@ export function Dashboard() {
             <div key={t.label} className="anim-rise flex flex-col rounded-2xl border border-line bg-surface" style={{ animationDelay: 200 + i * 50 + 'ms' }}>
               <div className="px-5 pb-3 pt-4">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[13px] font-medium text-muted">{t.label}</span>
+                  <span className="flex items-center gap-2 text-[13px] font-medium text-muted">
+                    {(() => { const I = pageIcon(t.href.split('/').pop() || ''); return <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accentSoft text-accentText"><I size={15} strokeWidth={2} aria-hidden /></span>; })()}
+                    {t.label}
+                  </span>
                   {t.delta != null && (
                     <span title="Compared with last month" className={cx('num whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold', good ? 'bg-goodBg text-goodText' : 'bg-badBg text-badText')}>
                       {up ? '▲' : '▼'} {Math.abs(t.delta)}%
