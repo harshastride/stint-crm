@@ -7,6 +7,7 @@ import type { PersonRef, Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
+import { MentionText } from './MentionText';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
 import { STEP_ICON } from '@/lib/icons';
@@ -204,7 +205,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
               <select aria-label="Kind of note" className="h-10 px-2 text-sm" value={form.kind || 'Note'} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
                 {['Note', 'Message', 'Training', 'Resume', 'Fee', 'Placement'].map((k) => <option key={k}>{k}</option>)}
               </select>
-              <textarea aria-label="Note" placeholder="What happened?" className="min-h-[84px] px-3 py-2 text-sm" value={form.body || ''} onChange={(e) => setForm({ ...form, body: e.target.value })} />
+              <MentionText label="Note" placeholder="What happened? Type @ to notify a colleague" value={form.body || ''} onChange={(v) => setForm({ ...form, body: v })} />
               <Button variant="primary" disabled={busy} onClick={saveNote}>Save note</Button>
             </div>
           )}

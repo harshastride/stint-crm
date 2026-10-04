@@ -8,6 +8,7 @@ import { PersonSearch } from './Fields';
 import { cx, initials } from './ui';
 import { pageIcon } from '@/lib/icons';
 import { CommandMenu } from './CommandMenu';
+import { NotificationBell } from './NotificationBell';
 import { ChangePassword } from './ChangePassword';
 
 
@@ -118,6 +119,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <button type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium text-text2">
             <span className="max-md:hidden">Jump to…</span><kbd className="rounded-md bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
           </button>
+          <NotificationBell />
           <button type="button" onClick={toggleTheme} aria-label={theme === 'light' ? 'Dark mode' : 'Light mode'} className="min-h-[44px] shrink-0 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium"><span className="md:hidden">{theme === 'light' ? '☾' : '☀'}</span><span className="hidden md:inline">{theme === 'light' ? 'Dark mode' : 'Light mode'}</span></button>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1">{children}</div>

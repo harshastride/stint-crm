@@ -403,3 +403,25 @@ test('duplicates page: admin sees it, others cannot open it', async ({ page }) =
   await page.goto('/p/duplicates');
   await expect(page.getByText('This page isn’t open to your role')).toBeVisible();
 });
+
+test('@mention: suggestion, note saved, bell shows it to the colleague', async ({ page }) => {
+  const db = service();
+  const { data: pr } = await db.from('staff').select('id').eq('email', 'praveen@demo.stint.local').single();
+  await db.from('notification').delete().eq('staff_id', pr!.id);
+  const { data: c } = await db.from('candidate').select('id').eq('full_name', 'Priya Reddy').single();
+  await login(page, 'harsha');
+  await page.goto('/p/candidate?person=candidate:' + c!.id);
+  await page.getByRole('button', { name: 'Add note' }).click();
+  const box = page.getByLabel('Note', { exact: true });
+  await box.pressSequentially('E2E check this @Pra');
+  await page.getByRole('option', { name: /@Praveen/ }).click();
+  await box.pressSequentially('please');
+  await page.getByRole('button', { name: 'Save note' }).click();
+  await expect(page.getByText('Note saved on the timeline.')).toBeVisible();
+  await login(page, 'praveen');
+  await page.getByRole('button', { name: /Notifications, \d+ unread/ }).click();
+  await page.getByRole('dialog', { name: 'Notifications' }).getByText(/mentioned you on Priya Reddy/).click();
+  await expect(page).toHaveURL(new RegExp('person=candidate:' + c!.id));
+  await db.from('note').delete().like('body', 'E2E check this%');
+  await db.from('notification').delete().eq('staff_id', pr!.id);
+});

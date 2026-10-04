@@ -395,6 +395,19 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await svc.from('integration_event').delete().in('entity_id', [a.id, b.id]);
   await svc.from('lead').delete().eq('id', a.id); }
 
+// @mentions notify the person mentioned; notifications are private
+{ const prav = await as('praveen');
+  const pid = (await prav.auth.getUser()).data.user.id;
+  await prav.from('notification').delete().eq('staff_id', pid);
+  const me = (await admin.auth.getUser()).data.user.id;
+  const n = await admin.from('note').insert({ candidate_id: cand.id, kind: 'Note', body: 'Test @Praveen please check the resume', by_id: me }).select('id').single();
+  const got = (await prav.from('notification').select('title, link, kind').eq('staff_id', pid)).data || [];
+  check('An @mention in a note notifies that person with a link', got.some((x) => x.kind === 'mention' && x.link?.includes(cand.id)), JSON.stringify(got));
+  const peek = (await tele.from('notification').select('id').eq('staff_id', pid)).data || [];
+  check('Nobody can read someone else’s notifications', peek.length === 0);
+  await admin.from('note').delete().eq('id', n.data.id);
+  await prav.from('notification').delete().eq('staff_id', pid); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];
@@ -416,6 +429,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
 // remove the people this run created, then the events it raised (test records must not reach Activepieces)
 { const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   await svc.from('candidate').delete().eq('full_name', 'Test Walkin').gte('created_at', startedAt);
+  await svc.from('notification').delete().gte('created_at', startedAt);
   await svc.from('lead').delete().in('full_name', ['Test Walkin', 'Rule Test', 'Event Test', 'Meta Lead', 'Unknown Caller', 'Block Lead']).gte('created_at', startedAt); }
 await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }).from('integration_event').delete().gte('created_at', startedAt);
 
