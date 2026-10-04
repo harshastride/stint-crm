@@ -546,3 +546,19 @@ test('timelines: icon history with filters, and the journey on the full profile'
   await expect(j.locator('li')).toHaveCount(9);
   await expect(j.locator('[aria-current="step"]')).toBeVisible();
 });
+
+test('toasts: a change shows Undo, and Undo puts it back', async ({ page }) => {
+  const db = service();
+  const started = new Date().toISOString();
+  const { data: f } = await db.from('follow_up').select('id, title').eq('status', 'Open').not('candidate_id', 'is', null).limit(1).single();
+  const { data: fu } = await db.from('follow_up').select('candidate_id').eq('id', f!.id).single();
+  await login(page, 'harsha');
+  await page.goto('/p/candidate?person=candidate:' + fu!.candidate_id);
+  const panel = page.getByRole('complementary', { name: 'Quick panel' });
+  await panel.locator('div').filter({ hasText: f!.title }).getByRole('button', { name: 'Done' }).first().click();
+  await expect(page.getByRole('status').filter({ hasText: 'Done: ' + f!.title })).toBeVisible();
+  expect((await db.from('follow_up').select('status').eq('id', f!.id).single()).data!.status).toBe('Done');
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(async () => (await db.from('follow_up').select('status').eq('id', f!.id).single()).data!.status).toBe('Open');
+  await db.from('integration_event').delete().gte('created_at', started);
+});

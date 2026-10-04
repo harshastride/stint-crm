@@ -8,6 +8,7 @@ import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
 import { Timeline } from './Timeline';
+import { useToast } from './Toasts';
 import { MentionText } from './MentionText';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
@@ -20,6 +21,7 @@ const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Famil
 export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; onClose: () => void; onChanged: () => void }) {
   const s = useSession();
   const router = useRouter();
+  const toast = useToast();
   const isLead = person.kind === 'lead';
   const [p, setP] = useState<Row | null>(null);
   const [timeline, setTimeline] = useState<Row[]>([]);
@@ -97,13 +99,18 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
     if (error) return fail(error); done('Follow-up added.');
   };
   const moveStage = async (stage: string) => {
+    const from = p?.stage;
     const { error } = await supabase().from(person.kind).update({ stage }).eq('id', person.id);
     if (error) return fail(error);
-    done(stage === 'Converted' ? 'Converted. A candidate record was created with follow-ups for front desk, HR and finance.' : 'Moved to ' + stage + '. Recorded in status history.');
+    if (stage === 'Converted') { done('Converted. A candidate record was created with follow-ups for front desk, HR and finance.'); return; }
+    setMsg(null); load(); onChanged();
+    toast('Moved to ' + stage + '. Recorded in status history.', { undo: async () => { await supabase().from(person.kind).update({ stage: from }).eq('id', person.id); toast('Moved back to ' + from + '.'); load(); onChanged(); } });
   };
   const finishTask = async (t: Row) => {
     const { error } = await supabase().from('follow_up').update({ status: 'Done' }).eq('id', t.id);
-    if (error) return fail(error); done('Done: ' + t.title);
+    if (error) return fail(error);
+    setMsg(null); load(); onChanged();
+    toast('Done: ' + t.title, { undo: async () => { await supabase().from('follow_up').update({ status: 'Open' }).eq('id', t.id); load(); onChanged(); } });
   };
 
   const allowed = (st: Step) => (st.inline === 'call' ? canCall : st.inline === 'convert' ? canWritePerson && isLead : s.can(st.page, 'w'));

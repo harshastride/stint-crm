@@ -9,6 +9,7 @@ import { Button, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } fr
 import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
 import { friendlyError } from './Fields';
+import { useToast } from './Toasts';
 import { ActivepiecesSetup } from './special/ActivepiecesSetup';
 import { AutomationBuilder } from './special/AutomationBuilder';
 
@@ -91,6 +92,7 @@ export function PageHeader({ group, title, purpose, scope, children }: { group: 
 
 export function ListPage({ cfg }: { cfg: PageCfg }) {
   const s = useSession();
+  const toast = useToast();
   const router = useRouter();
   const params = useSearchParams();
   const meta = s.allPages.find((p) => p.id === cfg.id);
@@ -176,8 +178,9 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     setCellEdit(null);
     if ((r[f.key] ?? null) === (value ?? null)) return;
     const { error } = await supabase().from(cfg.table).update({ [f.key]: value }).eq('id', r.id);
-    if (error) { setNotice({ tone: 'bad', text: f.label + ': ' + friendlyError(error) }); return; }
-    setNotice({ tone: 'good', text: `${cfg.rowTitle(r)}: ${f.label} updated.` });
+    if (error) { toast(f.label + ': ' + friendlyError(error), { tone: 'bad' }); return; }
+    const old = r[f.key] ?? null;
+    toast(`${cfg.rowTitle(r)}: ${f.label} updated.`, { undo: async () => { await supabase().from(cfg.table).update({ [f.key]: old }).eq('id', r.id); toast('Put back as it was.'); load(); } });
     load();
   };
   const inlineEditor = (r: Row, f: Field) => {
@@ -242,15 +245,22 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const togglePage = () => setPicked((o) => { const n = new Set(o); if (pageState === true) pageIds.forEach((id) => n.delete(id)); else pageIds.forEach((id) => n.add(id)); return n; });
   const canBulk = canWrite && !!cfg.bulk?.length && !cfg.readFrom;
   const runBulk = async (b: Bulk, value: string | null) => {
-    const ids = pickedRows.map((r) => r.id as string);
+    const before = pickedRows.map((r) => ({ id: r.id as string, v: r[b.field] ?? null }));
+    const ids = before.map((x) => x.id);
     if (!ids.length) return;
     setBulkBusy(true);
     const { data, error } = await supabase().from(cfg.table).update({ [b.field]: value }).in('id', ids).select('id');
     setBulkBusy(false); setBulkOpen(null);
-    if (error) { setNotice({ tone: 'bad', text: b.label + ': ' + friendlyError(error) }); return; }
-    const done = (data || []).length, skipped = ids.length - done;
+    if (error) { toast(b.label + ': ' + friendlyError(error), { tone: 'bad' }); return; }
+    const done = new Set((data || []).map((x: Row) => x.id)), skipped = ids.length - done.size;
     const shownValue = b.ref ? (s.refs[b.ref]?.find((x) => x.id === value)?.label || value) : value;
-    setNotice({ tone: skipped ? 'bad' : 'good', text: `${b.label}${b.value ? '' : ' ' + shownValue}: ${done} updated` + (skipped ? `, ${skipped} not allowed for your role.` : '.') });
+    toast(`${b.label}${b.value ? '' : ' ' + shownValue}: ${done.size} updated` + (skipped ? `, ${skipped} not allowed for your role.` : '.'), {
+      tone: skipped ? 'bad' : 'good',
+      undo: done.size ? async () => {
+        for (const x of before.filter((y) => done.has(y.id))) await supabase().from(cfg.table).update({ [b.field]: x.v }).eq('id', x.id);
+        toast('Put back as it was.'); load();
+      } : undefined,
+    });
     setPicked(new Set()); load();
   };
   useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
@@ -267,9 +277,13 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const saved = (text: string) => { setEditing(null); setNotice({ tone: 'good', text }); load(); if (['users', 'program', 'batch', 'branch', 'company', 'source', 'campaign', 'fields'].includes(cfg.id)) s.reload(); };
 
   const move = async (r: Row, to: string) => {
-    const { error } = await supabase().from(cfg.table).update({ [cfg.board!.field]: to }).eq('id', r.id);
-    if (error) { setNotice({ tone: 'bad', text: 'Can’t move ' + cfg.rowTitle(r) + ': ' + friendlyError(error) }); return; }
-    setNotice({ tone: 'good', text: cfg.rowTitle(r) + ' moved to ' + to + (cfg.id === 'lead' && to === 'Converted' ? '. A candidate record was created.' : '.') });
+    const field = cfg.board!.field, from = r[field];
+    const { error } = await supabase().from(cfg.table).update({ [field]: to }).eq('id', r.id);
+    if (error) { toast('Can’t move ' + cfg.rowTitle(r) + ': ' + friendlyError(error), { tone: 'bad' }); return; }
+    const converted = cfg.id === 'lead' && to === 'Converted';
+    toast(cfg.rowTitle(r) + ' moved to ' + to + (converted ? '. A candidate record was created.' : '.'), converted ? {} : {
+      undo: async () => { const u = await supabase().from(cfg.table).update({ [field]: from }).eq('id', r.id); if (u.error) toast('Could not undo: ' + friendlyError(u.error), { tone: 'bad' }); else toast('Moved back to ' + from + '.'); load(); },
+    });
     load();
   };
 
