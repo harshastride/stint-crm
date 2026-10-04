@@ -1,6 +1,8 @@
 // Stint CRM block for Activepieces. Triggers subscribe themselves to CRM events; actions call the CRM's integration API.
 import { createAction, createPiece, createTrigger, PieceAuth, Property, TriggerStrategy } from '@activepieces/pieces-framework';
 
+declare const STINT_ICON: string;
+
 type AuthProps = { base_url: string; api_key: string };
 const props = (auth: unknown): AuthProps => ((auth as { props?: AuthProps })?.props ?? (auth as AuthProps));
 
@@ -172,7 +174,7 @@ export const stintCrm = createPiece({
   description: 'Leads, students, fees and placements from Stint CRM',
   auth: stintAuth,
   minimumSupportedRelease: '0.36.1',
-  logoUrl: 'https://cdn.activepieces.com/pieces/webhook.svg',
+  logoUrl: STINT_ICON,   // Stint mark, inlined at build time so it shows on any server
   authors: ['stint'],
   actions: [createLead, findLead, leadDetails, addNote, addFollowUp, moveStage, feesDue],
   triggers: TRIGGERS.map(makeTrigger),

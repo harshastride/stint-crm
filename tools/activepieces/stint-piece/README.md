@@ -17,5 +17,5 @@ Each incoming event is confirmed with the CRM by its id before the flow runs, so
 ```bash
 cd tools/activepieces/stint-piece && npm install && npm run build
 ```
-Bump `version` in `package.json` first for every new upload (Activepieces caches by version). Then Activepieces → Platform Admin →
+The block icon is the Stint mark from `public/brand/stint-icon.svg`, built into the file. Bump `version` in `package.json` first for every new upload (Activepieces caches by version). Then Activepieces → Platform Admin →
 Pieces → **Install Piece** → Packed Archive (.tgz) → name `@stint/piece-stint-crm`, the version, and `dist/stint-piece-stint-crm-<version>.tgz`.
