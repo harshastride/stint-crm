@@ -11,7 +11,7 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 | 2.4 ✅ | Automatic alerts | Scheduled job (pg_cron or a Next route called by cron) raises alerts: fee overdue, follow-up missed, stuck past `follow_rule.stuck_after_days`, mock failed twice, resume rejected twice. No duplicates for the same record and reason |
 | 2.5 ✅ | Follow-up rules in use | Logging an outcome suggests the next follow-up from `follow_rule`; assignment uses `assignment_rule` instead of the fixed "least busy telecaller" |
 | 2.6 ✅ | Quote approval | Sales head (level Head, role Sales) or Admin can approve a quote with `needs_approval`; unapproved quotes cannot move to Accepted |
-| 2.7 | Fee plan → instalments | Creating a fee plan generates the due payments by plan; recording a payment marks the matching instalment Received with a receipt number |
+| 2.7 ✅ | Fee plan → instalments | Creating a fee plan generates the due payments by plan; recording a payment marks the matching instalment Received with a receipt number |
 | 2.8 | Password: change own password, admin reset | Invited staff must change the temporary password on first login |
 | 2.9 | Lists: search box, column sort, paging beyond 500 rows | Works on every list page |
 | 2.10 | Playwright end-to-end tests in the repo | The flows in README "What is built" run with one command |

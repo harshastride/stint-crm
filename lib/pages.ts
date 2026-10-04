@@ -275,12 +275,12 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => 'Fee plan · ' + (r.full_name || ''),
   },
   payment: {
-    id: 'payment', table: 'fee_payment', kind: 'Payment', purpose: 'Every payment received or due, with its receipt.', cta: 'Record payment', select: '*, candidate:candidate_id(id,full_name)', order: { col: 'due_on' },
-    columns: [candCol, { key: 'amount', label: 'Amount', type: 'money' }, { key: 'mode', label: 'Mode' }, { key: 'receipt_no', label: 'Receipt' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }, { key: 'paid_on', label: 'Paid', type: 'date' }],
+    id: 'payment', table: 'fee_payment', kind: 'Payment', purpose: 'Every payment received or due, with its receipt. Recording a payment settles the oldest due instalment.', cta: 'Record payment', select: '*, candidate:candidate_id(id,full_name)', order: { col: 'due_on' },
+    columns: [candCol, { key: 'label', label: 'For' }, { key: 'amount', label: 'Amount', type: 'money' }, { key: 'mode', label: 'Mode' }, { key: 'receipt_no', label: 'Receipt' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }, { key: 'paid_on', label: 'Paid', type: 'date' }],
     views: [{ label: 'Due and overdue', where: (r) => ['Due', 'Overdue'].includes(r.status) }, { label: 'Received', where: (r) => r.status === 'Received' }, { label: 'Refunds', where: (r) => /Refund/.test(r.status) }, { label: 'All' }],
     kpis: [sum('Collected', 'amount', (r) => r.status === 'Received'), sum('Overdue', 'amount', (r) => r.status === 'Overdue'), count('Late students', (r) => r.status === 'Overdue')], person: candPerson,
     fields: [cand, { key: 'amount', label: 'Amount (₹)', type: 'number', required: true }, { key: 'status', label: 'Status', type: 'select', list: 'payment_status', required: true }, { key: 'mode', label: 'Mode', type: 'select', list: 'payment_mode' },
-      { key: 'receipt_no', label: 'Receipt number', type: 'text' }, { key: 'due_on', label: 'Due on', type: 'date' }, { key: 'paid_on', label: 'Paid on', type: 'date' }],
+      { key: 'receipt_no', label: 'Receipt number (blank = automatic)', type: 'text' }, { key: 'due_on', label: 'Due on', type: 'date' }, { key: 'paid_on', label: 'Paid on', type: 'date' }],
     rowTitle: (r) => 'Payment · ' + (r.candidate?.full_name || ''),
   },
   alert: {

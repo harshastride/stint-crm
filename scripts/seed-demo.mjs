@@ -136,6 +136,8 @@ for (const [name, prog, batch, stage, total, pays] of CANDS) {
     bank: { bank: 'State Bank of India', account: '30214458214521', ifsc: 'SBIN0000000' },
   }), 'private ' + name);
   await must(db.from('fee_plan').insert({ candidate_id: row.id, total, plan: pays.length === 1 ? 'Full payment' : pays.length + ' instalments' }), 'plan ' + name);
+  // the plan creates its own due instalments; the sample history below replaces them
+  await must(db.from('fee_payment').delete().eq('candidate_id', row.id), 'clear generated ' + name);
   await must(db.from('fee_payment').insert(pays.map(([amount, status, d], i) => ({
     candidate_id: row.id, amount, status, due_on: day(d), paid_on: status === 'Received' ? day(d) : null,
     mode: status === 'Received' ? ['UPI', 'Card', 'Bank'][i % 3] : null, receipt_no: status === 'Received' ? 'R-' + (1000 + n * 3 + i) : null, created_by: S.Suresh,
