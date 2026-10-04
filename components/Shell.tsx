@@ -7,6 +7,7 @@ import { useSession } from '@/lib/session';
 import { PersonSearch } from './Fields';
 import { cx, initials } from './ui';
 import { pageIcon } from '@/lib/icons';
+import { CommandMenu } from './CommandMenu';
 import { ChangePassword } from './ChangePassword';
 
 
@@ -20,6 +21,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const setPwOpen = (v: boolean) => { setPwOpenRaw(v); if (v) setPwDone(false); };
   const [searchKind, setSearchKind] = useState<'lead' | 'candidate'>('lead');
   const [navOpen, setNavOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setCmdOpen((o) => !o); } };
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   useEffect(() => { const t = localStorage.getItem('stint-theme') || 'light'; setTheme(t); document.documentElement.dataset.theme = t; }, []);
   const toggleTheme = () => { const t = theme === 'light' ? 'dark' : 'light'; setTheme(t); document.documentElement.dataset.theme = t; localStorage.setItem('stint-theme', t); };
@@ -79,6 +85,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <button type="button" onClick={() => setPwOpen(true)} className="mx-2.5 mt-2 min-h-[36px] rounded-lg text-[13px] font-medium text-text2 hover:bg-surface2">Change password</button>
         <button type="button" onClick={s.signOut} className="mx-2.5 mb-1 mt-1 min-h-[36px] rounded-lg border border-line2 bg-surface text-[13px] font-medium">Sign out</button>
       </nav>
+      <CommandMenu open={cmdOpen} onClose={() => setCmdOpen(false)} />
       {/* outside the sidebar: the sidebar's slide-in transform would otherwise trap this fixed window inside it */}
         {pwOpen && (
           <div role="dialog" aria-label="Change password" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPwOpen(false)}>
@@ -108,6 +115,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </>
             ) : <span />}
           </div>
+          <button type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium text-text2">
+            <span className="max-md:hidden">Jump to…</span><kbd className="rounded-md bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
           <button type="button" onClick={toggleTheme} aria-label={theme === 'light' ? 'Dark mode' : 'Light mode'} className="min-h-[44px] shrink-0 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium"><span className="md:hidden">{theme === 'light' ? '☾' : '☀'}</span><span className="hidden md:inline">{theme === 'light' ? 'Dark mode' : 'Light mode'}</span></button>
         </div>
         <div className="flex min-h-0 min-w-0 flex-1">{children}</div>

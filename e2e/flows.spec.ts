@@ -309,3 +309,22 @@ test('calendar: month and week views, items open their record, role filtering', 
   await expect(page.getByRole('button', { name: 'Mock interview' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Counselling', exact: true })).toHaveCount(0);
 });
+
+test('command menu: Ctrl+K finds people, pages and actions', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.keyboard.press('Control+k');
+  const dlg = page.getByRole('dialog', { name: 'Command menu' });
+  await expect(dlg).toBeVisible();
+  await dlg.getByRole('combobox').fill('priya');
+  await expect(dlg.getByRole('option', { name: /Priya Reddy/ })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/person=candidate:/);
+  await page.keyboard.press('Control+k');
+  await dlg.getByRole('combobox').fill('record payment');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('complementary', { name: 'New payment' })).toBeVisible();
+  await login(page, 'kiran');   // Trainer: no fee actions offered
+  await page.keyboard.press('Control+k');
+  await dlg.getByRole('combobox').fill('payment');
+  await expect(dlg.getByRole('option', { name: /Record a payment/ })).toHaveCount(0);
+});

@@ -137,7 +137,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     const n = params.get('new');
     if (!n || !n.includes(':') || !canWrite || !cfg.fields) return;
     const [kind, id] = n.split(':');
-    if (kind === 'lead' || kind === 'candidate') { setEditing({ [kind + '_id']: id }); router.replace('/p/' + cfg.id); }
+    if (kind === 'lead' || kind === 'candidate') setEditing({ [kind + '_id']: id }); else if (!cfg.noCreate) setEditing('new');   // ?new=x: = blank form
+    router.replace('/p/' + cfg.id);
   }, [params, canWrite, cfg, router]);
 
   // open an existing record's editor: /p/candidate?edit=candidate:<id> (e.g. "Assign batch")
