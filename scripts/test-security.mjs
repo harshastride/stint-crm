@@ -348,6 +348,13 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await admin.from('recording').delete().eq('id', u.id); await admin.from('lead').delete().eq('id', nl.data);
   await svc.from('recording').delete().eq('id', r.id); }
 
+// Front desk sees only newly enrolled students, and no Documents
+{ const fc = (await desk.from('candidate').select('stage')).data || [];
+  const all = (await admin.from('candidate').select('stage').eq('stage', 'Enrolled')).data || [];
+  check('Front desk sees only Enrolled students', fc.length === all.length && fc.every((c) => c.stage === 'Enrolled'), JSON.stringify(fc));
+  const fd = (await desk.from('candidate_document').select('id')).data || [];
+  check('Front desk cannot see documents', fd.length === 0, fd.length + ' rows'); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

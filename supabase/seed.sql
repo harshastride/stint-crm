@@ -70,7 +70,6 @@ insert into public.role_page_access (role, page_id, mode) values
   ('Front desk', 'lead', 'r'),
   ('Front desk', 'recordings', 'w'),
   ('Front desk', 'candidate', 'r'),
-  ('Front desk', 'doc', 'w'),
   ('Marketing', 'home', 'w'),
   ('Marketing', 'followups', 'w'),
   ('Marketing', 'campaign', 'w'),
@@ -408,3 +407,4 @@ insert into public.automation (name, direction, trigger, channel, recipient, mes
 update public.app_role set owns = '{lead}' where name in ('Telecaller', 'Sales');
 update public.app_role set owns = '{candidate}' where name = 'HR / Counsellor';
 update public.app_role set picks_up = '{Interested}' where name = 'Sales';
+update public.app_role set sees_candidate_stages = '{Enrolled}' where name = 'Front desk';
