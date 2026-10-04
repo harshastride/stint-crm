@@ -7,6 +7,7 @@ import { Button, Notice, SidePanel } from './ui';
 import { FieldInput, friendlyError } from './Fields';
 import { JobPapers } from './JobPapers';
 import { FileField } from './FileField';
+import { FileDown } from 'lucide-react';
 import { RecordingExtras } from './RecordingExtras';
 import { InstalmentsEditor, quoteAmount, type Instalment } from './InstalmentsEditor';
 
@@ -109,6 +110,16 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
             }}>Approve this discount</Button>
           )}
         </div>
+      )}
+      {cfg.id === 'quote' && row?.id && (
+        <a href={'/api/pdf/quote/' + row.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface text-sm font-semibold">
+          <FileDown size={16} aria-hidden /> Fee quote PDF
+        </a>
+      )}
+      {cfg.id === 'payment' && row?.id && row.status === 'Received' && (
+        <a href={'/api/pdf/receipt/' + row.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface text-sm font-semibold">
+          <FileDown size={16} aria-hidden /> Receipt PDF
+        </a>
       )}
       {cfg.id === 'recordings' && row?.id && <RecordingExtras row={row} values={values} setValue={set} onDone={onSaved} />}
       {cfg.id === 'deliveries' && row?.id && (

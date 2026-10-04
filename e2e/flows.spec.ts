@@ -276,3 +276,21 @@ test('dashboard: trends, target and tiles follow the role', async ({ page }) => 
   await expect(page.getByRole('heading', { name: /New leads and enrolments|Fees collected/ })).toHaveCount(0);
   await expect(page.getByText('My follow-ups').first()).toBeVisible();
 });
+
+test('PDF: fee quote and receipt download for allowed roles only', async ({ page }) => {
+  const db = service();
+  const { data: q } = await db.from('fee_quote').select('id').limit(1).single();
+  const { data: p } = await db.from('fee_payment').select('id').eq('status', 'Received').limit(1).single();
+  const { data: due } = await db.from('fee_payment').select('id').eq('status', 'Due').limit(1).single();
+  await login(page, 'harsha');
+  for (const url of ['/api/pdf/quote/' + q!.id, '/api/pdf/receipt/' + p!.id]) {
+    const r = await page.request.get(url);
+    expect(r.status()).toBe(200);
+    expect(r.headers()['content-type']).toContain('application/pdf');
+    expect((await r.body()).subarray(0, 4).toString()).toBe('%PDF');
+  }
+  expect((await page.request.get('/api/pdf/receipt/' + due!.id)).status()).toBe(400);
+  await login(page, 'kiran');   // Trainer cannot see quotes or payments
+  expect((await page.request.get('/api/pdf/quote/' + q!.id)).status()).toBe(404);
+  expect((await page.request.get('/api/pdf/receipt/' + p!.id)).status()).toBe(404);
+});
