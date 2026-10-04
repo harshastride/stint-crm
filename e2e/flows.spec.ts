@@ -653,3 +653,21 @@ test('first-time tour: shows once for a new person, can be skipped and replayed'
     await db.from('staff').update({ tour_done_at: me!.tour_done_at || new Date().toISOString() }).eq('id', me!.id);
   }
 });
+
+test('quick panel: full view, contact buttons, next/previous, Esc', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'table' }).click();
+  await page.locator('tbody tr').first().click();
+  const panel = page.getByRole('complementary', { name: 'Quick panel' });
+  await expect(panel.getByRole('link', { name: 'Call' })).toHaveAttribute('href', /^tel:\+91\d{10}$/);
+  await expect(panel.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa\.me\/91\d{10}$/);
+  const first = await panel.locator('.truncate.text-base').first().innerText();
+  await panel.getByRole('button', { name: /Next person/ }).click();
+  await expect(panel.locator('.truncate.text-base').first()).not.toHaveText(first);
+  await page.keyboard.press('k');
+  await expect(panel.locator('.truncate.text-base').first()).toHaveText(first);
+  await expect(panel.getByRole('link', { name: 'Open the full lead form' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+});

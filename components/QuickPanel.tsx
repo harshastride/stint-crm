@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Phone, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -20,7 +21,7 @@ import { PanelSkeleton } from './Skeletons';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Family', identity: 'Identity', bank: 'Bank' };
 
-export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; onClose: () => void; onChanged: () => void }) {
+export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }: { person: PersonRef; onClose: () => void; onChanged: () => void; list?: PersonRef[]; onNavigate?: (p: PersonRef) => void }) {
   const s = useSession();
   const router = useRouter();
   const toast = useToast();
@@ -29,7 +30,14 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
   const [timeline, setTimeline] = useState<Row[]>([]);
   const [tasks, setTasks] = useState<Row[]>([]);
   const [priv, setPriv] = useState<Row | null>(null);
-  const [tab, setTab] = useState<'Log' | 'Timeline' | 'Details'>('Log');
+  // the tab you were on is kept for the next person
+  const [tab, setTabRaw] = useState<'Log' | 'Timeline' | 'Details'>(() => { try { return (localStorage.getItem('stint-panel-tab') as 'Log') || 'Log'; } catch { return 'Log'; } });
+  const setTab = (t: 'Log' | 'Timeline' | 'Details') => { setTabRaw(t); try { localStorage.setItem('stint-panel-tab', t); } catch {} };
+  // width you dragged it to, remembered
+  const [width, setWidth] = useState(() => { try { return Number(localStorage.getItem('stint-panel-w')) || 380; } catch { return 380; } });
+  const at = list.findIndex((x) => x.kind === person.kind && x.id === person.id);
+  const prev = at > 0 ? list[at - 1] : null, next = at >= 0 && at < list.length - 1 ? list[at + 1] : null;
+  const fullHref = person.kind === 'candidate' ? '/candidate/' + person.id : '/p/lead?edit=lead:' + person.id;
   const [action, setAction] = useState<'note' | 'call' | 'task' | 'record' | null>(null);
   const [form, setForm] = useState<Row>({});
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
@@ -54,8 +62,29 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
 
   useEffect(() => { setP(null); setMsg(null); setAction(null); setForm({}); load(); }, [load]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (e.metaKey || e.ctrlKey || e.altKey || t.closest('input, textarea, select, [contenteditable]') || document.querySelector('[role="dialog"], [role="menu"]')) return;
+      if (e.key === 'Escape') onClose();
+      else if ((e.key === 'j' || e.key === 'ArrowDown') && next && onNavigate) { e.preventDefault(); onNavigate(next); }
+      else if ((e.key === 'k' || e.key === 'ArrowUp') && prev && onNavigate) { e.preventDefault(); onNavigate(prev); }
+    };
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+  }, [next, prev, onNavigate, onClose]);
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = width;
+    const move = (ev: PointerEvent) => setWidth(Math.min(680, Math.max(340, w0 + (x0 - ev.clientX))));
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); setWidth((w) => { try { localStorage.setItem('stint-panel-w', String(w)); } catch {} return w; }); };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up);
+  };
+
   if (!p) return <aside aria-label="Quick panel" className="fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none shrink-0 bg-surface p-5 text-muted md:w-[380px]"><PanelSkeleton /></aside>;
 
+  const clean = (v: unknown) => (typeof v === 'string' && v && !v.includes('•') ? v : '');
+  const contact = isLead ? { mobile: clean(p.mobile).replace(/\D/g, '').slice(-10), email: clean(p.email) }
+    : { mobile: clean(priv?.contact?.mobile).replace(/\D/g, '').slice(-10), email: clean(priv?.contact?.email) };
   const si = STAGE_INDEX[p.stage] ?? 0;
   const days = Math.floor((Date.now() - new Date(p.stage_changed_at).getTime()) / 86400000);
   const stageList = s.lists[isLead ? 'lead_stage' : 'candidate_stage'] || [];
@@ -124,15 +153,25 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
   const nextSteps = stepsForStage(p.stage).filter(allowed);
 
   return (
-    <aside aria-label="Quick panel" className="anim-slide fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:static md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none flex shrink-0 flex-col gap-3 overflow-y-auto bg-surface p-4 md:w-[380px]">
+    <aside aria-label="Quick panel" style={{ '--pw': width + 'px' } as React.CSSProperties} className="anim-slide fixed inset-x-0 bottom-0 z-40 max-h-[85dvh] w-full rounded-t-2xl border-t border-line shadow-2xl md:relative md:z-auto md:max-h-none md:rounded-none md:border-t-0 md:border-l md:shadow-none flex shrink-0 flex-col gap-3 overflow-y-auto bg-surface p-4 md:w-[var(--pw)]">
+      <div role="separator" aria-orientation="vertical" aria-label="Drag to resize the panel" onPointerDown={startResize} onDoubleClick={() => { setWidth(380); try { localStorage.setItem('stint-panel-w', '380'); } catch {} }}
+        className="absolute inset-y-0 left-0 z-20 hidden w-1.5 cursor-col-resize hover:bg-accent/40 md:block" />
       <div className="mx-auto -mb-1 h-1.5 w-10 rounded-full bg-line2 md:hidden" aria-hidden />
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-base font-semibold">Quick panel</div>
-          <div className="text-xs font-medium text-muted">Showing what {s.staff.role} can see</div>
+      <div className="sticky -top-4 z-10 -mx-4 -mt-4 flex flex-col gap-3 bg-surface px-4 pb-1 pt-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-base font-semibold">Quick panel</div>
+            <div className="truncate text-xs font-medium text-muted">Showing what {s.staff.role} can see{list.length > 1 && at >= 0 ? ` · ${at + 1} of ${list.length}` : ''}</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {onNavigate && list.length > 1 && <>
+              <button type="button" aria-label="Previous person (K)" title="Previous (K)" disabled={!prev} onClick={() => prev && onNavigate(prev)} className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line2 disabled:opacity-40"><ChevronUp size={16} /></button>
+              <button type="button" aria-label="Next person (J)" title="Next (J)" disabled={!next} onClick={() => next && onNavigate(next)} className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line2 disabled:opacity-40"><ChevronDown size={16} /></button>
+            </>}
+            <Link href={fullHref} title={person.kind === 'candidate' ? 'Open full profile' : 'Open the full lead form'} aria-label={person.kind === 'candidate' ? 'Open full profile' : 'Open the full lead form'} className="flex h-9 items-center gap-1.5 rounded-[10px] border border-line2 px-2.5 text-[12.5px] font-semibold"><Maximize2 size={14} /><span className="max-sm:hidden">Full {person.kind === 'candidate' ? 'profile' : 'view'}</span></Link>
+            <button type="button" aria-label="Hide panel (Esc)" title="Hide (Esc)" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line2"><X size={16} /></button>
+          </div>
         </div>
-        <Button className="!min-h-[38px] px-3 text-[13px]" onClick={onClose}>Hide</Button>
-      </div>
 
       <div className="rounded-[12px] bg-surface2 p-3">
         <div className="flex items-center gap-3">
@@ -146,6 +185,15 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
           {STAGES.map((_, i) => <span key={i} className={cx('h-1.5 flex-1 rounded-full', i < si ? 'bg-accent' : i === si ? 'bg-coral' : 'bg-line2')} />)}
         </div>
         <div className="mt-2 text-xs font-medium text-text2">Stage {si + 1} of 9 · {STAGES[si]} · with {OWNER[si]} · {days} day{days === 1 ? '' : 's'} here</div>
+        {(contact.mobile || contact.email) && (
+          <div className="mt-3 grid grid-cols-4 gap-1.5">
+            {contact.mobile && <a href={'tel:+91' + contact.mobile} className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><Phone size={15} />Call</a>}
+            {contact.mobile && <a href={'https://wa.me/91' + contact.mobile} target="_blank" rel="noopener" className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><MessageCircle size={15} />WhatsApp</a>}
+            {contact.email && <a href={'mailto:' + contact.email} className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><Mail size={15} />Email</a>}
+            {contact.mobile && <button type="button" onClick={() => { navigator.clipboard?.writeText('+91 ' + contact.mobile); toast('Number copied: +91 ' + contact.mobile); }} className="flex min-h-[40px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText"><Copy size={15} />Copy</button>}
+          </div>
+        )}
+      </div>
       </div>
 
       {overdue > 0 && <Notice tone="bad">Overdue: {overdue} follow-up{overdue > 1 ? 's are' : ' is'} past the due date.</Notice>}

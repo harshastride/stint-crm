@@ -252,6 +252,12 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     return out;
   }, [rows, views, view, s.staff.id, q, sort, columns, filters]);
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
+  // people in the current list order, for Previous / Next in the quick panel (each person once)
+  const panelList = useMemo(() => {
+    const seen = new Set<string>(), out: PersonRef[] = [];
+    shown.forEach((r) => { const p = cfg.person?.(r); if (p && !seen.has(p.kind + p.id)) { seen.add(p.kind + p.id); out.push(p); } });
+    return out;
+  }, [shown, cfg]);
   const pageRows = useMemo(() => shown.slice(page * PAGE, page * PAGE + PAGE), [shown, page]);
   useEffect(() => { setPage(0); }, [q, sort, view, filters]);
   // ticked rows: only those still in the current list count
@@ -588,7 +594,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         )}
       </main>
       {editing && <EditorPanel key={editing === 'new' ? 'new' : editing.id ?? editing.key} cfg={cfg} row={editing === 'new' ? null : editing} canWrite={canWrite} onClose={() => setEditing(null)} onSaved={saved} />}
-      {showPanel && <QuickPanel person={person!} onClose={() => setPanelOpen(false)} onChanged={load} />}
+      {showPanel && <QuickPanel person={person!} onClose={() => setPanelOpen(false)} onChanged={load}
+        list={panelList} onNavigate={(np) => { setPerson(np); setSelId(shown.find((r) => cfg.person?.(r)?.id === np.id)?.id ?? null); }} />}
     </div>
   );
 }
