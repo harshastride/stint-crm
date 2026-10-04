@@ -1,6 +1,15 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+
+// Demo logins from scripts/seed-demo.mjs. Shown only in development, never in a production build.
+const DEMO_PASSWORD = 'stint-demo-1234';
+const DEMO_USERS = [
+  ['harsha', 'Admin'], ['anita', 'Front desk'], ['divya', 'Marketing'], ['teja', 'Telecaller'], ['manish', 'Sales'],
+  ['praveen', 'HR / Counsellor'], ['kiran', 'Trainer'], ['hemanth', 'SME'], ['lakshmi', 'Placement'], ['suresh', 'Finance'],
+] as const;
+const IS_DEV = process.env.NODE_ENV === 'development';
+const EMAIL_KEY = 'stint-last-email';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -8,17 +17,24 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    try { const saved = localStorage.getItem(EMAIL_KEY); if (saved) setEmail(saved); } catch {}
+  }, []);
+
+  const signIn = async (mail: string, pass: string) => {
     setBusy(true); setError(null);
-    const { error } = await supabase().auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await supabase().auth.signInWithPassword({ email: mail.trim(), password: pass });
+
     if (error) {
       const down = /fetch/i.test(error.message) || (error.status ?? 0) >= 500;
       setError(error.message === 'Invalid login credentials' ? 'That email and password don’t match.' : down ? 'Can’t reach the database. In the project folder run “supabase start”, then try again.' : error.message);
       setBusy(false); return;
     }
+    try { localStorage.setItem(EMAIL_KEY, mail.trim()); } catch {}
     window.location.href = '/';
   };
+
+  const submit = (e: React.FormEvent) => { e.preventDefault(); signIn(email, password); };
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg p-4">
@@ -39,6 +55,15 @@ export default function LoginPage() {
         </label>
         {error && <div role="alert" className="mt-3 rounded-[10px] bg-badBg px-3 py-2.5 text-[13px] font-medium text-badText">{error}</div>}
         <button type="submit" disabled={busy} className="mt-5 h-11 w-full rounded-[10px] bg-accent text-sm font-semibold text-white">{busy ? 'Signing in…' : 'Sign in'}</button>
+        {IS_DEV && (
+          <label className="mt-5 flex flex-col gap-1 border-t border-line pt-4 text-xs font-medium text-text2">
+            Demo login (development only)
+            <select disabled={busy} value="" onChange={(e) => e.target.value && signIn(`${e.target.value}@demo.stint.local`, DEMO_PASSWORD)} className="h-11 px-3 text-sm">
+              <option value="">Pick a demo account…</option>
+              {DEMO_USERS.map(([u, role]) => <option key={u} value={u}>{u} · {role}</option>)}
+            </select>
+          </label>
+        )}
       </form>
     </main>
   );
