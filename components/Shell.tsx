@@ -1,5 +1,5 @@
 'use client';
-import { ExternalLink, Menu, X, BarChart3, Bell, Briefcase, CheckSquare, FileText, GraduationCap, Home, IndianRupee, Megaphone, MessageSquare, Phone, Search, Settings, UserPlus, Users, BookOpen } from 'lucide-react';
+import { Menu, X, BarChart3, Bell, Briefcase, CheckSquare, FileText, GraduationCap, Home, IndianRupee, Megaphone, MessageSquare, Phone, Search, Settings, UserPlus, Users, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -7,8 +7,6 @@ import { useSession } from '@/lib/session';
 import { PersonSearch } from './Fields';
 import { cx, initials } from './ui';
 import { ChangePassword } from './ChangePassword';
-import { openBuilder } from './special/AutomationBuilder';
-import { supabase } from '@/lib/supabase';
 
 const ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   Home, 'Front desk': UserPlus, Marketing: Megaphone, Telecalling: Phone, Sales: IndianRupee, Enrolment: Users, Training: BookOpen, Mocks: MessageSquare,
@@ -25,8 +23,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const setPwOpen = (v: boolean) => { setPwOpenRaw(v); if (v) setPwDone(false); };
   const [searchKind, setSearchKind] = useState<'lead' | 'candidate'>('lead');
   const [navOpen, setNavOpen] = useState(false);
-  const [builderUrl, setBuilderUrl] = useState<string | null>(null);
-  useEffect(() => { if (s.can('automations')) supabase().rpc('automation_builder').then(({ data }) => setBuilderUrl(data?.url || null)); }, [s]);
 
   useEffect(() => { const t = localStorage.getItem('stint-theme') || 'light'; setTheme(t); document.documentElement.dataset.theme = t; }, []);
   const toggleTheme = () => { const t = theme === 'light' ? 'dark' : 'light'; setTheme(t); document.documentElement.dataset.theme = t; localStorage.setItem('stint-theme', t); };
@@ -70,12 +66,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
                   </Link>
                 );
               })}
-              {g.name === 'Admin settings' && builderUrl && (
-                <button type="button" onClick={() => openBuilder(builderUrl)}
-                  className="flex min-h-[36px] w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13.5px] text-text2 hover:bg-surface2">
-                  <ExternalLink size={15} /><span>Automation builder</span>
-                </button>
-              )}
             </div>
           );
         })}

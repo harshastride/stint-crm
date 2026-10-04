@@ -141,3 +141,13 @@ test('phone layout: menu folds away and the quick panel opens as a sheet', async
   await expect(page.getByRole('complementary', { name: 'Quick panel' })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
+
+test('automation builder opens inside the CRM for admins only', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/builder');
+  await expect(page.locator('iframe[title="Activepieces automation builder"]')).toHaveAttribute('src', /localhost:8080/);
+  await login(page, 'teja');
+  await expect(page.getByRole('link', { name: 'Automation builder' })).toHaveCount(0);
+  await page.goto('/p/builder');
+  await expect(page.getByText('This page isn’t open to your role')).toBeVisible();
+});

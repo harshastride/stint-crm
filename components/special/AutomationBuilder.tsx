@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -37,11 +38,10 @@ export function AutomationBuilder() {
           <p className="mt-1 text-[13px] text-text2">In a flow pick <b>Stint CRM</b>: a trigger such as “New lead” or “Payment recorded”, then actions like WhatsApp, email, or “Create follow-up” back in the CRM. Publish and it runs.</p>
         </div>
         {info.url && (
-          <a href={info.url} target="stint-automations" rel="noopener"
-            onClick={(e) => { e.preventDefault(); openBuilder(info.url); }}
-            className="flex min-h-[44px] items-center gap-2 rounded-[10px] bg-accent px-4 text-sm font-semibold text-white">
-            Open automation builder <ExternalLink size={14} />
-          </a>
+          <div className="flex flex-wrap gap-2">
+            {s.can('builder') && <Link href="/p/builder" className="flex min-h-[44px] items-center rounded-[10px] bg-accent px-4 text-sm font-semibold text-white">Open automation builder</Link>}
+            <button type="button" onClick={() => openBuilder(info.url)} className="flex min-h-[44px] items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-sm font-medium">New tab <ExternalLink size={14} /></button>
+          </div>
         )}
       </div>
       <div className="mt-3 text-xs font-medium text-text2">Live flows listening to the CRM</div>
