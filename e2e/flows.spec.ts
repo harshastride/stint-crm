@@ -89,7 +89,7 @@ test('alumni page lists everyone in the Alumni stage', async ({ page }) => {
 test('a junior telecaller sees only their own leads', async ({ page }) => {
   await login(page, 'pooja');
   await page.goto('/p/lead');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   const db = service();
   const { data: me } = await db.from('staff').select('id').eq('email', 'pooja@demo.stint.local').single();
   const { count } = await db.from('lead').select('id', { count: 'exact', head: true }).eq('owner_id', me!.id);
@@ -194,7 +194,7 @@ test('next-step buttons: by stage, on follow-ups, and forms open with the person
   const editor = page.getByRole('complementary', { name: 'New payment' });
   await expect(editor.getByText(c!.full_name)).toBeVisible();
   await page.goto('/p/lead');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.locator('tbody tr').filter({ hasText: 'New' }).first().click();
   await expect(panel.getByRole('button', { name: 'Log call' }).first()).toBeVisible();
 });
@@ -261,7 +261,7 @@ test('tables: tick rows, bulk reassign, export ticked, hide a column', async ({ 
 test('tables: a role without edit rights gets no bulk actions', async ({ page }) => {
   await login(page, 'anita');
   await page.goto('/p/lead');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.getByRole('checkbox', { name: /^Select (?!all)/ }).first().click();
   await expect(page.getByText('1 selected')).toBeVisible();
   await expect(page.getByRole('button', { name: /Reassign to/ })).toHaveCount(0);
@@ -339,7 +339,7 @@ test('saved views: save, share with team, reopen, delete', async ({ page }) => {
   await db.from('saved_view').delete().like('name', 'E2E view%');
   await login(page, 'teja');
   await page.goto('/p/lead');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.getByPlaceholder('Search this list').fill('ravi');
   await page.getByRole('button', { name: 'Save this view' }).click();
   await page.getByLabel('View name').fill('E2E view ravi');
@@ -366,7 +366,7 @@ test('board: drag a card to another column', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/quote');
   await page.getByRole('tab', { name: 'All' }).click();
-  await page.getByRole('button', { name: 'board' }).click();
+  await page.getByRole('button', { name: 'board', exact: true }).click();
   const name = (q!.lead as unknown as { full_name: string }).full_name;
   const card = page.locator('[draggable="true"]').filter({ hasText: name });
   await expect(card).toHaveCount(1);
@@ -446,9 +446,9 @@ test('custom fields: admin adds one, it shows in the form and the list', async (
   await form.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Custom field added.')).toBeVisible();
   await page.goto('/p/candidate?edit=candidate:' + c!.id);
-  await page.getByRole('button', { name: 'table' }).click().catch(() => {});
+  await page.getByRole('button', { name: 'table', exact: true }).click().catch(() => {});
   await page.goto('/p/candidate');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   await expect(page.locator('thead')).toContainText('E2E Laptop issued');
   await page.goto('/p/candidate?edit=candidate:' + c!.id);
   const ed = page.getByRole('complementary', { name: 'Candidate' });
@@ -616,7 +616,7 @@ test('phone input: +91 shown, formats as you type, pasted numbers cleaned', asyn
 test('filters: pick values in a column, chips show, clear all', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/lead');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.getByRole('button', { name: /^Filter/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Filter' });
   await dlg.getByRole('button', { name: /^Stage/ }).click();
@@ -657,7 +657,7 @@ test('first-time tour: shows once for a new person, can be skipped and replayed'
 test('quick panel: full view, contact buttons, next/previous, Esc', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/lead');
-  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.locator('tbody tr').first().click();
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
   await expect(panel.getByRole('link', { name: 'Call' })).toHaveAttribute('href', /^tel:\+91\d{10}$/);
@@ -670,4 +670,30 @@ test('quick panel: full view, contact buttons, next/previous, Esc', async ({ pag
   await expect(panel.getByRole('link', { name: 'Open the full lead form' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
+});
+
+test('sidebar: counts, favourites, folding groups, collapse to icons, recently viewed', async ({ page }) => {
+  await login(page, 'teja');
+  const nav = page.getByRole('navigation', { name: 'Pages' });
+  await expect(nav.getByRole('link', { name: /My follow-ups/ }).getByLabel(/waiting/)).toBeVisible();
+  // favourite
+  await nav.getByRole('button', { name: 'Add to favourites: Call logs' }).click({ force: true });
+  await expect(nav.getByText('Favourites')).toBeVisible();
+  // fold a group
+  await nav.getByRole('button', { name: 'Telecalling' }).click();
+  await expect(nav.getByRole('button', { name: 'Telecalling' })).toHaveAttribute('aria-expanded', 'false');
+  await nav.getByRole('button', { name: 'Telecalling' }).click();
+  // recently viewed
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'table', exact: true }).click();
+  await page.locator('tbody tr').first().click();
+  const name = await page.getByRole('complementary', { name: 'Quick panel' }).locator('.truncate.text-base').first().innerText();
+  await expect(nav.getByText('Recently viewed')).toBeVisible();
+  await expect(nav.getByRole('link', { name })).toBeVisible();
+  // collapse with Ctrl+B
+  await page.keyboard.press('Control+b');
+  await expect(nav.getByRole('button', { name: /Expand the menu/ })).toBeVisible();
+  await page.keyboard.press('Control+b');
+  // tidy up the favourite
+  await nav.getByRole('button', { name: 'Remove from favourites: Call logs' }).first().click({ force: true });
 });

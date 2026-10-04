@@ -9,6 +9,7 @@ import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
 import { Timeline } from './Timeline';
+import { trackRecent } from '@/lib/recent';
 import { QuickDate } from './QuickDate';
 import { useToast } from './Toasts';
 import { MentionText } from './MentionText';
@@ -57,6 +58,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
       db.from('follow_up').select('*').eq(idCol, person.id).eq('status', 'Open').order('due_at'),
     ]);
     setP(one.data); setTimeline(tl.data || []); setTasks(fu.data || []);
+    if (one.data) trackRecent(s.staff.id, { kind: person.kind, id: person.id, name: one.data.full_name });
     if (!isLead) { const { data } = await db.rpc('candidate_private_get', { cid: person.id }); setPriv(data); }
   }, [person.kind, person.id, isLead, idCol]);
 
