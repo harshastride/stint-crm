@@ -28,6 +28,7 @@ export type PageCfg = {
   fields?: Field[];
   rowTitle: (r: Row) => string;
   derive?: (values: Row, refs: Record<string, RefRow[]>) => Row;  // fill fields from other fields
+  top?: string;                  // id of an extra block shown above the list (see ListPage TOP)
 };
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
@@ -80,7 +81,7 @@ export const PAGES: Record<string, PageCfg> = {
     id: 'lead', table: 'lead', kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
     select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
     columns: [{ key: 'full_name', label: 'Lead' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner' },
-      { key: 'source.name', label: 'Source' }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }],
+      { key: 'source.name', label: 'Source' }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No') }],
     views: [{ label: 'All leads' }, { label: 'My leads', where: (r, id) => r.owner_id === id }, { label: 'Open', where: (r) => !['Converted', 'Not interested'].includes(r.stage) }],
     kpis: [count('New today', (r) => isToday(r.created_at)), count('Overdue calls', (r) => !['Converted', 'Not interested'].includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at)),
       count('Interested', (r) => r.stage === 'Interested'), count('Converted', (r) => r.stage === 'Converted')],
@@ -357,6 +358,16 @@ export const PAGES: Record<string, PageCfg> = {
       { key: 'channel', label: 'Channel', type: 'select', options: ['WhatsApp', 'Email', 'WhatsApp + email', 'WhatsApp + in-app', 'In-app only'] }, { key: 'recipient', label: 'To', type: 'text' },
       { key: 'message', label: 'Message ({name}, {course}, {amount}, {date}, {link} are filled in)', type: 'textarea' }, { key: 'status', label: 'Status', type: 'select', options: ['Paused', 'Live'] }],
     rowTitle: (r) => r.name,
+  },
+  deliveries: {
+    id: 'deliveries', table: 'integration_event', kind: 'Delivery', purpose: 'Every event sent to Activepieces, and whether it arrived. Failed ones retry by themselves five times; tap one to retry now.', noCreate: true, readOnly: true, top: 'activepieces',
+    select: '*', order: { col: 'created_at' },
+    columns: [{ key: 'event', label: 'Flow event' }, { key: 'person_name', label: 'About' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'attempts', label: 'Tries', type: 'number' },
+      { key: 'last_error', label: 'Problem' }, { key: 'created_at', label: 'Raised', type: 'datetime' }, { key: 'sent_at', label: 'Sent', type: 'datetime' }],
+    views: [{ label: 'All' }, { label: 'Failed', where: (r) => r.status === 'Failed' }, { label: 'Waiting', where: (r) => ['Pending', 'Sending'].includes(r.status) }, { label: 'Sent', where: (r) => r.status === 'Sent' }],
+    kpis: [count('Sent', (r) => r.status === 'Sent'), count('Waiting', (r) => ['Pending', 'Sending'].includes(r.status)), count('Failed', (r) => r.status === 'Failed')],
+    fields: [{ key: 'event', label: 'Event', type: 'text', readOnly: true }, { key: 'status', label: 'Status', type: 'text', readOnly: true }, { key: 'last_error', label: 'Problem', type: 'text', readOnly: true }, { key: 'response_code', label: 'Answer code', type: 'number', readOnly: true }],
+    rowTitle: (r) => r.event + (r.person_name ? ' · ' + r.person_name : ''),
   },
   connections: {
     id: 'connections', table: 'connection', kind: 'Connection', purpose: 'The outside services the CRM talks to. They are connected inside Activepieces; record the state here.', cta: 'Add connection', order: { col: 'service', asc: true },

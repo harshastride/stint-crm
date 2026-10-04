@@ -11,6 +11,7 @@ const as = async (login) => {
   return c;
 };
 let pass = 0, fail = 0;
+const startedAt = new Date().toISOString();
 const check = (name, ok, detail = '') => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  → ' + detail)); };
 
 const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
@@ -204,6 +205,71 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Staff cannot edit their own staff row', (self.data || []).length === 0);
   await svc.auth.admin.deleteUser(u.id); }
 
+// Slice 3 · Activepieces: events, signed delivery, delivery log, incoming leads, consent
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const cfg = Object.fromEntries(((await svc.from('integration_config').select('key, value')).data || []).map((r) => [r.key, r.value]));
+  const tcfg = await tele.from('integration_config').select('value');
+  check('Staff cannot read integration secrets', (tcfg.data || []).length === 0);
+  const tlog = await tele.from('integration_event').select('id');
+  check('Telecaller cannot read the automation log', (tlog.data || []).length === 0);
+
+  // a local receiver stands in for Activepieces
+  const http = await import('node:http'); const crypto = await import('node:crypto');
+  const got = [];
+  const server = http.createServer((req, res) => { let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => { got.push({ headers: req.headers, body: b }); res.writeHead(200); res.end('ok'); }); });
+  await new Promise((r) => server.listen(3999, '0.0.0.0', r));
+  await svc.from('integration_config').update({ value: 'http://host.docker.internal:3999/hook' }).eq('key', 'activepieces_webhook_url');
+  const m = '6' + String(Date.now()).slice(-9);
+  const lead = (await desk.from('lead').insert({ full_name: 'Event Test', mobile: m, marketing_consent: true }).select('id').single()).data;
+  const ev = (await admin.from('integration_event').select('id, event, payload').eq('entity_id', lead.id).eq('event', 'lead.created').single()).data;
+  check('A new lead raises a lead.created event', !!ev && ev.payload.data.lead.marketing_consent === true, JSON.stringify(ev?.payload));
+  // send only this test's event: park the others for a while, then put them back
+  const parked = ((await svc.from('integration_event').select('id').neq('id', ev.id).eq('status', 'Pending')).data || []).map((x) => x.id);
+  if (parked.length) await svc.from('integration_event').update({ next_try_at: '2999-01-01' }).in('id', parked);
+  for (let i = 0; i < 6 && !got.some((g) => g.headers['x-stint-event-id'] === ev.id); i++) { await svc.rpc('dispatch_events'); await new Promise((r) => setTimeout(r, 1000)); }
+  await svc.rpc('dispatch_events');
+  const hit = got.find((g) => g.headers['x-stint-event-id'] === ev.id);
+  const sig = hit && 'sha256=' + crypto.createHmac('sha256', cfg.signing_secret).update(hit.body).digest('hex');
+  check('The event reaches the webhook', !!hit && hit.headers['x-stint-event'] === 'lead.created', got.length + ' requests');
+  check('The event is signed with the secret', !!hit && hit.headers['x-stint-signature'] === sig, hit?.headers['x-stint-signature'] + ' vs ' + sig);
+  const sent = (await admin.from('integration_event').select('status').eq('id', ev.id).single()).data;
+  check('The log shows the event as Sent', sent?.status === 'Sent', sent?.status);
+  server.close();
+  // nobody listening: the log keeps it waiting with the problem written down
+  await svc.from('integration_config').update({ value: 'http://host.docker.internal:3998/none' }).eq('key', 'activepieces_webhook_url');
+  await admin.rpc('send_test_event');
+  const t = (await admin.from('integration_event').select('id').eq('event', 'test.ping').order('created_at', { ascending: false }).limit(1).single()).data;
+  for (let i = 0; i < 6; i++) { await svc.rpc('dispatch_events'); await new Promise((r) => setTimeout(r, 1500)); const x = (await admin.from('integration_event').select('last_error').eq('id', t.id).single()).data; if (x?.last_error) break; }
+  const failed = (await admin.from('integration_event').select('status, attempts, last_error').eq('id', t.id).single()).data;
+  check('A failed delivery is kept to retry, with the problem shown', failed.status === 'Pending' && failed.attempts === 1 && !!failed.last_error, JSON.stringify(failed));
+  const rt = await admin.rpc('retry_event', { eid: t.id });
+  const rtt = await tele.rpc('retry_event', { eid: t.id });
+  check('Admin can retry; telecaller cannot', !rt.error && !!rtt.error);
+  await svc.from('integration_config').update({ value: cfg.activepieces_webhook_url }).eq('key', 'activepieces_webhook_url');
+  await svc.from('integration_event').delete().in('event', ['test.ping']);
+  await svc.from('integration_event').delete().eq('entity_id', lead.id);
+  if (parked.length) await svc.from('integration_event').update({ next_try_at: new Date().toISOString() }).in('id', parked);
+
+  // incoming leads endpoint (needs the app running on port 3100)
+  const post = (key, body) => fetch('http://localhost:3100/api/integrations/lead', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key }, body: JSON.stringify(body) }).then(async (r) => ({ status: r.status, json: await r.json() })).catch(() => null);
+  const m2 = '5' + String(Date.now()).slice(-9);
+  const bad = await post('wrong', { full_name: 'X', mobile: m2 });
+  if (!bad) console.log('SKIP incoming endpoint checks: the app is not running on port 3100');
+  else {
+    check('Incoming lead with a wrong key is refused', bad.status === 401);
+    const ok = await post(cfg.incoming_api_key, { full_name: 'Meta Lead', mobile: '+91 ' + m2, source: 'Meta lead form', course: 'Python', marketing_consent: true });
+    const row = (await admin.from('lead').select('id, owner_id, source:source_id(name), marketing_consent, program:program_id(name)').eq('mobile', m2).single()).data;
+    check('Incoming lead is created, tagged with its source and assigned', ok.status === 201 && row?.source?.name === 'Meta lead form' && !!row?.owner_id && row?.program?.name === 'Python' && row?.marketing_consent === true, JSON.stringify(ok.json));
+    const again = await post(cfg.incoming_api_key, { full_name: 'Meta Lead', mobile: m2, source: 'Google lead form' });
+    const notes = (await admin.from('note').select('body').eq('lead_id', row.id)).data || [];
+    check('The same mobile again is not added twice; it gets a note', again.json.duplicate === true && notes.some((n) => /Enquired again/.test(n.body)), JSON.stringify(again.json));
+    await admin.from('lead').delete().eq('id', row.id);
+    const fd = await fetch('http://localhost:3100/api/integrations/fees-due?all=1', { headers: { 'x-api-key': cfg.incoming_api_key } }).then((r) => r.json());
+    const fdBad = await fetch('http://localhost:3100/api/integrations/fees-due').then((r) => r.status);
+    check('Fee reminder list needs the key and lists unpaid instalments', fdBad === 401 && Array.isArray(fd.items) && fd.items.every((i) => i.amount > 0 && i.due_on), JSON.stringify(fd).slice(0, 200));
+  }
+  await admin.from('lead').delete().eq('id', lead.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];
@@ -221,6 +287,9 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const t = await tele.from('company').insert({ name: name + ' tele' });
   check('Telecaller cannot add companies', !!t.error, 'insert was allowed');
   await admin.from('company').delete().eq('id', r.data?.id); }
+
+// test records must not be sent to Activepieces: drop the events this run raised
+await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } }).from('integration_event').delete().gte('created_at', startedAt);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

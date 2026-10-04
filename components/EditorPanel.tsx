@@ -109,6 +109,18 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
           )}
         </div>
       )}
+      {cfg.id === 'deliveries' && row?.id && (
+        <div className="flex flex-col gap-2">
+          <div className="text-xs font-medium text-text2">What was sent</div>
+          <pre className="max-h-72 overflow-auto rounded-[10px] bg-surface2 p-3 text-[11.5px] leading-relaxed">{JSON.stringify(row.payload, null, 2)}</pre>
+          {s.can('deliveries', 'w') && row.status !== 'Sent' && (
+            <Button variant="primary" disabled={busy} onClick={async () => {
+              setBusy(true); const { error } = await supabase().rpc('retry_event', { eid: row.id }); setBusy(false);
+              if (error) setMsg({ tone: 'bad', text: friendlyError(error) }); else onSaved('Queued to send again within a minute.');
+            }}>Retry now</Button>
+          )}
+        </div>
+      )}
       {cfg.id === 'users' && row?.id && !readOnly && row.id !== s.staff.id && (
         <Button disabled={busy} onClick={async () => {
           setBusy(true);
@@ -117,7 +129,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
           setMsg(res.ok ? { tone: 'good', text: `New temporary password: ${out.password} — share it privately. They must change it when they sign in.` } : { tone: 'bad', text: out.error || 'Could not reset.' });
         }}>Reset password</Button>
       )}
-      {readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}
+      {readOnly && !cfg.readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {!readOnly && (
         <div className="flex flex-col gap-2">

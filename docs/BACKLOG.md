@@ -19,11 +19,11 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 ## Slice 3 — Activepieces (see project plan "activepieces-integration-plan")
 | # | Task | Done when |
 |---|---|---|
-| 3.1 | Outgoing events | Supabase database webhooks (or pg_net trigger) POST signed events to Activepieces for: lead created/assigned, counselling booked, quote sent, lead converted, payment recorded, attendance absent, mock booked/result, resume rejected, vendor request created, placement recorded |
-| 3.2 | Incoming endpoint | `POST /api/integrations/lead` with an API key creates a lead (dedupe by mobile, source tagging, assignment) for Meta/Google/portal flows |
-| 3.3 | Delivery log | Table + Automations page tab showing sent/failed per flow, with retry |
-| 3.4 | Starter flows | JSON for: Meta lead in, lead assigned, fee due reminder, payment receipt |
-| 3.5 | Consent | Marketing messages only to leads who agreed (field on lead, captured on the enquiry form) |
+| 3.1 ✅ | Outgoing events | Supabase database webhooks (or pg_net trigger) POST signed events to Activepieces for: lead created/assigned, counselling booked, quote sent, lead converted, payment recorded, attendance absent, mock booked/result, resume rejected, vendor request created, placement recorded |
+| 3.2 ✅ | Incoming endpoint | `POST /api/integrations/lead` with an API key creates a lead (dedupe by mobile, source tagging, assignment) for Meta/Google/portal flows |
+| 3.3 ✅ | Delivery log | Table + Automations page tab showing sent/failed per flow, with retry |
+| 3.4 ✅ | Starter flows | JSON for: Meta lead in, lead assigned, fee due reminder, payment receipt |
+| 3.5 ✅ | Consent | Marketing messages only to leads who agreed (field on lead, captured on the enquiry form) |
 
 ## Slice 4 — recordings (see project plan "conversation-capture-plan")
 | # | Task | Done when |

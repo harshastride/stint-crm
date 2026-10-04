@@ -1,0 +1,20 @@
+{
+  "name": "Payment receipt",
+  "about": "When Finance records a payment, send the student the receipt.",
+  "trigger": { "piece": "Webhook", "event": "Catch webhook (raw body on)", "router": "{{trigger.body.event}} == 'payment.recorded'" },
+  "steps": [
+    { "name": "check_signature", "piece": "Code", "action": "Run code", "settings": { "code": "see README: Signature check" } },
+    { "name": "skip_if_seen", "piece": "Tables", "action": "Find row", "settings": { "table": "handled_events", "where": { "event_id": "{{trigger.body.id}}" }, "stop_if_found": true } },
+    {
+      "name": "whatsapp_receipt", "piece": "<WhatsApp provider>", "action": "Send template message",
+      "settings": { "to": "+91{{trigger.body.data.candidate.mobile}}", "template": "payment_receipt",
+        "variables": [ "{{trigger.body.data.candidate.name}}", "₹{{trigger.body.data.amount}}", "{{trigger.body.data.receipt_no}}", "{{trigger.body.data.paid_on}}" ] }
+    },
+    {
+      "name": "email_receipt", "piece": "<Email provider>", "action": "Send email",
+      "settings": { "to": "{{trigger.body.data.candidate.email}}", "subject": "Receipt {{trigger.body.data.receipt_no}} · Stint Academy",
+        "body": "Received ₹{{trigger.body.data.amount}} ({{trigger.body.data.mode}}) on {{trigger.body.data.paid_on}} for {{trigger.body.data.for}}. Receipt number {{trigger.body.data.receipt_no}}." }
+    },
+    { "name": "remember", "piece": "Tables", "action": "Insert row", "settings": { "table": "handled_events", "row": { "event_id": "{{trigger.body.id}}" } } }
+  ]
+}

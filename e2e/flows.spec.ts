@@ -7,6 +7,7 @@ test.afterAll(async () => {
   const db = service();
   await db.from('lead').delete().eq('mobile', mobile);
   await db.from('company').delete().like('name', 'E2E Co %');
+  await db.from('integration_event').delete().like('person_name', 'E2E %');
 });
 
 test('admin signs in and sees the whole-CRM dashboard', async ({ page }) => {
@@ -91,4 +92,29 @@ test('a junior telecaller sees only their own leads', async ({ page }) => {
   const { data: me } = await db.from('staff').select('id').eq('email', 'pooja@demo.stint.local').single();
   const { count } = await db.from('lead').select('id', { count: 'exact', head: true }).eq('owner_id', me!.id);
   await expect(page.locator('tbody tr')).toHaveCount(count || 0);
+});
+
+test('admin sees the Activepieces setup and the automation log', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/deliveries');
+  await expect(page.getByRole('heading', { name: 'Activepieces setup' })).toBeVisible();
+  await expect(page.getByText('/api/integrations/lead')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Failed' })).toBeVisible();
+});
+
+test('enquiry form records marketing consent', async ({ page }) => {
+  const m = '4' + String(Date.now()).slice(-9);
+  await login(page, 'anita');
+  await page.goto('/p/enquiry');
+  await page.getByPlaceholder('As they say it').fill('E2E Consent');
+  await page.getByPlaceholder('10 digits').fill(m);
+  await page.locator('select').filter({ has: page.locator('option', { hasText: 'Python' }) }).first().selectOption({ label: 'Python' });
+  await page.getByLabel(/agree to get course updates/).check();
+  await page.getByRole('button', { name: 'Save enquiry' }).click();
+  await expect(page.getByText(/E2E Consent saved as a new lead/)).toBeVisible();
+  const db = service();
+  const { data } = await db.from('lead').select('id, marketing_consent').eq('mobile', m).single();
+  expect(data?.marketing_consent).toBe(true);
+  await db.from('integration_event').delete().eq('entity_id', data!.id);
+  await db.from('lead').delete().eq('id', data!.id);
 });

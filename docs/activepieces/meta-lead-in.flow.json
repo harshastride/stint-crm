@@ -1,0 +1,28 @@
+{
+  "name": "Meta lead in",
+  "about": "New lead from Meta Lead Ads goes into the CRM. Duplicates (same mobile) become a note on the existing lead.",
+  "trigger": { "piece": "Facebook Leads", "event": "New Lead", "settings": { "page": "<your Facebook page>", "form": "<lead form, or all forms>" } },
+  "steps": [
+    {
+      "name": "send_to_crm",
+      "piece": "HTTP",
+      "action": "Send HTTP request",
+      "settings": {
+        "method": "POST",
+        "url": "https://<your CRM address>/api/integrations/lead",
+        "headers": { "x-api-key": "{{connections.stint_incoming_key}}", "Content-Type": "application/json" },
+        "body": {
+          "full_name": "{{trigger.full_name}}",
+          "mobile": "{{trigger.phone_number}}",
+          "email": "{{trigger.email}}",
+          "city": "{{trigger.city}}",
+          "course": "{{trigger.which_course_are_you_interested_in}}",
+          "source": "Meta lead form",
+          "campaign": "{{trigger.campaign_name}}",
+          "marketing_consent": "{{trigger.agree_to_updates}}"
+        },
+        "failure": "Retry 3 times, then notify the admin by email"
+      }
+    }
+  ]
+}

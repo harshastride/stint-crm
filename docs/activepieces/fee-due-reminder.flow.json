@@ -1,0 +1,62 @@
+{
+  "name": "Fee due reminder",
+  "about": "Daily: remind students 3 days before a due date, on the day, and every 3 days while overdue. Service message: no marketing consent needed.",
+  "trigger": {
+    "piece": "Schedule",
+    "event": "Every day",
+    "settings": {
+      "time": "09:00",
+      "timezone": "Asia/Kolkata"
+    }
+  },
+  "steps": [
+    {
+      "name": "due_today",
+      "piece": "HTTP",
+      "action": "Send HTTP request",
+      "settings": {
+        "method": "GET",
+        "url": "https://<your CRM address>/api/integrations/fees-due",
+        "headers": {
+          "x-api-key": "{{connections.stint_incoming_key}}"
+        },
+        "note": "Returns only the instalments to remind today: 3 days before, on the day, and every 3 days late"
+      }
+    },
+    {
+      "name": "each_student",
+      "piece": "Loop",
+      "action": "Loop on items",
+      "settings": {
+        "items": "{{due_today.body.items}}"
+      },
+      "steps": [
+        {
+          "name": "whatsapp",
+          "piece": "<WhatsApp provider>",
+          "action": "Send template message",
+          "settings": {
+            "template": "fee_due",
+            "to": "+91{{item.mobile}}",
+            "variables": [
+              "{{item.name}}",
+              "₹{{item.amount}}",
+              "{{item.due_on}}",
+              "<payment link>"
+            ]
+          }
+        },
+        {
+          "name": "email",
+          "piece": "<Email provider>",
+          "action": "Send email",
+          "settings": {
+            "to": "{{item.email}}",
+            "subject": "Fee instalment due {{item.due_on}}",
+            "body": "Hi {{item.name}}, your instalment of ₹{{item.amount}} is due on {{item.due_on}}. Ignore this if already paid."
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import type { Row } from '@/lib/pages';
 import { Button, Notice } from '../ui';
 import { PageHeader } from '../ListPage';
 
-const blank = { full_name: '', mobile: '', email: '', city: '', program_id: '', course_other: '', preferred_mode: '', preferred_start: '', currently: '', source_id: '', referred_by: '', notes: '' };
+const blank = { full_name: '', mobile: '', email: '', city: '', program_id: '', course_other: '', preferred_mode: '', preferred_start: '', currently: '', source_id: '', referred_by: '', notes: '', consent: false };
 const ctl = 'h-11 w-full px-3 text-sm';
 
 export function EnquiryForm() {
@@ -34,6 +34,7 @@ export function EnquiryForm() {
       full_name: String(v.full_name).trim(), mobile, email: v.email || null, city: v.city || null, program_id: v.program_id && v.program_id !== '__other' ? v.program_id : null,
       course_other: v.program_id === '__other' ? String(v.course_other).trim() : null, preferred_mode: v.preferred_mode || null, preferred_start: v.preferred_start || null,
       currently: v.currently || null, source_id: v.source_id || null, referred_by: v.referred_by || null, notes: v.notes || null, created_by: s.staff.id,
+      marketing_consent: !!v.consent, consent_at: v.consent ? new Date().toISOString() : null,
     };
     const { data, error } = await db.from('lead').insert(row).select('id, owner:owner_id(full_name)').single();
     setBusy(false);
@@ -84,11 +85,15 @@ export function EnquiryForm() {
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Referred by<input className={ctl} value={v.referred_by} onChange={set('referred_by')} placeholder="Name, if any" /></label>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Notes<input className={ctl} value={v.notes} onChange={set('notes')} placeholder="Anything they asked about" /></label>
           </div>
+          <label className="mt-3 flex min-h-[44px] cursor-pointer items-center gap-3 rounded-[10px] bg-surface2 px-3 text-sm">
+            <input type="checkbox" className="h-5 w-5" checked={!!v.consent} onChange={(e) => setV({ ...v, consent: e.target.checked })} />
+            <span>They agree to get course updates and offers on WhatsApp, SMS and email <span className="text-muted">(ask them; leave unticked if not)</span></span>
+          </label>
         </section>
         {msg && <Notice tone={msg.tone}>{msg.text} {msg.id && s.can('lead') && <Link className="underline" href={'/p/lead?person=lead:' + msg.id}>Open the lead</Link>}</Notice>}
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="primary" disabled={busy || !canWrite} onClick={save}>{busy ? 'Saving…' : 'Save enquiry'}</Button>
-          <span className="text-[13px] text-text2">Saving checks the mobile for duplicates and gives the lead to the telecaller with the fewest open leads.</span>
+          <span className="text-[13px] text-text2">Saving checks the mobile for duplicates and assigns the lead by the assignment rule.</span>
         </div>
       </div>
     </main>

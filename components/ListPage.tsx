@@ -9,6 +9,9 @@ import { Button, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } fr
 import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
 import { friendlyError } from './Fields';
+import { ActivepiecesSetup } from './special/ActivepiecesSetup';
+
+const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup };
 
 const cell = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);
@@ -158,6 +161,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           {cfg.person && person && !panelOpen && <Button onClick={() => setPanelOpen(true)}>Show panel</Button>}
           {canWrite && cfg.fields && !cfg.noCreate && cfg.cta && <Button variant="cta" onClick={onCta}>{cfg.cta}</Button>}
         </PageHeader>
+
+        {cfg.top && TOP[cfg.top] && (() => { const Top = TOP[cfg.top!]; return <Top />; })()}
 
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
           <div className="flex flex-wrap gap-1" role="tablist">

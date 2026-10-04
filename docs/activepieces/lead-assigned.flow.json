@@ -1,0 +1,20 @@
+{
+  "name": "Lead assigned",
+  "about": "When the CRM gives a lead to someone, greet the lead and tell the owner.",
+  "trigger": { "piece": "Webhook", "event": "Catch webhook (raw body on)", "router": "{{trigger.body.event}} == 'lead.assigned'" },
+  "steps": [
+    { "name": "check_signature", "piece": "Code", "action": "Run code", "settings": { "code": "see README: Signature check" } },
+    { "name": "skip_if_seen", "piece": "Tables", "action": "Find row", "settings": { "table": "handled_events", "where": { "event_id": "{{trigger.body.id}}" }, "stop_if_found": true } },
+    {
+      "name": "whatsapp_lead", "piece": "<WhatsApp provider>", "action": "Send template message",
+      "settings": { "to": "+91{{trigger.body.data.lead.mobile}}", "template": "lead_welcome",
+        "variables": [ "{{trigger.body.data.lead.name}}", "{{trigger.body.data.lead.owner}}", "{{trigger.body.data.lead.program}}" ] }
+    },
+    {
+      "name": "email_owner", "piece": "<Email provider>", "action": "Send email",
+      "settings": { "to": "{{trigger.body.data.lead.owner_email}}", "subject": "New lead: {{trigger.body.data.lead.name}}",
+        "body": "{{trigger.body.data.lead.name}} ({{trigger.body.data.lead.mobile}}) wants {{trigger.body.data.lead.program}}. Source: {{trigger.body.data.lead.source}}. Call them today." }
+    },
+    { "name": "remember", "piece": "Tables", "action": "Insert row", "settings": { "table": "handled_events", "row": { "event_id": "{{trigger.body.id}}" } } }
+  ]
+}
