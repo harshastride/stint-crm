@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { login, service } from './helpers';
+import { env, login, service } from './helpers';
 
 const mobile = '7' + String(Date.now()).slice(-9);
 
@@ -150,4 +150,30 @@ test('automation builder opens inside the CRM for admins only', async ({ page })
   await expect(page.getByRole('link', { name: 'Automation builder' })).toHaveCount(0);
   await page.goto('/p/builder');
   await expect(page.getByText('This page isn’t open to your role')).toBeVisible();
+});
+
+test('change password: the window opens and the new password works', async ({ page }) => {
+  const db = service();
+  const email = `pw${Date.now()}@demo.stint.local`, oldPw = 'Old-pass-123456', newPw = 'New-pass-654321';
+  const { data } = await db.auth.admin.createUser({ email, password: oldPw, email_confirm: true });
+  await db.from('staff').insert({ id: data.user!.id, full_name: 'PW Test', email, role: 'Telecaller', level: 'Junior', status: 'Active' });
+  try {
+    await page.goto('/login');
+    await page.getByLabel('Email').fill(email);
+    await page.getByLabel('Password').fill(oldPw);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Change password' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Change password' });
+    await expect(dialog).toBeInViewport();
+    await dialog.getByLabel('New password').fill(newPw);
+    await dialog.getByLabel('Type it again').fill(newPw);
+    await dialog.getByRole('button', { name: 'Save new password' }).click();
+    await expect(dialog.getByText('Password changed')).toBeVisible();
+    // the new password signs in, the old one does not
+    const anon = (await import('@supabase/supabase-js')).createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+    expect((await anon.auth.signInWithPassword({ email, password: newPw })).error).toBeNull();
+    expect((await anon.auth.signInWithPassword({ email, password: oldPw })).error).not.toBeNull();
+  } finally {
+    await db.auth.admin.deleteUser(data.user!.id);
+  }
 });

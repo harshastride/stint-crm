@@ -78,6 +78,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
         </div>
         <button type="button" onClick={() => setPwOpen(true)} className="mx-2.5 mt-2 min-h-[36px] rounded-lg text-[13px] font-medium text-text2 hover:bg-surface2">Change password</button>
         <button type="button" onClick={s.signOut} className="mx-2.5 mb-1 mt-1 min-h-[36px] rounded-lg border border-line2 bg-surface text-[13px] font-medium">Sign out</button>
+      </nav>
+      {/* outside the sidebar: the sidebar's slide-in transform would otherwise trap this fixed window inside it */}
         {pwOpen && (
           <div role="dialog" aria-label="Change password" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setPwOpen(false)}>
             <div className="w-full max-w-[380px] rounded-2xl border border-line bg-surface p-6" onClick={(e) => e.stopPropagation()}>
@@ -87,7 +89,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         )}
-      </nav>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2.5 md:gap-3 md:px-5">
           <button type="button" aria-label="Open menu" onClick={() => setNavOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-line2 md:hidden"><Menu size={18} /></button>
