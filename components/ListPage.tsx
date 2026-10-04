@@ -1,10 +1,10 @@
 'use client';
-import { ArrowDown, ArrowUp, Pencil, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
-import { getPath, type Col, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
+import { getPath, type Bulk, type Col, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } from './ui';
 import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
@@ -39,6 +39,26 @@ const compare = (c: Col, a: Row, b: Row) => {
   if (NUMERIC.includes(c.type || '')) return Number(x) - Number(y);
   return String(x).localeCompare(String(y), 'en-IN', { numeric: true, sensitivity: 'base' });
 };
+/** Page numbers with gaps: 1 … 4 5 6 … 13 (always the same width while paging). */
+const pageItems = (page: number, count: number): (number | 'gap')[] => {
+  if (count <= 7) return Array.from({ length: count }, (_, i) => i + 1);
+  if (page <= 4) return [1, 2, 3, 4, 5, 'gap', count];
+  if (page >= count - 3) return [1, 'gap', count - 4, count - 3, count - 2, count - 1, count];
+  return [1, 'gap', page - 1, page, page + 1, 'gap', count];
+};
+
+function Tick({ state, label, onChange }: { state: boolean | 'some'; label: string; onChange: () => void }) {
+  return (
+    <button type="button" role="checkbox" aria-checked={state === 'some' ? 'mixed' : state} aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onChange(); }}
+      className="flex h-11 w-11 items-center justify-center">
+      <span className={cx('flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border', state ? 'border-accent bg-accent text-white' : 'border-line2 bg-surface')}>
+        {state === 'some' ? <Minus size={12} strokeWidth={3} /> : state ? <Check size={12} strokeWidth={3} /> : null}
+      </span>
+    </button>
+  );
+}
+
 const plain = (c: Col, r: Row) => { const v = c.get ? c.get(r) : getPath(r, c.key); return v == null ? '' : String(v); };
 const short = (c: Col, r: Row) => {
   const v = c.get ? c.get(r) : getPath(r, c.key);
@@ -80,6 +100,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ key: string; asc: boolean } | null>(null);
   const [page, setPage] = useState(0);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState<Bulk | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [colsOpen, setColsOpen] = useState(false);
 
   // Fetch everything the person may see, in chunks, so search, sort, views and totals cover all rows.
   const load = useCallback(async () => {
@@ -95,7 +120,16 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     setError(null); setRows(all);
   }, [cfg]);
 
-  useEffect(() => { setQ(''); setSort(null); setPage(0); }, [cfg]);
+  useEffect(() => {
+    setQ(''); setSort(null); setPage(0); setPicked(new Set()); setBulkOpen(null); setColsOpen(false);
+    try { setHidden(new Set(JSON.parse(localStorage.getItem('stint-cols:' + cfg.id) || '[]'))); } catch { setHidden(new Set()); }
+  }, [cfg]);
+  const toggleCol = (key: string) => setHidden((old) => {
+    const n = new Set(old); if (n.has(key)) n.delete(key); else if (cfg.columns.length - n.size > 1) n.add(key);
+    try { localStorage.setItem('stint-cols:' + cfg.id, JSON.stringify([...n])); } catch {}
+    return n;
+  });
+  const cols = cfg.columns.filter((c) => !hidden.has(c.key));
   useEffect(() => { setRows(null); setView(0); setPerson(null); setSelId(null); setEditing(null); setNotice(null); setLayout(cfg.board && !phone() ? 'board' : 'table'); load(); }, [cfg, load]);
 
   // open a new record with the person filled in: /p/payment?new=candidate:<id> (quick panel "Next steps")
@@ -132,6 +166,25 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const pages = Math.max(1, Math.ceil(shown.length / PAGE));
   const pageRows = useMemo(() => shown.slice(page * PAGE, page * PAGE + PAGE), [shown, page]);
   useEffect(() => { setPage(0); }, [q, sort, view]);
+  // ticked rows: only those still in the current list count
+  const pickedRows = useMemo(() => shown.filter((r) => r.id && picked.has(r.id)), [shown, picked]);
+  const pageIds = pageRows.map((r) => r.id).filter(Boolean) as string[];
+  const pageState: boolean | 'some' = pageIds.length && pageIds.every((id) => picked.has(id)) ? true : pageIds.some((id) => picked.has(id)) ? 'some' : false;
+  const togglePick = (id: string) => setPicked((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const togglePage = () => setPicked((o) => { const n = new Set(o); if (pageState === true) pageIds.forEach((id) => n.delete(id)); else pageIds.forEach((id) => n.add(id)); return n; });
+  const canBulk = canWrite && !!cfg.bulk?.length && !cfg.readFrom;
+  const runBulk = async (b: Bulk, value: string | null) => {
+    const ids = pickedRows.map((r) => r.id as string);
+    if (!ids.length) return;
+    setBulkBusy(true);
+    const { data, error } = await supabase().from(cfg.table).update({ [b.field]: value }).in('id', ids).select('id');
+    setBulkBusy(false); setBulkOpen(null);
+    if (error) { setNotice({ tone: 'bad', text: b.label + ': ' + friendlyError(error) }); return; }
+    const done = (data || []).length, skipped = ids.length - done;
+    const shownValue = b.ref ? (s.refs[b.ref]?.find((x) => x.id === value)?.label || value) : value;
+    setNotice({ tone: skipped ? 'bad' : 'good', text: `${b.label}${b.value ? '' : ' ' + shownValue}: ${done} updated` + (skipped ? `, ${skipped} not allowed for your role.` : '.') });
+    setPicked(new Set()); load();
+  };
   useEffect(() => { if (page > pages - 1) setPage(pages - 1); }, [page, pages]);
 
   // people pages always show somebody in the panel: default to the first row
@@ -154,12 +207,13 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
 
   const exportCsv = () => {
     const esc = (v: string) => '"' + v.replace(/"/g, '""') + '"';
-    const text = [cfg.columns.map((c) => esc(c.label)).join(','), ...shown.map((r) => cfg.columns.map((c) => esc(plain(c, r))).join(','))].join('\n');
+    const out = pickedRows.length ? pickedRows : shown;
+    const text = [cols.map((c) => esc(c.label)).join(','), ...out.map((r) => cols.map((c) => esc(plain(c, r))).join(','))].join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv' }));
     a.download = (meta?.title || cfg.id).replace(/[^a-z0-9]+/gi, '-').toLowerCase() + '.csv';
     a.click();
-    setNotice({ tone: 'good', text: shown.length + ' rows exported.' });
+    setNotice({ tone: 'good', text: out.length + ' rows exported.' });
   };
 
   const onCta = () => {
@@ -191,6 +245,26 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             ))}
           </div>
           <div className="ml-auto flex items-center gap-2">
+          {layout === 'table' && (
+            <div className="relative">
+              <button type="button" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} className="flex h-[38px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">
+                <Columns3 size={14} /> Columns{hidden.size ? ` · ${cols.length}/${cfg.columns.length}` : ''}
+              </button>
+              {colsOpen && (
+                <div role="menu" className="absolute right-0 z-30 mt-1 w-56 rounded-xl border border-line bg-surface p-1 shadow-lg">
+                  <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Show columns</div>
+                  {cfg.columns.map((c) => (
+                    <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={!hidden.has(c.key)} onClick={() => toggleCol(c.key)}
+                      className="flex min-h-[38px] w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
+                      <span className={cx('flex h-4 w-4 items-center justify-center rounded-[4px] border', !hidden.has(c.key) ? 'border-accent bg-accent text-white' : 'border-line2')}>{!hidden.has(c.key) && <Check size={11} strokeWidth={3} />}</span>
+                      {c.label}
+                    </button>
+                  ))}
+                  {hidden.size > 0 && <button type="button" onClick={() => { setHidden(new Set()); try { localStorage.removeItem('stint-cols:' + cfg.id); } catch {} }} className="mt-1 min-h-[36px] w-full rounded-lg border-t border-line text-[12.5px] font-medium text-accent">Show all</button>}
+                </div>
+              )}
+            </div>
+          )}
           <label className="relative">
             <span className="sr-only">Search this list</span>
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
@@ -219,6 +293,28 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
 
         {notice && <Notice tone={notice.tone}>{notice.text}</Notice>}
         {error && <Notice tone="bad">{error}</Notice>}
+
+        {layout === 'table' && pickedRows.length > 0 && (
+          <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accentSoft px-3 py-2" aria-live="polite">
+            <span className="text-[13px] font-semibold text-accentText">{pickedRows.length} selected</span>
+            {canBulk && cfg.bulk!.map((b) => b.value ? (
+              <button key={b.label} type="button" disabled={bulkBusy} onClick={() => runBulk(b, b.value!)} className="min-h-[36px] rounded-[10px] bg-accent px-3 text-[13px] font-semibold text-white">{b.label}</button>
+            ) : (
+              <span key={b.label} className="relative">
+                <button type="button" disabled={bulkBusy} aria-expanded={bulkOpen?.label === b.label} onClick={() => setBulkOpen(bulkOpen?.label === b.label ? null : b)} className="min-h-[36px] rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">{b.label} …</button>
+                {bulkOpen?.label === b.label && (
+                  <div role="menu" className="absolute left-0 z-30 mt-1 max-h-72 w-56 overflow-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
+                    {(b.ref ? (s.refs[b.ref] || []).map((x) => [x.id, x.label + ((x as { extra?: { role?: string } }).extra?.role ? ' · ' + (x as { extra?: { role?: string } }).extra!.role : '')]) : (b.options || s.lists[b.list || ''] || []).map((v) => [v, v])).map(([v, l]) => (
+                      <button key={v} type="button" role="menuitem" onClick={() => runBulk(b, v)} className="block min-h-[38px] w-full rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">{l}</button>
+                    ))}
+                  </div>
+                )}
+              </span>
+            ))}
+            <button type="button" onClick={exportCsv} className="min-h-[36px] rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">Export {pickedRows.length}</button>
+            <button type="button" aria-label="Clear selection" onClick={() => setPicked(new Set())} className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface"><X size={16} /></button>
+          </div>
+        )}
 
         {rows === null ? (
           <div className="rounded-xl border border-line bg-surface p-6 text-muted">Loading…</div>
@@ -254,7 +350,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             <table className="w-full border-collapse text-left text-[13px]">
               <thead>
                 <tr className="bg-surface2 text-xs text-text2">
-                  {cfg.columns.map((c) => {
+                  <th className="w-11 pl-1"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></th>
+                  {cols.map((c) => {
                     const on = sort?.key === c.key;
                     return (
                       <th key={c.key} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className="whitespace-nowrap px-2 py-1.5 font-semibold">
@@ -270,8 +367,9 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               </thead>
               <tbody>
                 {pageRows.map((r) => (
-                  <tr key={r.id ?? r.key ?? JSON.stringify(r)} onClick={() => openRow(r)} className={cx('cursor-pointer border-t border-line', selId === r.id && cfg.person ? 'bg-accentSoft' : 'hover:bg-surface2')}>
-                    {cfg.columns.map((c, i) => <td key={c.key} className={cx('px-4 py-3 align-middle', i === 0 ? 'font-semibold' : 'text-text2')}>{cell(c, r)}</td>)}
+                  <tr key={r.id ?? r.key ?? JSON.stringify(r)} onClick={() => openRow(r)} className={cx('cursor-pointer border-t border-line', (r.id && picked.has(r.id)) || (selId === r.id && cfg.person) ? 'bg-accentSoft' : 'hover:bg-surface2')}>
+                    <td className="w-11 pl-1">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</td>
+                    {cols.map((c, i) => <td key={c.key} className={cx('px-4 py-3 align-middle', i === 0 ? 'font-semibold' : 'text-text2')}>{cell(c, r)}</td>)}
                     {cfg.person && cfg.fields && (
                       <td className="pr-3">
                         <button type="button" aria-label={(canWrite ? 'Edit ' : 'View ') + cfg.rowTitle(r)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>
@@ -287,11 +385,17 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
             <span>{layout === 'table' && pages > 1 ? `${page * PAGE + 1}–${Math.min(shown.length, page * PAGE + PAGE)} of ${shown.length}` : shown.length + ' shown'}{rows.length >= MAX_ROWS ? ` (first ${MAX_ROWS.toLocaleString('en-IN')} loaded)` : ''}</span>
             {layout === 'table' && pages > 1 && (
-              <div className="flex items-center gap-1">
-                <Button disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>
-                <span className="px-2">Page {page + 1} of {pages}</span>
-                <Button disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Next</Button>
-              </div>
+              <nav aria-label="Pages" className="flex items-center gap-1">
+                <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} aria-label="Previous page" className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium text-text2 hover:bg-surface2 disabled:opacity-40"><ChevronLeft size={15} /><span className="max-sm:sr-only">Previous</span></button>
+                <span className="px-1 text-[12.5px] sm:hidden">Page {page + 1} of {pages}</span>
+                <span className="flex items-center gap-1 max-sm:hidden">
+                  {pageItems(page + 1, pages).map((it, i) => it === 'gap' ? <span key={'g' + i} aria-hidden className="w-6 text-center">…</span> : (
+                    <button key={it} type="button" onClick={() => setPage(it - 1)} aria-current={it === page + 1 ? 'page' : undefined} aria-label={'Page ' + it}
+                      className={cx('h-9 min-w-9 rounded-lg px-2 text-[12.5px] font-medium tabular-nums', it === page + 1 ? 'bg-accent text-white' : 'text-text2 hover:bg-surface2')}>{it}</button>
+                  ))}
+                </span>
+                <button type="button" disabled={page >= pages - 1} onClick={() => setPage(page + 1)} aria-label="Next page" className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium text-text2 hover:bg-surface2 disabled:opacity-40"><span className="max-sm:sr-only">Next</span><ChevronRight size={15} /></button>
+              </nav>
             )}
           </div>
         )}

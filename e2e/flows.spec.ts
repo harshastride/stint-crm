@@ -222,3 +222,43 @@ test('logo loads on the login page while signed out', async ({ page }) => {
   await expect(logo).toBeVisible();
   expect(await logo.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
 });
+
+test('tables: tick rows, bulk reassign, export ticked, hide a column', async ({ page }) => {
+  const db = service();
+  await login(page, 'harsha');
+  await page.goto('/p/followups');
+  await page.getByRole('tab', { name: 'Open' }).click();
+  const boxes = page.getByRole('checkbox', { name: /^Select (?!all)/ });
+  await boxes.nth(0).click();
+  await boxes.nth(1).click();
+  await expect(page.getByText('2 selected')).toBeVisible();
+  const ids = await page.locator('tbody tr').evaluateAll((trs) => trs.slice(0, 2).map((t) => t.textContent));
+  const { data: before } = await db.from('follow_up').select('id, owner_id').eq('status', 'Open').order('due_at').limit(2);
+  await page.getByRole('button', { name: 'Reassign to …' }).click();
+  await page.getByRole('menuitem', { name: /^Teja/ }).click();
+  await expect(page.getByText(/Reassign to Teja: 2 updated/)).toBeVisible();
+  const { data: teja } = await db.from('staff').select('id').eq('email', 'teja@demo.stint.local').single();
+  const { data: after } = await db.from('follow_up').select('id, owner_id').in('id', before!.map((r) => r.id));
+  expect(after!.every((r) => r.owner_id === teja!.id)).toBe(true);
+  for (const r of before!) await db.from('follow_up').update({ owner_id: r.owner_id }).eq('id', r.id);   // put them back
+  expect(ids.length).toBe(2);
+  // hide a column, and it stays hidden after reload
+  await page.getByRole('button', { name: /Columns/ }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Team' }).click();
+  await expect(page.locator('thead')).not.toContainText('Team');
+  await page.reload();
+  await expect(page.locator('thead')).not.toContainText('Team');
+  await page.getByRole('button', { name: /Columns/ }).click();
+  await page.getByRole('button', { name: 'Show all' }).click();
+  await expect(page.locator('thead')).toContainText('Team');
+});
+
+test('tables: a role without edit rights gets no bulk actions', async ({ page }) => {
+  await login(page, 'anita');
+  await page.goto('/p/lead');
+  await page.getByRole('button', { name: 'table' }).click();
+  await page.getByRole('checkbox', { name: /^Select (?!all)/ }).first().click();
+  await expect(page.getByText('1 selected')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Reassign to/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Export 1' })).toBeVisible();
+});

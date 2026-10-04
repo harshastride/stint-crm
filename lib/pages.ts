@@ -16,6 +16,8 @@ export type Field = {
   createOnly?: boolean; readOnly?: boolean;
   def?: (ctx: { me: string }) => unknown;
 };
+/** A bulk action: set one field on all ticked rows, to a fixed `value` or one picked from a list / options / reference table. */
+export type Bulk = { field: string; label: string; value?: string; list?: string; options?: string[]; ref?: string };
 export type PersonRef = { kind: 'lead' | 'candidate'; id: string };
 export type View = { label: string; where?: (r: Row, me: string) => boolean };
 export type Kpi = { label: string; calc: (rows: Row[]) => string | number };
@@ -29,6 +31,7 @@ export type PageCfg = {
   rowTitle: (r: Row) => string;
   derive?: (values: Row, refs: Record<string, RefRow[]>) => Row;  // fill fields from other fields
   empty?: string;                // what an empty list means on this page
+  bulk?: Bulk[];                 // actions for ticked rows (shown only to roles that can edit the page)
   top?: string;                  // id of an extra block shown above the list (see ListPage TOP)
 };
 
@@ -47,6 +50,7 @@ const leadPerson = (r: Row): PersonRef | null => { const id = r.lead_id || r.lea
 
 export const PAGES: Record<string, PageCfg> = {
   followups: {
+    bulk: [{ field: 'status', label: 'Mark done', value: 'Done' }, { field: 'owner_id', label: 'Reassign to', ref: 'staff' }],
     id: 'followups', table: 'follow_up', kind: 'Follow-up', purpose: 'Everything you need to do, sorted by when it is due.', cta: 'Add follow-up',
     empty: 'You’re all caught up. Follow-ups given to you or your team, and ones the CRM raises from its rules, appear here.',
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'due_at', asc: true },
@@ -80,6 +84,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.name,
   },
   lead: {
+    bulk: [{ field: 'owner_id', label: 'Reassign to', ref: 'staff' }, { field: 'stage', label: 'Move to stage', list: 'lead_stage' }],
     id: 'lead', table: 'lead', kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
     select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
     columns: [{ key: 'full_name', label: 'Lead' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner' },
@@ -148,6 +153,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.staff?.full_name || 'Target',
   },
   candidate: {
+    bulk: [{ field: 'batch_id', label: 'Assign batch', ref: 'batch' }, { field: 'poc_id', label: 'Change owner', ref: 'staff' }],
     id: 'candidate', table: 'candidate', kind: 'Candidate', purpose: 'Enrolled students. Tap one for the quick panel, or open the full profile.', cta: 'Add candidate',
     select: '*, program:program_id(name), batch:batch_id(code), poc:poc_id(full_name)', order: { col: 'created_at' },
     columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'poc.full_name', label: 'Owner' }],
@@ -286,6 +292,7 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => 'Payment · ' + (r.candidate?.full_name || ''),
   },
   alert: {
+    bulk: [{ field: 'status', label: 'Resolve', value: 'Resolved' }, { field: 'owner_id', label: 'Reassign to', ref: 'staff' }],
     id: 'alert', table: 'alert', kind: 'Alert', purpose: 'Warnings for work that is slipping. Tap one to change its owner or resolve it.', noCreate: true,
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'raised_at' },
     columns: [{ key: 'title', label: 'Alert', get: (r) => r.title + ': ' + (r.lead?.full_name || r.candidate?.full_name || '') }, { key: 'area', label: 'Area' }, { key: 'owner.full_name', label: 'Owner' }, { key: 'priority', label: 'Priority', type: 'pill' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'raised_at', label: 'Raised', type: 'date' }],
