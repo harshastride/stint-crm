@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarCheck, FileDown, FileStack, GraduationCap, IndianRupee, LogOut, Upload, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button, Notice, cx } from '@/components/ui';
+import { Journey } from '@/components/Journey';
+import { journey } from '@/lib/journey';
 
 // Student portal: the student's own details, documents, fees and schedule. Everything goes through portal_* functions.
 type Me = Record<string, any>;
@@ -26,7 +28,8 @@ export default function Portal() {
     for (let i = 0; i < 8; i++) {   // the login server can be a moment ahead right after sign-in
       const { data, error } = await db.rpc('portal_me');
       if (error && /issued at future/i.test(error.message)) { await new Promise((r) => setTimeout(r, 750)); continue; }
-      setMe(data || null); return;
+      const j = data ? await db.rpc('portal_journey') : { data: [] };
+      setMe(data ? { ...data, journey: j.data || [] } : null); return;
     }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -94,6 +97,10 @@ function Overview({ me, go }: { me: Me; go: (t: 'My details' | 'Documents' | 'Fe
   const upcoming = (me.mocks || []).filter((m: Me) => m.scheduled_at && new Date(m.scheduled_at) > new Date());
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <section className="rounded-2xl border border-line bg-surface p-4 md:col-span-2" aria-label="Your journey">
+        <h2 className="mb-3 font-semibold">Your journey</h2>
+        <Journey student steps={journey(me.journey || [], c.stage, c.joined_on)} />
+      </section>
       <Card icon={GraduationCap} title="My course">
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13.5px]">
           <dt className="text-muted">Program</dt><dd>{c.program || '—'}</dd><dt className="text-muted">Batch</dt><dd>{c.batch || 'Not assigned yet'}{c.starts_on ? ' · starts ' + day(c.starts_on) : ''}</dd>

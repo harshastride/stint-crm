@@ -482,6 +482,7 @@ test('student portal: invite, first password, details, document upload, receipt'
     await page.getByLabel('Type it again').fill('Student-pass-2026');
     await page.getByRole('button', { name: 'Save and continue' }).click();
     await expect(page.getByRole('heading', { name: 'Hi Portal' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Journey' }).locator('[aria-current="step"]')).toContainText('Enrolled');
     await expect(page.getByText('₹15,000 still due of ₹30,000')).toBeVisible();
     // details
     await page.getByRole('tab', { name: 'My details' }).click();
@@ -528,4 +529,20 @@ test('account menu: who I am, theme, sign out from the top right', async ({ page
   await page.getByRole('button', { name: 'Account menu, Praveen' }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login/);
+});
+
+test('timelines: icon history with filters, and the journey on the full profile', async ({ page }) => {
+  const db = service();
+  const { data: c } = await db.from('candidate').select('id, stage').eq('full_name', 'Priya Reddy').single();
+  await login(page, 'harsha');
+  await page.goto('/p/candidate?person=candidate:' + c!.id);
+  const panel = page.getByRole('complementary', { name: 'Quick panel' });
+  await panel.getByRole('tab', { name: 'Timeline' }).click();
+  await expect(panel.getByRole('button', { name: 'All', pressed: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Fees' }).click();
+  await expect(panel.getByText(/Payment ₹/).first()).toBeVisible();
+  await page.goto('/candidate/' + c!.id);
+  const j = page.getByRole('list', { name: 'Journey' });
+  await expect(j.locator('li')).toHaveCount(9);
+  await expect(j.locator('[aria-current="step"]')).toBeVisible();
 });

@@ -1,4 +1,6 @@
 'use client';
+import { Journey } from '@/components/Journey';
+import { journey, type StageChange } from '@/lib/journey';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -24,7 +26,8 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
       const one = await db.from('candidate').select('*, program:program_id(name), batch:batch_id(code), poc:poc_id(full_name)').eq('id', id).maybeSingle();
       if (!one.data) { setMissing(true); return; }
       setC(one.data);
-      const [p, att, notes, mocks, fb, res, docs, plan, pays] = await Promise.all([
+      const ids = [id, one.data.lead_id].filter(Boolean);
+      const [p, att, notes, mocks, fb, res, docs, plan, pays, hist] = await Promise.all([
         db.rpc('candidate_private_get', { cid: id }),
         opt('attendance', db.from('attendance').select('day,mark').eq('candidate_id', id).order('day', { ascending: false }).limit(60)),
         opt('note', db.from('training_note').select('*, trainer:trainer_id(full_name)').eq('candidate_id', id).order('created_at', { ascending: false })),
@@ -34,9 +37,10 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         opt('doc', db.from('candidate_document').select('*').eq('candidate_id', id)),
         opt('plan', db.from('fee_plan_summary').select('*').eq('candidate_id', id)),
         opt('payment', db.from('fee_payment').select('*').eq('candidate_id', id).order('due_on')),
+        db.from('status_history').select('to_value, at, by:by_id(full_name)').in('entity_id', ids).order('at'),
       ]);
       setPriv(p.data);
-      setData({ att: att.data || [], notes: notes.data || [], mocks: mocks.data || [], fb: fb.data || [], res: res.data || [], docs: docs.data || [], plan: plan.data || [], pays: pays.data || [] });
+      setData({ hist: (hist.data || []).map((h: Row) => ({ ...h, by_name: h.by?.full_name })), att: att.data || [], notes: notes.data || [], mocks: mocks.data || [], fb: fb.data || [], res: res.data || [], docs: docs.data || [], plan: plan.data || [], pays: pays.data || [] });
     })();
   }, [id, s]);
 
@@ -69,6 +73,10 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         {[['Owner', c.poc?.full_name || '—'], ['Attendance', present], ['Fee due', plan ? money(plan.balance) : '—']].map(([l, v]) => (
           <div key={l} className="rounded-xl bg-surface2 px-3.5 py-2.5"><div className="text-[11px] font-medium text-muted">{l}</div><div className="num text-base font-semibold">{v}</div></div>
         ))}
+      </section>
+      <section className={card} aria-label="Student journey">
+        <h2 className="mb-4 text-base font-semibold">Journey</h2>
+        <Journey steps={journey((data.hist || []) as StageChange[], c.stage, c.created_at)} />
       </section>
       <div className="flex flex-wrap gap-1 border-b border-line pb-2">
         {tabs.map((t) => <button key={t} type="button" onClick={() => setTab(t)} className={cx('min-h-[38px] rounded-[10px] px-3.5 text-[13px] font-medium', tab === t ? 'bg-ink text-white' : 'text-text2')}>{t}</button>)}

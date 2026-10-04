@@ -7,14 +7,13 @@ import type { PersonRef, Row } from '@/lib/pages';
 import { Button, Notice, Pill, cx, fmtDateTime, initials } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
+import { Timeline } from './Timeline';
 import { MentionText } from './MentionText';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
 import { STEP_ICON } from '@/lib/icons';
 
-const STAGES = ['Lead', 'Calls', 'Counselling', 'Enrolled', 'Training', 'Mocks', 'Resume + docs', 'Placement', 'Alumni'];
-const OWNER = ['Marketing', 'Telecaller', 'Sales', 'Front desk and HR', 'Trainer', 'SME', 'HR', 'Placement', 'Placement'];
-const STAGE_INDEX: Record<string, number> = { New: 0, Callback: 1, Interested: 1, Counselling: 2, Converted: 3, 'Not interested': 1, Enrolled: 3, Training: 4, Mocks: 5, Resume: 6, Docs: 6, Ready: 7, Placed: 7, Alumni: 8 };
+import { STAGES, STAGE_OWNER as OWNER, STAGE_INDEX } from '@/lib/journey';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Family', identity: 'Identity', bank: 'Bank' };
 
@@ -230,21 +229,7 @@ export function QuickPanel({ person, onClose, onChanged }: { person: PersonRef; 
         </div>
       )}
 
-      {tab === 'Timeline' && (
-        <div className="anim-fade flex flex-col">
-          {timeline.length === 0 && <div className="text-[13px] text-muted">Nothing recorded yet.</div>}
-          {timeline.map((t, i) => (
-            <div key={i} className="flex flex-col gap-0.5 border-b border-line py-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <Pill>{t.kind}</Pill>
-                <span className="text-xs text-muted">{fmtDateTime(t.at)}</span>
-              </div>
-              <div className="text-[13px] leading-snug">{t.body}</div>
-              <div className="text-xs text-muted">by {t.by_name || 'System'}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {tab === 'Timeline' && <Timeline items={timeline} />}
 
       {tab === 'Details' && (
         <div className="anim-fade flex flex-col gap-2.5">
