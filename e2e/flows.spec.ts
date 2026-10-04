@@ -566,6 +566,7 @@ test('toasts: a change shows Undo, and Undo puts it back', async ({ page }) => {
 test('quick dates: one tap sets "Tomorrow 10 am" on a follow-up', async ({ page }) => {
   const db = service();
   const { data: c } = await db.from('candidate').select('id').eq('full_name', 'Priya Reddy').single();
+  await db.from('follow_up').delete().eq('title', 'E2E quick date');
   await login(page, 'harsha');
   await page.goto('/p/candidate?person=candidate:' + c!.id);
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
@@ -573,9 +574,10 @@ test('quick dates: one tap sets "Tomorrow 10 am" on a follow-up', async ({ page 
   await panel.getByLabel('What needs doing').fill('E2E quick date');
   await panel.getByRole('button', { name: 'Tomorrow 10 am' }).click();
   await panel.getByRole('button', { name: 'Save follow-up' }).click();
+  await expect(panel.getByText('Follow-up added.')).toBeVisible();
   const { data: f } = await db.from('follow_up').select('id, due_at').eq('title', 'E2E quick date').single();
   const due = new Date(f!.due_at), t = new Date(); t.setDate(t.getDate() + 1);
   expect(due.getDate()).toBe(t.getDate());
   expect(due.getHours()).toBe(10);
-  await db.from('follow_up').delete().eq('id', f!.id);
+  await db.from('follow_up').delete().eq('title', 'E2E quick date');
 });
