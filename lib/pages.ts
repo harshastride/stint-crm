@@ -28,6 +28,7 @@ export type PageCfg = {
   fields?: Field[];
   rowTitle: (r: Row) => string;
   derive?: (values: Row, refs: Record<string, RefRow[]>) => Row;  // fill fields from other fields
+  empty?: string;                // what an empty list means on this page
   top?: string;                  // id of an extra block shown above the list (see ListPage TOP)
 };
 
@@ -47,6 +48,7 @@ const leadPerson = (r: Row): PersonRef | null => { const id = r.lead_id || r.lea
 export const PAGES: Record<string, PageCfg> = {
   followups: {
     id: 'followups', table: 'follow_up', kind: 'Follow-up', purpose: 'Everything you need to do, sorted by when it is due.', cta: 'Add follow-up',
+    empty: 'You’re all caught up. Follow-ups given to you or your team, and ones the CRM raises from its rules, appear here.',
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'due_at', asc: true },
     columns: [{ key: 'title', label: 'Follow-up' }, { key: 'who', label: 'Person', get: (r) => r.lead?.full_name || r.candidate?.full_name || '—' }, { key: 'owner_role', label: 'Team' },
       { key: 'owner.full_name', label: 'Owner' }, { key: 'due_at', label: 'Due', type: 'datetime' }, { key: 'status', label: 'Status', type: 'pill' }],

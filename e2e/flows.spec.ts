@@ -207,3 +207,10 @@ test('Records tab: admin changes which stages a role sees', async ({ page }) => 
   expect(data!.sees_candidate_stages).toEqual(['Enrolled', 'Training']);
   await db.from('app_role').update({ sees_candidate_stages: ['Enrolled'] }).eq('name', 'Front desk');
 });
+
+test('a role with no follow-ups sees a clear "all caught up" message', async ({ page }) => {
+  await login(page, 'divya');
+  await page.goto('/p/followups');
+  await expect(page.getByText('Nothing to do')).toBeVisible();
+  await expect(page.getByText(/You’re all caught up/)).toBeVisible();
+});

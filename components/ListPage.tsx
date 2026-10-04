@@ -224,8 +224,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <div className="rounded-xl border border-line bg-surface p-6 text-muted">Loading…</div>
         ) : shown.length === 0 ? (
           <div className="rounded-xl border border-line bg-surface p-8 text-center">
-            <div className="font-semibold">{q.trim() ? 'No matches' : 'Nothing here yet'}</div>
-            <div className="mt-1 text-text2">{q.trim() ? 'Nothing in this view matches “' + q.trim() + '”.' : canWrite && cfg.cta && !cfg.noCreate ? 'Use “' + cfg.cta + '” to add the first one.' : 'There is nothing to show in this view.'}</div>
+            <div className="font-semibold">{q.trim() ? 'No matches' : (rows.length && view > 0) ? 'Nothing in “' + views[view].label + '”' : cfg.empty ? 'Nothing to do' : 'Nothing here yet'}</div>
+            <div className="mt-1 text-text2">{q.trim() ? 'Nothing in this view matches “' + q.trim() + '”.' : (rows.length && view > 0) ? 'Try another tab above.' : cfg.empty ? cfg.empty : canWrite && cfg.cta && !cfg.noCreate ? 'Use “' + cfg.cta + '” to add the first one.' : 'There is nothing to show in this view.'}</div>
           </div>
         ) : layout === 'board' && cfg.board ? (
           <div className="flex min-w-0 gap-3 overflow-x-auto pb-2">
