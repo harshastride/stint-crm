@@ -96,6 +96,19 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       </div>
       {cfg.id === 'jobdocs' && row && <JobPapers job={{ ...row, ...values }} canWrite={!readOnly} />}
       {cfg.id === 'quote' && <QuoteMath values={values} />}
+      {cfg.id === 'quote' && row?.id && row.needs_approval && (
+        <div className="flex flex-col gap-2 rounded-[10px] bg-warnBg p-3 text-[13px] text-warnText">
+          <div className="font-medium">Waiting for the Sales head’s approval. It can’t be marked Accepted until then.</div>
+          {(s.staff.role === 'Admin' || (s.staff.role === 'Sales' && s.staff.level === 'Head')) && (
+            <Button variant="primary" disabled={busy} onClick={async () => {
+              setBusy(true);
+              const { error } = await supabase().rpc('approve_quote', { qid: row.id });
+              setBusy(false);
+              if (error) setMsg({ tone: 'bad', text: friendlyError(error) }); else onSaved('Quote approved.');
+            }}>Approve this discount</Button>
+          )}
+        </div>
+      )}
       {readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {!readOnly && (
