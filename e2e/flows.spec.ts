@@ -581,3 +581,19 @@ test('quick dates: one tap sets "Tomorrow 10 am" on a follow-up', async ({ page 
   expect(due.getHours()).toBe(10);
   await db.from('follow_up').delete().eq('title', 'E2E quick date');
 });
+
+test('drag-and-drop upload: drop a resume onto the form', async ({ page }) => {
+  const db = service();
+  const { data: c } = await db.from('candidate').select('id').eq('full_name', 'Priya Reddy').single();
+  await login(page, 'harsha');
+  await page.goto('/p/resume?new=candidate:' + c!.id);
+  const zone = page.getByRole('button', { name: /Drop a file here/ });
+  await expect(zone).toBeVisible();
+  const dt = await page.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['%PDF-1.4 resume'], 'priya-resume.pdf', { type: 'application/pdf' })); return d; });
+  await zone.dispatchEvent('drop', { dataTransfer: dt });
+  await expect(page.getByText('priya-resume.pdf')).toBeVisible();
+  const { data: files } = await db.storage.from('candidate-files').list(c!.id + '/resume');
+  const mine = (files || []).filter((f) => f.name.endsWith('priya-resume.pdf'));
+  expect(mine.length).toBeGreaterThan(0);
+  await db.storage.from('candidate-files').remove(mine.map((f) => c!.id + '/resume/' + f.name));
+});

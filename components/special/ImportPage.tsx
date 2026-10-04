@@ -5,6 +5,7 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Button, Notice, fmtDateTime } from '../ui';
 import { PageHeader } from '../ListPage';
+import { DropZone } from '../DropZone';
 
 const TARGETS = ['Name', 'Mobile', 'Email', 'City', 'Course', 'Notes', 'Don’t import'];
 const GUESS: [RegExp, string][] = [[/name/i, 'Name'], [/mobile|phone|contact|whats/i, 'Mobile'], [/mail/i, 'Email'], [/city|location|place/i, 'City'], [/course|program|interest/i, 'Course'], [/note|remark|comment/i, 'Notes']];
@@ -114,9 +115,9 @@ export function ImportPage() {
               <label className="flex flex-col gap-1 text-xs font-medium text-text2">Source for these leads
                 <select className="h-11 px-3 text-sm" value={source} onChange={(e) => setSource(e.target.value)}><option value="">Select</option>{s.refs.lead_source.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}</select>
               </label>
-              <label className="flex flex-col gap-1 text-xs font-medium text-text2">File (CSV, first row must be the column names)
-                <input type="file" accept=".csv,text/csv" className="h-11 px-3 py-2 text-sm" onChange={(e) => pick(e.target.files?.[0])} />
-              </label>
+              <div className="flex flex-col gap-1 text-xs font-medium text-text2">File (CSV, first row must be the column names)
+                <DropZone accept=".csv,text/csv" hint="Save your Excel sheet as CSV first" label="Drop the CSV here, or tap to choose" onFile={(f) => pick(f)} />
+              </div>
               <p className="text-[13px] text-text2">A mobile that is already in the CRM is skipped, so nobody gets a second lead.</p>
             </>
           )}

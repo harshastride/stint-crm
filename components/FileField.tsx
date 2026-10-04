@@ -1,7 +1,8 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Download, Paperclip, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { DropZone } from './DropZone';
 
 const BUCKET = 'candidate-files';
 const fileName = (path: string) => path.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '');
@@ -9,7 +10,6 @@ const fileName = (path: string) => path.split('/').pop()!.replace(/^[0-9a-f-]{36
 /** Attach one file to a candidate record. Stored privately; downloads use a link that works for one minute. */
 export function FileField({ page, candidateId, value, onChange, disabled }: { page: string; candidateId: string | null; value: unknown; onChange: (v: string | null) => void; disabled?: boolean }) {
   const path = typeof value === 'string' && value ? value : null;
-  const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -43,13 +43,11 @@ export function FileField({ page, candidateId, value, onChange, disabled }: { pa
         </div>
       ) : disabled ? (
         <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm text-muted">No file</div>
+      ) : !candidateId ? (
+        <div className="flex min-h-[42px] items-center rounded-[10px] border border-dashed border-line2 px-3 text-sm text-muted">Pick the candidate first</div>
       ) : (
-        <button type="button" disabled={!candidateId || busy} onClick={() => input.current?.click()}
-          className="flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border border-dashed border-line2 px-3 text-sm font-medium text-accent disabled:text-muted">
-          <Paperclip size={14} /> {busy ? 'Uploading…' : candidateId ? 'Attach a file (PDF, image, Word · up to 20 MB)' : 'Pick the candidate first'}
-        </button>
+        <DropZone accept=".pdf,.doc,.docx,image/*" hint="PDF, Word or photo · up to 20 MB" busy={busy} onFile={upload} />
       )}
-      <input ref={input} type="file" hidden accept=".pdf,.doc,.docx,image/*" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload(f); }} />
       {err && <div role="alert" className="text-[13px] font-medium text-badText">{err}</div>}
     </div>
   );
