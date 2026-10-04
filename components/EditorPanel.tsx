@@ -80,7 +80,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={onClose}>
       <div className="flex flex-col gap-2.5">
         {fields.map((f) => (
-          <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments'}>
+          <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments' && !f.addable}>
             <span>{f.label}{f.required && <span className="text-badText"> *</span>}</span>
             {f.type === 'instalments'
               ? <InstalmentsEditor total={planTotal} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />

@@ -57,14 +57,15 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Same mobile twice is refused', dup.error?.code === '23505', dup.error?.message);
   const prog = (await admin.from('program').select('id,fee').eq('name', 'Python').single()).data;
   const q = await sales.from('fee_quote').insert({ lead_id: r.data.id, program_id: prog.id, list_price: prog.fee, discount_pct: 15, amount: 1 }).select().single();
-  check('Quote amount is worked out by the database', Number(q.data?.amount) === 18700, String(q.data?.amount));
+  const expected = Math.round((Number(prog.fee) * 0.85) / 100) * 100;
+  check('Quote amount is worked out by the database', Number(q.data?.amount) === expected, String(q.data?.amount));
   check('15% discount is flagged for approval', q.data?.needs_approval === true);
   const sumOf = (inst) => (inst || []).reduce((a, i) => a + Number(i.amount), 0);
-  check('Quote gets an even 3-part split by default', q.data?.instalments?.length === 3 && sumOf(q.data.instalments) === 18700, JSON.stringify(q.data?.instalments));
-  const custom = [{ label: 'On joining', amount: 10000 }, { label: 'Month 2', amount: 5000 }, { label: 'Month 3', amount: 2000 }, { label: 'On placement', amount: 1700 }];
+  check('Quote gets an even 3-part split by default', q.data?.instalments?.length === 3 && sumOf(q.data.instalments) === expected, JSON.stringify(q.data?.instalments));
+  const custom = [{ label: 'On joining', amount: expected - 3000 }, { label: 'Month 2', amount: 1000 }, { label: 'Month 3', amount: 1000 }, { label: 'On placement', amount: 1000 }];
   const cq = await sales.from('fee_quote').update({ instalments: custom }).eq('id', q.data.id).select('plan, instalments').single();
-  check('Quote accepts 4 custom instalment amounts', !cq.error && cq.data.plan === '4 instalments' && sumOf(cq.data.instalments) === 18700, cq.error?.message);
-  const bad = await sales.from('fee_quote').update({ instalments: [{ label: 'On joining', amount: 10000 }] }).eq('id', q.data.id);
+  check('Quote accepts 4 custom instalment amounts', !cq.error && cq.data.plan === '4 instalments' && sumOf(cq.data.instalments) === expected, cq.error?.message);
+  const bad = await sales.from('fee_quote').update({ instalments: [{ label: 'On joining', amount: 1000 }] }).eq('id', q.data.id);
   check('Instalments that do not add up are refused', bad.error?.code === '23514', bad.error?.message);
   await sales.from('fee_quote').update({ status: 'Accepted' }).eq('id', q.data.id);
   const mv = await sales.from('lead').update({ stage: 'Converted' }).eq('id', r.data.id).select();
@@ -72,7 +73,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const c = (await admin.from('candidate').select('id, code, stage, lead_id').eq('lead_id', r.data.id)).data;
   check('Conversion created exactly one candidate', c.length === 1 && c[0].stage === 'Enrolled' && /^STA-/.test(c[0].code), JSON.stringify(c));
   const plan = (await admin.from('fee_plan').select('total, instalments').eq('candidate_id', c[0].id)).data;
-  check('Fee plan was started from the accepted quote', plan.length === 1 && Number(plan[0].total) === 18700);
+  check('Fee plan was started from the accepted quote', plan.length === 1 && Number(plan[0].total) === expected);
   check('Fee plan keeps the quote’s custom instalments', plan[0]?.instalments?.length === 4 && plan[0].instalments[3].label === 'On placement');
   const fu = (await admin.from('follow_up').select('owner_role').eq('candidate_id', c[0].id)).data;
   check('Follow-ups were raised for front desk, HR and finance', fu.length === 3);
@@ -89,6 +90,17 @@ const mobile = '9' + String(Date.now()).slice(-9);
 { const r = await hr.from('job_record').insert({ candidate_id: cand.id, company: 'X', joined_on: '2026-05-01', last_working_day: '2026-01-01' }); check('Last working day before joining is refused', !!r.error); }
 { const r = await tele.from('follow_up').select('owner_role'); check('Telecaller sees only their team’s follow-ups', (r.data || []).every((x) => x.owner_role === 'Telecaller'), JSON.stringify(r.data)); }
 { const r = await tele.rpc('person_timeline', { p_lead: null, p_candidate: cand.id }); check('Telecaller gets no candidate timeline', (r.data || []).length === 0); }
+
+// Companies can be added from the placement form by roles that record placements
+{ const place = await as('lakshmi');
+  const name = 'Test Co ' + Date.now();
+  const r = await place.from('company').insert({ name }).select('id').single();
+  check('Placement can add a new company', !r.error && !!r.data?.id, r.error?.message);
+  const dup = await place.from('company').insert({ name });
+  check('Same company name twice is refused', dup.error?.code === '23505', dup.error?.message);
+  const t = await tele.from('company').insert({ name: name + ' tele' });
+  check('Telecaller cannot add companies', !!t.error, 'insert was allowed');
+  await admin.from('company').delete().eq('id', r.data?.id); }
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

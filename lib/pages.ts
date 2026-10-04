@@ -12,7 +12,8 @@ export type Field = {
   options?: string[];            // fixed options
   ref?: string;                  // small reference table: staff, program, batch, branch, company, lead_source, campaign
   person?: 'lead' | 'candidate'; // search-as-you-type picker
-  required?: boolean; other?: boolean; createOnly?: boolean; readOnly?: boolean;
+  required?: boolean; other?: boolean; addable?: boolean; // addable: a ref picker where a missing name can be added on the spot
+  createOnly?: boolean; readOnly?: boolean;
   def?: (ctx: { me: string }) => unknown;
 };
 export type PersonRef = { kind: 'lead' | 'candidate'; id: string };
@@ -245,7 +246,7 @@ export const PAGES: Record<string, PageCfg> = {
     views: [{ label: 'Joining soon', where: (r) => r.status === 'Joining soon' }, { label: 'Joined', where: (r) => r.status === 'Joined' }, { label: 'All' }],
     kpis: [count('Placed', (r) => r.status !== 'Dropped'), count('Joining soon', (r) => r.status === 'Joining soon'), count('Dropped', (r) => r.status === 'Dropped')],
     board: { field: 'status', list: 'placement_status' }, person: candPerson,
-    fields: [cand, { key: 'company_id', label: 'Company', type: 'ref', ref: 'company', required: true }, { key: 'role', label: 'Role', type: 'text' }, { key: 'ctc_lpa', label: 'CTC (lakhs per year)', type: 'number' },
+    fields: [cand, { key: 'company_id', label: 'Company', type: 'ref', ref: 'company', required: true, addable: true }, { key: 'role', label: 'Role', type: 'text' }, { key: 'ctc_lpa', label: 'CTC (lakhs per year)', type: 'number' },
       { key: 'joining_on', label: 'Joining on', type: 'date' }, { key: 'status', label: 'Status', type: 'select', list: 'placement_status' }],
     rowTitle: (r) => (r.candidate?.full_name || '') + ' · ' + (r.company?.name || ''),
   },

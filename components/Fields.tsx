@@ -61,12 +61,74 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
   );
 }
 
+// Reference tables that can take a new row from a form: table and its name column.
+const ADDABLE: Record<string, { table: string; col: string; noun: string }> = { company: { table: 'company', col: 'name', noun: 'company' } };
+
+/** Type to find an existing entry, or add a new one if it is not there yet. */
+function RefPicker({ field, value, onChange, disabled }: { field: Field; value: string | null; onChange: (v: unknown) => void; disabled?: boolean }) {
+  const s = useSession();
+  const meta = ADDABLE[field.ref!];
+  const opts = s.refs[field.ref!] || [];
+  const picked = opts.find((o) => o.id === value);
+  const [q, setQ] = useState('');
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  if (picked) {
+    return (
+      <div className="flex min-h-[42px] items-center justify-between gap-2 rounded-[10px] bg-surface2 px-3 py-1.5 text-sm">
+        <span className="font-medium">{picked.label}</span>
+        {!disabled && <button type="button" className="rounded-md border border-line2 bg-surface px-2 py-1 text-xs" onClick={() => { onChange(null); setQ(''); }}>Change</button>}
+      </div>
+    );
+  }
+  const term = q.trim();
+  const hits = opts.filter((o) => o.label.toLowerCase().includes(term.toLowerCase())).slice(0, 8);
+  const exact = opts.find((o) => o.label.toLowerCase() === term.toLowerCase());
+
+  const add = async () => {
+    if (!meta || !term) return;
+    setBusy(true); setErr(null);
+    const db = supabase();
+    let { data, error } = await db.from(meta.table).insert({ [meta.col]: term } as Row).select('id').single();
+    if (error?.code === '23505') ({ data, error } = await db.from(meta.table).select('id').ilike(meta.col, term).single());
+    if (error || !data) { setBusy(false); setErr(friendlyError(error, 'the ' + meta.noun + ' list')); return; }
+    await s.reload();
+    setBusy(false); setOpen(false); setQ('');
+    onChange(data.id);
+  };
+
+  return (
+    <div className="relative">
+      <input aria-label={field.label} className={inputCls} placeholder={'Type a ' + (meta?.noun || 'name') + ' name'} value={q} disabled={disabled || busy}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); setErr(null); }} onFocus={() => setOpen(true)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (exact) onChange(exact.id); else if (term) add(); } }} />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-[10px] border border-line2 bg-surface shadow-lg">
+          {hits.map((h) => (
+            <button key={h.id} type="button" className="block min-h-[44px] w-full px-3 py-2 text-left text-sm hover:bg-surface2" onClick={() => { onChange(h.id); setOpen(false); }}>{h.label}</button>
+          ))}
+          {term && !exact && meta && (
+            <button type="button" disabled={busy} className="block min-h-[44px] w-full border-t border-line px-3 py-2 text-left text-sm font-medium text-accent hover:bg-surface2" onClick={add}>
+              {busy ? 'Adding…' : `+ Add “${term}” as a new ${meta.noun}`}
+            </button>
+          )}
+          {!term && hits.length === 0 && <div className="px-3 py-2.5 text-[13px] text-muted">Type a name to add the first one.</div>}
+        </div>
+      )}
+      {err && <div role="alert" className="mt-1 text-[13px] font-medium text-badText">{err}</div>}
+    </div>
+  );
+}
+
 /** One form control, chosen from the field's type. */
 export function FieldInput({ field, value, onChange, disabled }: { field: Field; value: unknown; onChange: (v: unknown) => void; disabled?: boolean }) {
   const s = useSession();
   const v = value == null ? '' : String(value);
   if (field.type === 'person') return <PersonSearch kind={field.person!} value={(value as string) || null} onChange={(id) => onChange(id)} disabled={disabled} label={field.label} />;
   if (field.type === 'textarea') return <textarea className="min-h-[84px] w-full px-3 py-2 text-sm" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />;
+  if (field.type === 'ref' && field.addable) return <RefPicker field={field} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
   if (field.type === 'ref') {
     const opts = s.refs[field.ref!] || [];
     return (
