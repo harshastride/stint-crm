@@ -393,3 +393,13 @@ test('table: click a cell to change it in place', async ({ page }) => {
   await db.from('follow_up').update({ owner_id: f!.owner_id }).eq('id', f!.id);
   await db.from('integration_event').delete().gte('created_at', started).eq('entity', 'lead').eq('event', 'lead.assigned');
 });
+
+test('duplicates page: admin sees it, others cannot open it', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/duplicates');
+  await expect(page.getByRole('heading', { name: 'Duplicates' })).toBeVisible();
+  await expect(page.getByText(/No duplicates found|Keep this one/).first()).toBeVisible();
+  await login(page, 'teja');
+  await page.goto('/p/duplicates');
+  await expect(page.getByText('This page isn’t open to your role')).toBeVisible();
+});

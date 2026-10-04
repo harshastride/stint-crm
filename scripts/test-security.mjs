@@ -378,6 +378,23 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('A saved view cannot be created in someone else’s name', !!forged.error);
   await tele.from('saved_view').delete().eq('id', mine.id); }
 
+// Duplicates: found, merged with everything moved, and only by Admin
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const m1 = '2' + String(Date.now()).slice(-9), m2 = '2' + String(Date.now() + 7).slice(-9);
+  const a = (await svc.from('lead').insert({ full_name: 'Dup Person', mobile: m1, email: 'dup.person@example.com', city: 'Pune' }).select('id').single()).data;
+  const b = (await svc.from('lead').insert({ full_name: 'dup  person', mobile: m2, email: 'DUP.person@example.com' }).select('id').single()).data;
+  await svc.from('note').insert({ lead_id: b.id, kind: 'Note', body: 'note on the duplicate' });
+  const found = ((await admin.rpc('find_duplicates')).data || []).some((p) => [p.a_id, p.b_id].includes(a.id) && [p.a_id, p.b_id].includes(b.id));
+  check('The duplicate finder spots the same person twice', found);
+  const t = await tele.rpc('merge_people', { p_kind: 'lead', keep_id: a.id, drop_id: b.id });
+  check('Only an admin can merge', !!t.error);
+  const mg = await admin.rpc('merge_people', { p_kind: 'lead', keep_id: a.id, drop_id: b.id });
+  const gone = (await svc.from('lead').select('id').eq('id', b.id)).data || [];
+  const moved = (await svc.from('note').select('id').eq('lead_id', a.id).eq('body', 'note on the duplicate')).data || [];
+  check('Merging moves the linked records and removes the duplicate', !mg.error && gone.length === 0 && moved.length === 1, mg.error?.message);
+  await svc.from('integration_event').delete().in('entity_id', [a.id, b.id]);
+  await svc.from('lead').delete().eq('id', a.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];

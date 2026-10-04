@@ -12,8 +12,9 @@ import { Dropdowns } from '@/components/special/Dropdowns';
 import { ImportPage } from '@/components/special/ImportPage';
 import { BuilderPage } from '@/components/special/BuilderPage';
 import { Calendar } from '@/components/special/Calendar';
+import { Duplicates } from '@/components/special/Duplicates';
 
-const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, calendar: Calendar };
+const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, calendar: Calendar, duplicates: Duplicates };
 
 export default function Page({ params }: { params: Promise<{ page: string }> }) {
   const { page } = use(params);
