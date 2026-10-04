@@ -1,6 +1,6 @@
 {
   "name": "@stint/piece-stint-crm",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Stint CRM block for Activepieces: CRM triggers and actions without manual webhook setup",
   "scripts": {

@@ -146,6 +146,20 @@ const moveStage = createAction({
   async run(ctx) { return call(ctx.auth, 'POST', '/api/integrations/stage', { ...pick(ctx.propsValue), stage: ctx.propsValue.stage }); },
 });
 
+const leadDetails = createAction({
+  auth: stintAuth, name: 'get_lead_details', displayName: 'Get lead details',
+  description: 'Stage, how many calls so far (called yes/no), last call, open follow-ups, and the owner’s team head. Use it after a Delay to check on a lead.',
+  props: {
+    lead_id: Property.ShortText({ displayName: 'Lead ID', description: 'From the trigger: data → lead → id', required: false }),
+    mobile: Property.ShortText({ displayName: 'Or mobile', required: false }),
+  },
+  async run(ctx) {
+    const v = ctx.propsValue;
+    const q = v.lead_id ? 'lead_id=' + encodeURIComponent(v.lead_id) : 'mobile=' + encodeURIComponent(v.mobile || '');
+    return call(ctx.auth, 'GET', '/api/integrations/lead-details?' + q);
+  },
+});
+
 const feesDue = createAction({
   auth: stintAuth, name: 'fees_due_today', displayName: 'Get fee reminders for today',
   description: 'Instalments to remind today: 3 days before, on the day, and every 3 days late (with name, mobile, email).',
@@ -160,6 +174,6 @@ export const stintCrm = createPiece({
   minimumSupportedRelease: '0.36.1',
   logoUrl: 'https://cdn.activepieces.com/pieces/webhook.svg',
   authors: ['stint'],
-  actions: [createLead, findLead, addNote, addFollowUp, moveStage, feesDue],
+  actions: [createLead, findLead, leadDetails, addNote, addFollowUp, moveStage, feesDue],
   triggers: TRIGGERS.map(makeTrigger),
 });

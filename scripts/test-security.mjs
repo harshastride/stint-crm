@@ -284,6 +284,8 @@ const mobile = '9' + String(Date.now()).slice(-9);
     const found = await api('GET', 'find?mobile=' + m3);
     const lr = (await admin.from('lead').select('stage').eq('id', nl.id).single()).data;
     check('Block actions: note, follow-up, stage, find', note.status === 201 && fu.status === 201 && st.status === 200 && stBad.status === 400 && lr.stage === 'Interested' && found.json.kind === 'lead', JSON.stringify([note.json, fu.json, st.json, found.json]).slice(0, 300));
+    const det = await api('GET', 'lead-details?lead_id=' + nl.id);
+    check('Get lead details: calls, stage and the owner’s head', det.status === 200 && det.json.called === false && det.json.calls_count === 0 && !!det.json.owner_head_email, JSON.stringify(det.json).slice(0, 200));
     const un = await api('DELETE', 'hooks?id=' + sub.json.id);
     const left = (await svc.from('integration_subscription').select('id').eq('id', sub.json.id)).data || [];
     check('Turning the flow off removes its subscription', un.status === 200 && left.length === 0);
