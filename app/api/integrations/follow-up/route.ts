@@ -1,3 +1,4 @@
+import { fail } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { bad, findPerson, withKey } from '@/lib/server/integration';
 
@@ -20,6 +21,6 @@ export async function POST(request: Request) {
   if (isNaN(due.getTime())) return bad('due_at is not a valid date.');
   const role = owner ? (await a.db.from('staff').select('role').eq('id', owner).single()).data?.role : null;
   const { data, error } = await a.db.from('follow_up').insert({ ...who, title: title.slice(0, 200), owner_id: owner, owner_role: role, due_at: due.toISOString() }).select('id, due_at').single();
-  if (error) return bad(error.message, 500);
+  if (error) return fail('follow-up', error);
   return NextResponse.json({ ok: true, follow_up_id: data.id, due_at: data.due_at, ...who }, { status: 201 });
 }

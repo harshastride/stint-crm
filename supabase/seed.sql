@@ -420,3 +420,21 @@ update public.app_role set contact_lead_stages = '{Interested,Counselling}' wher
 update public.app_role set contact_candidate_stages = '{Enrolled}' where name = 'Front desk';
 update public.app_role set contact_candidate_stages = '{Ready,Placed}' where name = 'Placement';
 update public.app_role set contact_candidate_stages = '{Enrolled,Training,Mocks,Resume,Docs,Ready}' where name = 'HR / Counsellor';
+insert into public.page (id, grp, title, sort) values ('audit', 'Admin settings', 'Audit log', 46) on conflict (id) do nothing;  -- Admin only (no grants: Admin sees all pages)
+
+-- Reminders (migration 061): page row and default rules, all switched off until an admin turns them on.
+insert into public.page (id, grp, title, sort) values ('reminders', 'Admin settings', 'Reminders', 44) on conflict (id) do nothing;
+insert into public.reminder_rule (name, active, trigger, offset_days, send_time, channel, audience, body_template, created_by)
+select v.* from (values
+  ('Fee due in 3 days', false, 'fee_due', 3, time '10:00', 'whatsapp', 'student', 'Hi {{first_name}}, your Stint fee of {{amount}} is due on {{due_date}}. Please pay at the front desk or reply here for help.', null::uuid),
+  ('Follow-up due today', false, 'follow_up_due', 0, time '09:00', 'email', 'staff_owner', 'Hi {{first_name}}, follow-up due today at {{time}}: {{name}}.', null),
+  ('Class tomorrow', false, 'class_tomorrow', 1, time '18:00', 'whatsapp', 'student', 'Hi {{first_name}}, reminder: your class is tomorrow ({{due_date}}) at {{time}}.', null),
+  ('Mock interview tomorrow', false, 'mock_tomorrow', 1, time '18:00', 'whatsapp', 'student', 'Hi {{first_name}}, your mock interview is tomorrow ({{due_date}}) at {{time}}. All the best!', null),
+  ('Documents missing after joining', false, 'document_missing', 7, time '11:00', 'whatsapp', 'student', 'Hi {{first_name}}, a few of your documents are still missing. Please share them with the Stint team this week.', null),
+  ('New lead not called in 24 hours', false, 'lead_no_contact', 1, time '10:00', 'email', 'staff_owner', 'Hi {{first_name}}, the new lead {{name}} (added {{due_date}}) has not been called yet.', null)
+) as v(name, active, trigger, offset_days, send_time, channel, audience, body_template, created_by)
+where not exists (select 1 from public.reminder_rule r where r.trigger = v.trigger and r.name = v.name);
+-- Report builder (migration 062). Like the other Reports pages: Admin only by default; grant more roles in Roles & permissions.
+insert into public.page (id, grp, title, sort) values ('reports_builder', 'Reports', 'Report builder', 37) on conflict (id) do nothing;
+-- Message templates page (migration 060): Admin only (Admin sees every page)
+insert into public.page (id, grp, title, sort) values ('templates', 'Admin settings', 'Message templates', 44) on conflict (id) do nothing;

@@ -1,13 +1,14 @@
+import { fail, safeEqual } from '@/lib/server/guard';
+import { likeExact } from '@/lib/pgrst';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 
 // 3.2 Incoming leads from Activepieces (Meta lead ads, Google lead forms, job portals, website forms).
 // POST JSON with header  x-api-key: <incoming key from Admin settings → Activepieces setup>
 //   { "full_name": "…", "mobile": "…", "email"?, "city"?, "course"?, "source"?, "campaign"?, "notes"?, "marketing_consent"? }
 // A mobile already in the CRM is not added twice: the existing lead gets a note and its id is returned.
 const svc = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
-const same = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const same = safeEqual;
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim());
 
 export async function POST(request: Request) {
@@ -29,9 +30,9 @@ export async function POST(request: Request) {
   const source = (sources || []).find((s) => s.name.toLowerCase() === sourceName.toLowerCase())
     || (sources || []).find((s) => s.name.toLowerCase().includes(sourceName.toLowerCase().split(' ')[0]));
   const campaignName = str(body.campaign);
-  const campaign = campaignName ? (await db.from('campaign').select('id').ilike('name', campaignName).maybeSingle()).data : null;
+  const campaign = campaignName ? (await db.from('campaign').select('id').ilike('name', likeExact(campaignName)).maybeSingle()).data : null;
   const course = str(body.course || body.program);
-  const program = course ? (await db.from('program').select('id').ilike('name', course).maybeSingle()).data : null;
+  const program = course ? (await db.from('program').select('id').ilike('name', likeExact(course)).maybeSingle()).data : null;
   const consent = body.marketing_consent === true || body.marketing_consent === 'true' || body.marketing_consent === 'yes';
   const tag = `[${source?.name || sourceName}]`;
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
   }).select('id, owner:owner_id(full_name)').single();
   if (error) {
     if (error.code === '23505') return NextResponse.json({ ok: true, duplicate: true }, { status: 200 });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return fail('integrations/lead', error, 'Could not save the lead.', 400);
   }
   if (source) await db.from('lead_source').update({ last_lead_at: new Date().toISOString() }).eq('id', source.id);
   const owner = (data as { owner?: { full_name?: string } | null }).owner;

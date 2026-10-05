@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CalendarCheck, ExternalLink, FileDown, FileStack, FolderOpen, GraduationCap, IndianRupee, LogOut, Mic, PenLine, Upload, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { passwordProblem } from '@/lib/passwords';
 import { Button, Notice, Pill, cx } from '@/components/ui';
 import { Journey } from '@/components/Journey';
 import { journey } from '@/lib/journey';
@@ -435,7 +436,7 @@ function Fees({ me, onSigned }: { me: Me; onSigned: (text: string, bad?: boolean
 function FirstPassword({ onDone, onSignOut, name }: { onDone: () => void; onSignOut: () => void; name: string }) {
   const [pw, setPw] = useState(''), [again, setAgain] = useState(''), [msg, setMsg] = useState<string | null>(null), [busy, setBusy] = useState(false);
   const save = async () => {
-    if (pw.length < 10) return setMsg('Use at least 10 characters.');
+    const problem = passwordProblem(pw); if (problem) return setMsg(problem);
     if (pw !== again) return setMsg('The two passwords don’t match.');
     setBusy(true);
     const db = supabase();

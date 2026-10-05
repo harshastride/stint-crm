@@ -1,3 +1,4 @@
+import { badTarget, fail, isUuid } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { bad, EVENTS, withKey } from '@/lib/server/integration';
 
@@ -10,17 +11,17 @@ export async function POST(request: Request) {
   if (event !== '*' && !(EVENTS as readonly string[]).includes(event)) return bad('Unknown event. Use one of: ' + EVENTS.join(', '));
   let url: URL;
   try { url = new URL(String(b.url || '')); } catch { return bad('url must be a full web address.'); }
-  if (!/^https?:$/.test(url.protocol)) return bad('url must start with http:// or https://');
+  const no = badTarget(url); if (no) return bad(no);
   if (['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) url.hostname = 'host.docker.internal';
   const { data, error } = await a.db.from('integration_subscription').insert({ event, target_url: url.toString(), label: b.label ? String(b.label).slice(0, 120) : null }).select('id, secret, event, target_url').single();
-  if (error) return bad(error.message, 500);
+  if (error) return fail('hooks', error);
   return NextResponse.json(data, { status: 201 });
 }
 
 export async function DELETE(request: Request) {
   const a = await withKey(request); if ('error' in a) return a.error;
   const id = new URL(request.url).searchParams.get('id');
-  if (!id) return bad('Which subscription? Pass ?id=');
+  if (!isUuid(id)) return bad('Which subscription? Pass ?id=');
   await a.db.from('integration_subscription').delete().eq('id', id);
   return NextResponse.json({ ok: true });
 }

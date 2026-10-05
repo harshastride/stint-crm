@@ -1,3 +1,4 @@
+import { fail, isUuid } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { asToken, staffFromBearer } from '@/lib/server/recordings';
 
@@ -9,11 +10,12 @@ export async function GET(request: Request) {
   const db = asToken(me.token);
   const id = new URL(request.url).searchParams.get('id');
   const cols = 'id, created_at, called_at, length_sec, status, source, summary, outcome, follow_up, draft, process_error, lead:lead_id(full_name), candidate:candidate_id(full_name)';
+  if (id && !isUuid(id)) return NextResponse.json({ error: 'Note not found.' }, { status: 400 });
   if (id) {
     const { data } = await db.from('recording').select(cols + ', transcript, transcript_text').eq('id', id).eq('captured_by', me.id).maybeSingle();
     return data ? NextResponse.json(data) : NextResponse.json({ error: 'Note not found.' }, { status: 404 });
   }
   const { data, error } = await db.from('recording').select(cols).eq('captured_by', me.id).order('created_at', { ascending: false }).limit(50);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return fail('mobile/notes', error, 'Could not load notes.', 400);
   return NextResponse.json({ name: me.full_name, notes: data });
 }

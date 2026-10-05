@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { pgQuote } from '@/lib/pgrst';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Field, PageCfg } from '@/lib/pages';
@@ -33,7 +34,7 @@ export function advFields(cfg: PageCfg): Field[] {
   return out;
 }
 
-const q = (v: string) => '"' + v.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+const q = pgQuote;
 function cond(r: AdvRule, f: Field | undefined): string | null {
   if (!f) return null;
   const k = f.key, v = r.values.filter((x) => x !== '');

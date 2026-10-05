@@ -1,10 +1,10 @@
+import { fail, safeEqual } from '@/lib/server/guard';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import crypto from 'node:crypto';
 
 // For the "Fee due reminder" flow: instalments due in 3 days, due today, or overdue by a multiple of 3 days.
 // GET with header  x-api-key: <incoming key>.  Optional ?all=1 returns every unpaid instalment.
-const same = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+const same = safeEqual;
 
 export async function GET(request: Request) {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 });
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const all = new URL(request.url).searchParams.get('all') === '1';
   const { data, error } = await db.from('fee_payment').select('id, amount, due_on, status, label, candidate:candidate_id(id, code, full_name, candidate_private(contact))')
     .in('status', ['Due', 'Overdue']).not('due_on', 'is', null).order('due_on');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return fail('fees-due', error);
   const today = new Date(new Date().toISOString().slice(0, 10));
   const rows = (data || []).map((p) => {
     const c = p.candidate as unknown as { id: string; code: string; full_name: string; candidate_private: { contact: Record<string, string> } | { contact: Record<string, string> }[] | null };

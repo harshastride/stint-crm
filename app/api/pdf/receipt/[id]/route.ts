@@ -1,3 +1,4 @@
+import { isUuid, safeFilename } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { asCaller } from '@/lib/server/recordings';
 import { institute, receiptPdf } from '@/lib/server/pdf';
@@ -5,6 +6,7 @@ import { institute, receiptPdf } from '@/lib/server/pdf';
 // Payment receipt as PDF, only for payments marked Received, for anyone who can see the payment.
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
+  if (!isUuid(id)) return NextResponse.json({ error: 'Not found.' }, { status: 400 });
   const db = await asCaller();
   const { data: p } = await db.from('fee_payment').select('*, candidate:candidate_id(id, full_name, code, program:program_id(name))').eq('id', id).maybeSingle();
   if (!p) return NextResponse.json({ error: 'Payment not found, or your role can’t see it.' }, { status: 404 });
@@ -15,5 +17,5 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const get = async (k: string) => (settings || []).find((x: { key: string }) => x.key === k)?.value || '';
   const { bytes, filename } = await receiptPdf({ ...p, amount: Number(p.amount), candidate: { full_name: p.candidate?.full_name || '', code: p.candidate?.code, program: p.candidate?.program?.name },
     total: plan ? Number(plan.total) : null, balance: plan ? Number(plan.balance) : null, signature }, await institute(get), await get('receipt_note'));
-  return new NextResponse(Buffer.from(bytes), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${filename}"` } });
+  return new NextResponse(Buffer.from(bytes), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${safeFilename(filename)}"`, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store' } });
 }

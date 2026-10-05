@@ -28,11 +28,19 @@ export default function LoginPage() {
 
   const signIn = async (mail: string, pass: string) => {
     setBusy(true); setError(null);
-    const { error } = await supabase().auth.signInWithPassword({ email: mail.trim(), password: pass });
-
-    if (error) {
-      const down = /fetch/i.test(error.message) || (error.status ?? 0) >= 500;
-      setError(error.message === 'Invalid login credentials' ? 'That email and password don’t match.' : down ? 'Can’t reach the database. In the project folder run “supabase start”, then try again.' : error.message);
+    // sign-in goes through /api/auth/sign-in, which counts wrong passwords and locks an email for 15 minutes after 5
+    let body: { access_token?: string; refresh_token?: string; error?: string; minutes?: number } = {};
+    try {
+      const res = await fetch('/api/auth/sign-in', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: mail.trim(), password: pass }) });
+      body = await res.json().catch(() => ({ error: 'down' }));
+    } catch { body = { error: 'down' }; }
+    const set = body.access_token && body.refresh_token ? await supabase().auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token }) : null;
+    if (!set || set.error) {
+      const e = body.error;
+      setError(e === 'locked' ? `Too many wrong tries. Sign-in for this email is paused for ${body.minutes ?? 15} minute${body.minutes === 1 ? '' : 's'}. Try again later or ask your admin.`
+        : e === 'invalid' ? 'That email and password don’t match.'
+        : e === 'busy' ? 'Too many sign-in attempts from here. Wait a few minutes and try again.'
+        : e === 'down' || !e ? 'Can’t reach the database. In the project folder run “supabase start”, then try again.' : e);
       setBusy(false); return;
     }
     try { localStorage.setItem(EMAIL_KEY, mail.trim()); } catch {}

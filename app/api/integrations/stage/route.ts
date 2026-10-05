@@ -1,3 +1,4 @@
+import { fail } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { bad, findPerson, withKey } from '@/lib/server/integration';
 
@@ -12,6 +13,6 @@ export async function POST(request: Request) {
   const ok = (await a.db.from('dropdown_value').select('value').eq('list_id', list).eq('value', stage).maybeSingle()).data;
   if (!ok) return bad(`"${stage}" is not a ${who.lead_id ? 'lead' : 'candidate'} stage.`);
   const { error } = who.lead_id ? await a.db.from('lead').update({ stage }).eq('id', who.lead_id) : await a.db.from('candidate').update({ stage }).eq('id', who.candidate_id!);
-  if (error) return bad(error.message, 400);
+  if (error) return fail('stage', error, 'Could not change the stage.', 400);
   return NextResponse.json({ ok: true, stage, ...who });
 }

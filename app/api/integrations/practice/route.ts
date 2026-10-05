@@ -1,3 +1,4 @@
+import { fail } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { bad, withKey } from '@/lib/server/integration';
 
@@ -28,6 +29,6 @@ export async function POST(request: Request) {
   const { data: c } = await k.db.from('candidate').select('id').eq('id', String(b.candidate_id)).maybeSingle();
   if (!c) return bad('No candidate with that candidate_id.', 404);
   const { data, error } = await k.db.from('interview_practice').upsert(row, { onConflict: 'attempt_ref' }).select('id').single();
-  if (error) return bad(error.message, 500);
+  if (error) return fail('practice', error);
   return NextResponse.json({ ok: true, id: data.id });
 }

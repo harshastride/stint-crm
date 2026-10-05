@@ -1,3 +1,4 @@
+import { crossSite } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { aiReady, asCaller, cleanDictation, service, transcribe } from '@/lib/server/recordings';
 
@@ -9,6 +10,7 @@ const hits = new Map<string, number[]>();
 
 // Voice input: transcribe (Deepgram) then clean up (Gemini). The audio is never stored and nothing is saved; staff review the draft.
 export async function POST(request: Request) {
+  const bad = crossSite(request); if (bad) return bad;
   const caller = await asCaller();
   const { data: { user } } = await caller.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Please sign in.' }, { status: 401 });

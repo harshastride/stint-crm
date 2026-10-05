@@ -18,6 +18,18 @@ port = 55324
 site_url = "http://localhost:3100"
 # Nobody can register themselves. Logins are created by an admin from Users & staff.
 enable_signup = false
+# Passwords people choose must be at least 10 characters (the app also rejects common ones, lib/passwords.ts).
+minimum_password_length = 10
+
+# Sign-in limits (per IP address). The app adds its own lock: 5 wrong passwords for one email in 15 minutes
+# pauses that email for 15 minutes (app/api/auth/sign-in). Self-hosted: same values as GOTRUE_RATE_LIMIT_* (deploy/README.md).
+[auth.rate_limit]
+email_sent = 10
+sms_sent = 10
+anonymous_users = 30
+token_refresh = 150
+sign_in_sign_ups = 60
+token_verifications = 30
 
 # Sign a session out on the server after 30 minutes with no token refresh (matches the idle_signout_minutes setting).
 # Needs `supabase stop && supabase start` to take effect.

@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CornerDownLeft, Search, User, UserRound } from 'lucide-react';
+import { ilikeHas } from '@/lib/pgrst';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { pageIcon } from '@/lib/icons';
@@ -38,10 +39,10 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
     const term = q.trim();
     if (!open || term.length < 2) { setPeople([]); return; }
     const t = setTimeout(async () => {
-      const db = supabase(), digits = term.replace(/\D/g, ''), safe = term.replace(/[%,()]/g, ' ');
+      const db = supabase(), digits = term.replace(/\D/g, ''), safe = term;
       const [l, c] = await Promise.all([
         s.can('lead') ? db.rpc('search_people', { p_kind: 'lead', p_term: digits.length >= 3 ? digits : term, p_limit: 5 }) : Promise.resolve({ data: [] }),
-        s.can('candidate') ? db.from('candidate').select('id, full_name, code, stage').or(`full_name.ilike.%${safe}%,code.ilike.%${safe}%`).limit(5) : Promise.resolve({ data: [] }),
+        s.can('candidate') ? db.from('candidate').select('id, full_name, code, stage').or(`${ilikeHas('full_name', safe)},${ilikeHas('code', safe)}`).limit(5) : Promise.resolve({ data: [] }),
       ]);
       setPeople([
         ...((l.data || []) as { id: string; full_name: string; mobile_masked: string; stage: string }[]).map((x) => ({ id: 'l' + x.id, group: 'People' as const, label: x.full_name, hint: `Lead · ${x.stage} · ${x.mobile_masked || ''}`, href: `/p/lead?person=lead:${x.id}`, icon: User })),

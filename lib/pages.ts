@@ -434,6 +434,15 @@ export const PAGES: Record<string, PageCfg> = {
       { key: 'sort', label: 'Order (small numbers first)', type: 'number' }],
     rowTitle: (r) => r.label,
   },
+  templates: {
+    id: 'templates', table: 'message_template', kind: 'Template', purpose: 'Ready-made WhatsApp and email messages staff can pick in the Chat tab. {{first_name}} and {{name}} are filled in. WhatsApp templates must also be approved in Meta with the same name.', cta: 'Add template',
+    order: { col: 'name', asc: true },
+    columns: [{ key: 'name', label: 'Template' }, { key: 'channel', label: 'Channel', get: (r) => (r.channel === 'email' ? 'Email' : 'WhatsApp') },
+      { key: 'approved', label: 'Ready to use', get: (r) => (r.approved ? 'Yes' : 'No') }, { key: 'body', label: 'Message' }],
+    fields: [{ key: 'name', label: 'Name (same as in Meta for WhatsApp)', type: 'text', required: true }, { key: 'channel', label: 'Channel', type: 'select', options: ['whatsapp', 'email'], required: true },
+      { key: 'subject', label: 'Email subject', type: 'text' }, { key: 'body', label: 'Message', type: 'textarea', required: true }, { key: 'approved', label: 'Ready to use', type: 'select', options: ['Yes', 'No'] }],
+    rowTitle: (r) => r.name,
+  },
   connections: {
     id: 'connections', table: 'connection', kind: 'Connection', purpose: 'The outside services the CRM talks to. They are connected inside Activepieces; record the state here.', cta: 'Add connection', order: { col: 'service', asc: true },
     columns: [{ key: 'service', label: 'Service' }, { key: 'used_for', label: 'Used for' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'last_checked_at', label: 'Last checked', type: 'datetime' }],

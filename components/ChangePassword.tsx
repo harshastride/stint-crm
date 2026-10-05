@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Button, Notice } from './ui';
+import { passwordProblem } from '@/lib/passwords';
 
 /** Set a new password for the signed-in person. `forced` is the first-login screen after an invite or reset. */
 export function ChangePassword({ forced, onDone }: { forced?: boolean; onDone: () => void }) {
@@ -11,7 +12,8 @@ export function ChangePassword({ forced, onDone }: { forced?: boolean; onDone: (
   const [msg, setMsg] = useState<string | null>(null);
 
   const save = async () => {
-    if (pw.length < 10) { setMsg('Use at least 10 characters.'); return; }
+    const problem = passwordProblem(pw);
+    if (problem) { setMsg(problem); return; }
     if (pw !== again) { setMsg('The two passwords don’t match.'); return; }
     setBusy(true); setMsg(null);
     const db = supabase();

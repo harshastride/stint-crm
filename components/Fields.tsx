@@ -1,5 +1,6 @@
 'use client';
 import { TagPicker } from './kit/Tags';
+import { likeExact } from '@/lib/pgrst';
 import { RadioCards } from './kit/RadioCards';
 import { Slider } from './kit/Slider';
 import { useEffect, useRef, useState } from 'react';
@@ -100,7 +101,7 @@ function RefPicker({ field, value, onChange, disabled }: { field: Field; value: 
     setBusy(true); setErr(null);
     const db = supabase();
     let { data, error } = await db.from(meta.table).insert({ [meta.col]: term } as Row).select('id').single();
-    if (error?.code === '23505') ({ data, error } = await db.from(meta.table).select('id').ilike(meta.col, term).single());
+    if (error?.code === '23505') ({ data, error } = await db.from(meta.table).select('id').ilike(meta.col, likeExact(term)).single());
     if (error || !data) { setBusy(false); setErr(friendlyError(error, 'the ' + meta.noun + ' list')); return; }
     await s.reload();
     setBusy(false); setOpen(false); setQ('');
@@ -133,7 +134,8 @@ function RefPicker({ field, value, onChange, disabled }: { field: Field; value: 
 /** One form control, chosen from the field's type. */
 export function FieldInput({ field, value, onChange, disabled }: { field: Field; value: unknown; onChange: (v: unknown) => void; disabled?: boolean }) {
   const s = useSession();
-  const v = value == null ? '' : String(value);
+  // true/false columns shown as a Yes/No dropdown
+  const v = value == null ? '' : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value);
   if (field.type === 'person') return <PersonSearch kind={field.person!} value={(value as string) || null} onChange={(id) => onChange(id)} disabled={disabled} label={field.label} />;
   if (field.type === 'textarea') return (
     <div className="flex flex-col gap-1.5">

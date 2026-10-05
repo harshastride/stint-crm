@@ -41,6 +41,9 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const [prog, setProg] = useState<{ fees?: [number, number]; docs?: [number, number] }>({});
   // the tab you were on is kept for the next person
   const [tab, setTabRaw] = useState<'Log' | 'Timeline' | 'Chat' | 'Details'>(() => { try { return (localStorage.getItem('stint-panel-tab') as 'Log') || 'Log'; } catch { return 'Log'; } });
+  const [chatChannel, setChatChannel] = useState<'whatsapp' | 'email' | undefined>(undefined);
+  const [msgReady, setMsgReady] = useState<{ whatsapp: boolean; email: boolean } | null>(null);
+  useEffect(() => { fetch('/api/messages/send').then((r) => (r.ok ? r.json() : null)).then((j) => j && setMsgReady({ whatsapp: !!j.whatsapp, email: !!j.email })).catch(() => {}); }, []);
   const setTab = (t: 'Log' | 'Timeline' | 'Chat' | 'Details') => { setTabRaw(t); try { localStorage.setItem('stint-panel-tab', t); } catch {} };
   // width you dragged it to, remembered
   const [width, setWidth] = useState(() => { try { return Number(localStorage.getItem('stint-panel-w')) || 380; } catch { return 380; } });
@@ -135,6 +138,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const isAdmin = s.staff.role === 'Admin';
   const openContact = async (field: 'mobile' | 'email', how: 'tel' | 'wa' | 'mail' | 'copy') => {
     if (lockReason) return;
+    // In-CRM messaging (when set up): open the Chat tab on that channel instead of an outside app
+    if ((how === 'wa' || how === 'mail') && msgReady?.[how === 'wa' ? 'whatsapp' : 'email']) { setChatChannel(how === 'wa' ? 'whatsapp' : 'email'); setTab('Chat'); return; }
     const v = await revealOnce(kind, person.id, field);
     if (!v) { setMsg({ tone: 'bad', text: 'Could not show this detail. ' + (lockReason || '') }); return; }
     const digits = v.replace(/\D/g, '').slice(-10);
@@ -361,7 +366,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
             </div>
           )}
           {tab === 'Timeline' && <Timeline items={timeline} />}
-          {tab === 'Chat' && <div className="flex min-h-[320px] flex-1 flex-col [&>[data-testid=chat]]:max-h-none [&>[data-testid=chat]]:flex-1"><ChatThread kind={isLead ? 'lead' : 'candidate'} id={person.id} /></div>}
+          {tab === 'Chat' && <div className="flex min-h-[320px] flex-1 flex-col [&>[data-testid=chat]]:max-h-none [&>[data-testid=chat]]:flex-1"><ChatThread kind={isLead ? 'lead' : 'candidate'} id={person.id} channel={chatChannel} /></div>}
           {tab === 'Details' && (
             <div className="anim-fade flex flex-col gap-2.5">
               {isLead ? (

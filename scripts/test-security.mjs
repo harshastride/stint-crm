@@ -808,5 +808,193 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
 { const r = await fetch('http://localhost:3100/api/voice/dictate', { method: 'POST', body: new FormData() }).catch(() => null);
   if (!r) console.log('SKIP voice dictate check: the app is not running on port 3100');
   else check('voice dictate: signed-out caller gets 401', r.status === 401, String(r.status)); }
+// ---- Audit trail (migration 058) ----
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const l = (await admin.from('lead').select('id,city').limit(1).single()).data;
+  await admin.from('lead').update({ city: 'AuditTown' }).eq('id', l.id);
+  const a = (await admin.from('audit_log').select('*').eq('table_name', 'lead').eq('row_id', l.id).order('id', { ascending: false }).limit(1).single()).data;
+  check('audit: edit creates a row with old/new', a?.action === 'UPDATE' && a.changed?.city?.old === l.city && a.changed?.city?.new === 'AuditTown' && a.actor_role === 'Admin', JSON.stringify(a));
+  await admin.from('lead').update({ city: l.city }).eq('id', l.id);
+  const cid = (await admin.from('candidate').select('id').eq('full_name', 'Priya Reddy').single()).data.id;
+  const before = (await svc.from('candidate_private').select('bank').eq('candidate_id', cid).single()).data;
+  await svc.from('candidate_private').update({ bank: { account: 'AUDIT-TEST-0000' } }).eq('candidate_id', cid);
+  const p = (await admin.from('audit_log').select('changed').eq('table_name', 'candidate_private').order('id', { ascending: false }).limit(1).single()).data;
+  check('audit: sensitive values masked', p?.changed?.bank?.new === '[changed]' && !JSON.stringify(p).includes('AUDIT-TEST'), JSON.stringify(p));
+  if (before) await svc.from('candidate_private').update({ bank: before.bank }).eq('candidate_id', cid);
+  for (const [n, c] of [['telecaller', tele], ['sales', sales], ['finance', fin]]) {
+    const r = await c.from('audit_log').select('id').limit(1);
+    check(`audit: ${n} cannot read`, !!r.error || r.data.length === 0, JSON.stringify(r.data));
+  }
+  const u = await admin.from('audit_log').update({ action: 'DELETE' }).eq('id', a.id).select();
+  const d = await admin.from('audit_log').delete().eq('id', a.id).select();
+  const su = await svc.from('audit_log').update({ table_name: 'x' }).eq('id', a.id);
+  const sd = await svc.from('audit_log').delete().eq('id', a.id);
+  const still = (await admin.from('audit_log').select('table_name').eq('id', a.id).single()).data;
+  check('audit: nobody can update or delete rows (admin + service)', !!su.error && !!sd.error && (u.error || !u.data?.length) && (d.error || !d.data?.length) && still?.table_name === 'lead', JSON.stringify({ u: u.error?.message, su: su.error?.message, sd: sd.error?.message }));
+  const ins = await admin.from('audit_log').insert({ table_name: 'fake', action: 'INSERT' });
+  check('audit: nobody can insert fake rows', !!ins.error); }
+
+// ---- Reminders (migration 061) ----
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const any = (await admin.from('reminder_rule').select('id,offset_days').limit(1).single()).data;
+  const t = await tele.from('reminder_rule').update({ offset_days: 9 }).eq('id', any?.id).select();
+  check('reminders: telecaller cannot edit rules', (t.data || []).length === 0);
+  const ti = await tele.from('reminder_rule').insert({ name: 'x', trigger: 'fee_due' });
+  check('reminders: telecaller cannot add rules', !!ti.error);
+  check('reminders: telecaller cannot preview', !!(await tele.rpc('preview_reminders', {})).error);
+  check('reminders: signed-in staff cannot run the sender job', !!(await admin.rpc('run_reminders')).error);
+  const tid = (await svc.from('staff').select('id').eq('email', 'teja@demo.stint.local').single()).data.id;
+  const ist = new Date(Date.now() + 5.5 * 3600e3).toISOString().slice(0, 10);
+  const rule = (await svc.from('reminder_rule').insert({ name: 'Test follow-up rule', active: true, trigger: 'follow_up_due', offset_days: 0, channel: 'email', audience: 'staff_owner', body_template: 'Hi {{first_name}}: {{name}}' }).select('id').single()).data;
+  const fu = (await svc.from('follow_up').insert({ title: 'Reminder test', owner_id: tid, due_at: ist + 'T12:00:00+05:30', status: 'Open', created_by: tid }).select('id').single()).data;
+  const msgCount = async () => (await svc.from('message').select('id', { count: 'exact', head: true })).count;
+  const m0 = await msgCount();
+  const pv = await admin.rpc('preview_reminders', { p_rule: rule.id });
+  check('reminders: dry run lists the person and sends nothing', !pv.error && pv.data.some((x) => x.person_name === 'Teja') && (await msgCount()) === m0, pv.error?.message);
+  await svc.rpc('reminders_core', { p_dry: false, p_rule: rule.id, p_force: true });
+  await svc.rpc('reminders_core', { p_dry: false, p_rule: rule.id, p_force: true });
+  const logs = (await svc.from('reminder_log').select('message_id,person_id').eq('rule_id', rule.id)).data || [];
+  const mine = logs.filter((l) => l.person_id === tid);
+  check('reminders: running twice queues only one message per person', mine.length === 1 && (await msgCount()) === m0 + logs.length, `${mine.length} for Teja, ${logs.length} logs, ${(await msgCount()) - m0} msgs`);
+  const q = mine[0]?.message_id && (await svc.from('message').select('status,body').eq('id', mine[0].message_id).single()).data;
+  check('reminders: message is queued with rendered text', q?.status === 'queued' && /^Hi Teja: /.test(q.body), JSON.stringify(q));
+  // opted-out student is skipped
+  const fr = (await svc.from('reminder_rule').insert({ name: 'Test fee rule', active: true, trigger: 'fee_due', offset_days: 0, channel: 'whatsapp', audience: 'student', body_template: 'Pay {{amount}}' }).select('id').single()).data;
+  await svc.from('candidate').update({ contact_opt_out: true }).eq('id', cand.id);
+  const fp = (await svc.from('fee_payment').insert({ candidate_id: cand.id, amount: 1000, status: 'Due', due_on: ist, label: 'Reminder test' }).select('id').single()).data;
+  await svc.rpc('reminders_core', { p_dry: false, p_rule: fr.id, p_force: true });
+  const fl = (await svc.from('reminder_log').select('id').eq('rule_id', fr.id).eq('person_id', cand.id)).data || [];
+  check('reminders: opted-out student is skipped', fl.length === 0, String(fl.length));
+  await svc.from('candidate').update({ contact_opt_out: false }).eq('id', cand.id);
+  if (fp) await svc.from('fee_payment').delete().eq('id', fp.id);
+  for (const l of logs) if (l.message_id) await svc.from('message').delete().eq('id', l.message_id);
+  await svc.from('reminder_rule').delete().in('id', [rule.id, fr.id]);
+  await svc.from('follow_up').delete().eq('id', fu.id); }
+// Messaging (migration 060): visibility, outbound-only inserts, webhook signature
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const ld = (await svc.from('lead').select('id').limit(1).single()).data;
+  const m = (await svc.from('message').insert({ channel: 'whatsapp', direction: 'in', status: 'received', lead_id: ld.id, body: 'sec test', from_addr: '919800000000' }).select('id').single()).data;
+  const t = await trainer.from('message').select('id').eq('id', m.id);
+  check('message: trainer (no lead access) cannot read lead messages', !t.error ? t.data.length === 0 : true, JSON.stringify(t.data));
+  const a = await admin.from('message').select('id, body').eq('id', m.id);
+  check('message: admin can read', a.data?.length === 1, JSON.stringify(a.error));
+  const addr = await admin.from('message').select('from_addr').eq('id', m.id);
+  check('message: staff cannot read raw addresses', !!addr.error, JSON.stringify(addr.data));
+  const tid = (await svc.from('staff').select('id').eq('email', 'harsha@demo.stint.local').single()).data.id;
+  const inb = await admin.from('message').insert({ channel: 'whatsapp', direction: 'in', status: 'received', lead_id: ld.id, body: 'fake', created_by: tid });
+  check('message: staff cannot insert inbound rows', !!inb.error);
+  const tr = await trainer.from('message').insert({ channel: 'whatsapp', direction: 'out', status: 'queued', lead_id: ld.id, body: 'x', created_by: (await svc.from('staff').select('id').eq('email', 'kiran@demo.stint.local').single()).data.id });
+  check('message: trainer cannot queue a message to a lead', !!tr.error);
+  const up = await admin.from('message').update({ status: 'read' }).eq('id', m.id).select('id');
+  check('message: staff cannot change status', !!up.error || (up.data || []).length === 0);
+  const tw = await trainer.from('message_template').insert({ name: 'x', body: 'y' });
+  check('message_template: non-admin cannot add', !!tw.error);
+  await svc.from('message').delete().eq('id', m.id);
+  const r = await fetch('http://localhost:3100/api/webhooks/whatsapp', { method: 'POST', headers: { 'x-hub-signature-256': 'sha256=' + '0'.repeat(64), 'content-type': 'application/json' }, body: '{"entry":[]}' }).catch(() => null);
+  if (!r) console.log('SKIP whatsapp webhook check: the app is not running on port 3100');
+  else check('whatsapp webhook: bad signature rejected', r.status === 401, String(r.status));
+  const p = await fetch('http://localhost:3100/api/messages/process', { method: 'POST', headers: { 'x-cron-secret': 'wrong' } }).catch(() => null);
+  if (p) check('messages/process: wrong cron secret rejected', p.status === 401, String(p.status));
+  const sOut = await fetch('http://localhost:3100/api/messages/send', { method: 'POST', body: '{}' }).catch(() => null);
+  if (sOut) check('messages/send: signed-out caller gets 401', sOut.status === 401, String(sOut.status));
+}
+// Injection & API hardening (audit 2026-10, migration 059)
+{ const pq = (v) => '"' + String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"'; // same as lib/pgrst.ts pgQuote
+  const has = (col, t) => `${col}.ilike.${pq('*' + String(t).replace(/[%*_\\]/g, ' ').trim() + '*')}`;
+  for (const evil of ['a,id.not.is.null)', "%' or 1=1--", 'x"),id.not.is.null,full_name.eq.("', '*', 'a)or(id.not.is.null']) {
+    const r = await tele.from('candidate').select('id').or(`${has('full_name', evil)},${has('code', evil)}`).limit(50);
+    check(`injection: search term ${JSON.stringify(evil)} matches nothing extra`, !r.error && (r.data || []).length === 0, r.error?.message || String(r.data?.length));
+  }
+  const lid = (await service.from('lead').select('id').limit(1).single()).data?.id;
+  for (const [who, c] of [['visitor', anon], ['telecaller', tele], ['admin', admin]]) {
+    const r = await c.rpc('lead_brief', { lid });
+    check(`lead_brief (full contact) is server-only: ${who} refused`, !!r.error || !r.data);
+  }
+  check('candidate_brief is server-only', !!(await tele.rpc('candidate_brief', { cid: lid })).error);
+  check('emit_event cannot be called by staff (no forged webhooks)', !!(await admin.rpc('emit_event', { ev: 'lead.created', ent: 'lead', eid: lid, who: 'x', data: {} })).error);
+  const off = await service.rpc('security_definer_offenders');
+  { const used = new Set(); const walk = (d) => { for (const e of fs.readdirSync(new URL('../' + d, import.meta.url), { withFileTypes: true })) {
+      const rel = d + '/' + e.name; if (e.isDirectory()) { if (e.name !== 'node_modules') walk(rel); }
+      else if (/\.(tsx?|mjs)$/.test(e.name)) for (const m of fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8').matchAll(/['"]([a-z_0-9]+)['"]/g)) used.add(m[1]); } };
+    for (const d of ['app', 'components', 'lib']) walk(d); used.add('raise_alerts_now'); // Admin-only check, refused inside for others
+    const open = await service.rpc('definer_open_to_staff');
+    const extra = (open.data || []).filter((n) => !used.has(n));
+    check('signed-in users can run only definer functions the app calls (allow-list)', !open.error && extra.length === 0, open.error?.message || extra.join(', ')); }
+  check('every SECURITY DEFINER function: search_path set, no anon EXECUTE', !off.error && off.data.length === 0, off.error?.message || JSON.stringify(off.data.slice(0, 5)));
+  const APP = env.APP_URL || 'http://localhost:3100';
+  const up = await fetch(APP + '/api/integrations/me').then(() => true).catch(() => false);
+  if (!up) console.log('SKIP API checks: app not running on ' + APP);
+  else {
+    const call = (path, init = {}) => fetch(APP + path, { redirect: 'manual', ...init }).then((r) => r.status).catch(() => 0);
+    const post = (path, body, headers = {}) => call(path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+    for (const p of ['/api/admin/invite', '/api/admin/reset-password', '/api/portal/invite', '/api/recordings/process', '/api/integrations/lead', '/api/integrations/note', '/api/integrations/stage', '/api/integrations/follow-up', '/api/integrations/hooks', '/api/integrations/practice', '/api/recordings/cleanup']) {
+      const s = await post(p, { staff_id: lid, candidate_id: lid, id: lid, email: 'x@example.com', full_name: 'X', role: 'Admin' });
+      check(`API ${p}: no login / key → refused`, [401, 403].includes(s), String(s));
+    }
+    for (const p of ['/api/integrations/me', '/api/integrations/find?mobile=9000000000', '/api/integrations/fees-due', '/api/integrations/lead-details?lead_id=' + lid, '/api/mobile/notes', '/api/portal/coach']) {
+      const s = await call(p);
+      check(`API GET ${p}: no login / key → refused`, [401, 403].includes(s), String(s));
+    }
+    check('API wrong key of a different length → 401 (no crash)', (await call('/api/integrations/me', { headers: { 'x-api-key': 'é'.repeat(7) } })) === 401);
+    check('API cross-site POST is refused (Origin check)', (await post('/api/admin/invite', {}, { origin: 'https://evil.example' })) === 403);
+    for (const p of ['/api/pdf/quote/not-a-uuid', '/api/pdf/receipt/1%27or%271', '/api/portal/receipt/..%2F..%2Fetc']) {
+      const s = await call(p);
+      check(`API bad id ${p} → 400/401/404, never 500`, [400, 401, 404].includes(s), String(s));
+    }
+  }
+}
+// ---- Report builder (migration 062) ----
+{ const run = (c, d) => c.rpc('run_report', { p_def: d });
+  const ok = await run(admin, { source: 'payments', group_by: [{ field: 'status' }], measures: [{ agg: 'sum', field: 'amount' }] });
+  check('report builder: admin runs a fees report', !ok.error && Array.isArray(ok.data?.rows) && ok.data.rows.length > 0, ok.error?.message);
+  const t = await run(tele, { source: 'payments', group_by: [{ field: 'status' }] });
+  check('report builder: Telecaller cannot run a fees report', !!t.error, JSON.stringify(t.data));
+  await service.from('role_page_access').insert({ role: 'Telecaller', page_id: 'reports_builder', mode: 'r' });
+  const t2 = await run(tele, { source: 'payments', group_by: [{ field: 'status' }] });
+  check('report builder: Telecaller with the builder page still cannot run fees (no Payments page)', !!t2.error, JSON.stringify(t2.data));
+  const t3 = await run(tele, { source: 'leads', group_by: [{ field: 'stage' }] });
+  check('report builder: Telecaller with the builder page can run a leads report', !t3.error, t3.error?.message);
+  await service.from('role_page_access').delete().eq('role', 'Telecaller').eq('page_id', 'reports_builder');
+  for (const col of ['mobile', 'email', 'mobile_masked', 'pan', 'aadhaar', 'account']) {
+    const r = await run(admin, { source: 'leads', columns: [col] });
+    check(`report builder: sensitive column "${col}" not selectable`, !!r.error);
+  }
+  const bad = [
+    { source: 'leads', columns: ['stage", (select mobile from lead limit 1) as "x'] },
+    { source: 'leads', columns: ['stage; drop table lead;--'] },
+    { source: 'leads; drop table lead;--', columns: ['stage'] },
+    { source: 'leads', group_by: [{ field: 'stage' }], measures: [{ agg: 'max', field: 'stage' }] },
+    { source: 'leads', group_by: [{ field: 'created_on', bucket: "month', created_on) from lead --" }] },
+    { source: 'leads', columns: ['stage'], sort: { key: 'stage', dir: 'desc; drop table lead' } },
+    { source: 'leads', columns: ['stage'], sort: { key: '1; select 1' } },
+    { source: 'leads', columns: ['stage'], filters: [{ field: 'stage', op: 'like', value: 'x' }] },
+    { source: 'leads', columns: ['stage'], filters: [{ field: 'stage)) or ((1=1', op: 'eq', value: 'x' }] },
+  ];
+  let rejected = 0; for (const d of bad) if ((await run(admin, d)).error) rejected++;
+  check('report builder: injection payloads in names/operators are rejected', rejected === bad.length, rejected + '/' + bad.length);
+  const v = await run(admin, { source: 'leads', columns: ['stage'], filters: [{ field: 'stage', op: 'eq', value: "x' or '1'='1" }, { field: 'city', op: 'contains', value: "%' or 1=1 --" }] });
+  check('report builder: injection in filter values is treated as plain text', !v.error && v.data.rows.length === 0, v.error?.message || JSON.stringify(v.data));
+  const lim = await run(admin, { source: 'leads', columns: ['stage'], limit: 999999 });
+  check('report builder: limit capped at 5000', !lim.error && lim.data.rows.length <= 5000);
+  const sv = await admin.from('saved_report').insert({ name: 'sec test', def: { source: 'leads', columns: ['stage'] }, shared_with_roles: ['Finance'] }).select('id').single();
+  const fr = await fin.from('saved_report').select('id').eq('id', sv.data?.id);
+  check('report builder: Finance (no builder page) cannot read a shared report', (fr.data || []).length === 0);
+  const ti = await tele.from('saved_report').insert({ name: 'x', def: {} });
+  check('report builder: Telecaller cannot save reports', !!ti.error);
+  const sx = await tele.from('report_source').select('key');
+  check('report builder: catalogue hidden without the page', (sx.data || []).length === 0);
+  await admin.from('saved_report').delete().eq('id', sv.data?.id); }
+// --- Login guard (migration 063) ---
+{ const tl = await as('teja'), ad = await as('harsha');
+  const lr = await tl.rpc('login_record', { p_email: 'x@nobody.stint.local', p_ok: false, p_ip: '' });
+  check('login guard: staff cannot write login attempts', !!lr.error);
+  const ls = await tl.rpc('login_locked_seconds', { p_email: 'harsha@demo.stint.local' });
+  check('login guard: staff cannot probe lockouts', !!ls.error);
+  const ti = await tl.from('login_attempt').insert({ email: 'x', ok: true });
+  check('login guard: no direct inserts', !!ti.error);
+  const tr = await tl.from('login_attempt').select('id').limit(1);
+  check('login guard: Telecaller cannot read the log', (tr.data || []).length === 0);
+  const ar = await ad.from('login_attempt').select('id').limit(1);
+  check('login guard: Admin can read the log', !ar.error, ar.error?.message); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
