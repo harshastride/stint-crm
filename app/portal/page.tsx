@@ -54,7 +54,10 @@ export default function Portal() {
       const { data, error } = await db.rpc('portal_me');
       if (error && /issued at future/i.test(error.message)) { await new Promise((r) => setTimeout(r, 750)); continue; }
       const [j, sg] = data ? await Promise.all([db.rpc('portal_journey'), db.rpc('portal_signature')]) : [{ data: [] }, { data: null }];
-      setMe(data ? { ...data, journey: j.data || [], signed_at: sg.data?.signed_at || null } : null); return;
+      const [rr, nc] = data ? await Promise.all([db.rpc('portal_document_reasons'), db.rpc('portal_next_class')]) : [{ data: [] }, { data: null }];
+      const why = new Map(((rr.data || []) as Me[]).map((x) => [x.id, x.reject_reason]));
+      if (data) data.documents = (data.documents || []).map((d: Me) => ({ ...d, reject_reason: why.get(d.id) || null }));
+      setMe(data ? { ...data, journey: j.data || [], signed_at: sg.data?.signed_at || null, next_class: nc.data || null } : null); return;
     }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -111,7 +114,7 @@ export default function Portal() {
         </nav>
         <Stepper label="Your joining steps" steps={[
           { label: 'My details', done: !!(me.private?.contact?.mobile && c.profile?.date_of_birth), onClick: () => setTab('My details') },
-          { label: 'Documents', done: (me.documents || []).length > 0 && !(me.documents || []).some((d: Me) => d.status === 'Missing'), onClick: () => setTab('Documents') },
+          { label: 'Documents', done: (me.documents || []).length > 0 && !(me.documents || []).some((d: Me) => d.status !== 'Received' && d.status !== 'Verified'), onClick: () => setTab('Documents') },
           { label: 'Sign agreement', done: !!me.signed_at, onClick: () => setTab('Fees') },
           { label: 'Fees paid', done: !!me.fees && Number(me.fees.balance) <= 0, onClick: () => setTab('Fees') },
         ]} />
@@ -142,10 +145,11 @@ function Card({ icon: I, title, children }: { icon: React.ComponentType<{ size?:
 
 function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: number }) {
   const c = me.candidate, f = me.fees, a = me.attendance || {};
-  const missing = (me.documents || []).filter((d: Me) => d.status === 'Missing').length;
+  const missing = (me.documents || []).filter((d: Me) => d.status !== 'Received' && d.status !== 'Verified').length;
   const upcoming = (me.mocks || []).filter((m: Me) => m.scheduled_at && new Date(m.scheduled_at) > new Date());
   return (
     <div className="grid gap-4 md:grid-cols-2">
+      <NextUp me={me} go={go} />
       <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)] md:col-span-2" aria-label="Your journey">
         <h2 className="mb-3 font-semibold">Your journey</h2>
         <Journey student steps={journey(me.journey || [], c.stage, c.joined_on)} />
@@ -166,7 +170,7 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
         </> : <p className="text-[13px] text-text2">Your fee plan will appear here.</p>}
       </Card>
       <Card icon={FileStack} title="Documents">
-        <p className="text-[13.5px]">{missing ? <><b>{missing}</b> document{missing > 1 ? 's' : ''} still to upload.</> : 'Nothing pending. Thank you.'}</p>
+        <p className="text-[13.5px]">{missing ? <><b>{missing}</b> document{missing > 1 ? 's' : ''} still to upload or fix.</> : 'Nothing pending. Thank you.'}</p>
         {missing > 0 && <button type="button" onClick={() => go('Documents')} className="mt-2 inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText">Upload now →</button>}
         {me.editable && <button type="button" onClick={() => go('My details')} className="flex min-h-[44px] items-center text-[13px] font-medium text-accentText">Check my details →</button>}
       </Card>
@@ -182,6 +186,49 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
         </div>
       </Card>
     </div>
+  );
+}
+
+// The one or two things the student must do now, most urgent first. Built only from portal_me data.
+type Todo = { key: string; title: string; when?: string; urgent?: boolean; tab: Tab; cta: string };
+function nextUp(me: Me): Todo[] {
+  const out: Todo[] = [];
+  const f = me.fees, pays: Me[] = me.payments || [], docs: Me[] = me.documents || [];
+  const overdue = pays.filter((p) => p.status === 'Overdue').sort((a, b) => String(a.due_on).localeCompare(String(b.due_on)));
+  if (overdue.length) out.push({ key: 'fee-overdue', title: `Pay ${inr(overdue.reduce((s, p) => s + Number(p.amount || 0), 0))} overdue fee`, when: 'Was due ' + day(overdue[0].due_on), urgent: true, tab: 'Fees', cta: 'See fees' });
+  const fixDocs = docs.filter((d) => d.status !== 'Missing' && d.status !== 'Received' && d.status !== 'Verified');
+  if (fixDocs.length) out.push({ key: 'doc-fix', title: `Re-upload ${fixDocs.map((d) => d.doc_type).join(', ')}`, when: fixDocs[0].reject_reason ? 'Reason: ' + fixDocs[0].reject_reason : 'The institute could not accept it', urgent: true, tab: 'Documents', cta: 'Fix now' });
+  const missing = docs.filter((d) => d.status === 'Missing');
+  if (missing.length) out.push({ key: 'doc-missing', title: `Upload ${missing.length === 1 ? missing[0].doc_type : missing.length + ' documents'}`, when: missing.length > 1 ? missing.map((d) => d.doc_type).join(', ') : undefined, tab: 'Documents', cta: 'Upload' });
+  const mock = (me.mocks || []).filter((m: Me) => m.scheduled_at && new Date(m.scheduled_at) > new Date()).sort((a: Me, b: Me) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)))[0];
+  const nc = me.next_class;
+  if (nc?.starts_at) out.push({ key: 'class', title: 'Next class · ' + nc.batch, when: new Date(nc.starts_at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) + ' – ' + new Date(nc.ends_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }), tab: 'Overview', cta: 'OK' });
+  if (mock) out.push({ key: 'mock', title: `Mock interview ${mock.level || ''}`.trim(), when: new Date(mock.scheduled_at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }), tab: 'My progress', cta: 'Practise first' });
+  if (!me.signed_at && f) out.push({ key: 'sign', title: 'Sign your fee agreement', tab: 'Fees', cta: 'Sign' });
+  if (!overdue.length && f && f.next_due && Number(f.balance) > 0) out.push({ key: 'fee-next', title: 'Next fee instalment', when: 'Due ' + day(f.next_due), tab: 'Fees', cta: 'See fees' });
+  return out;
+}
+
+function NextUp({ me, go }: { me: Me; go: (t: Tab) => void }) {
+  const all = nextUp(me), top = all.slice(0, 2);
+  return (
+    <section aria-label="Next up" className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)] md:col-span-2">
+      <h2 className="mb-1 font-semibold">Next up</h2>
+      {top.length === 0 ? <p className="text-[13.5px] text-goodText">You’re all caught up. Nothing to do right now.</p> : (
+        <ul>
+          {top.map((t) => (
+            <li key={t.key} data-testid={'next-' + t.key} className="flex items-center justify-between gap-3 border-t border-line py-3 first:border-0">
+              <div className="min-w-0">
+                <div className="font-medium">{t.title}</div>
+                {t.when && <div className={cx('text-[12.5px]', t.urgent ? 'font-semibold text-badText' : 'text-text2')}>{t.when}</div>}
+              </div>
+              {t.tab !== 'Overview' && <Button variant={t.urgent ? 'primary' : 'secondary'} size="sm" onClick={() => go(t.tab)}>{t.cta}</Button>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {all.length > 2 && <p className="mt-1 text-[12.5px] text-muted">+{all.length - 2} more to do later</p>}
+    </section>
   );
 }
 
@@ -384,7 +431,7 @@ function Documents({ me, onDone }: { me: Me; onDone: (t: string, bad?: boolean) 
       {docs.length === 0 && <p className="text-[13px] text-text2">Nothing requested yet.</p>}
       {docs.map((d) => (
         <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-3 first:border-0">
-          <div><div className="font-medium">{d.doc_type}</div><div className={cx('text-[12.5px]', d.status === 'Missing' ? 'text-badText' : d.status === 'Verified' ? 'text-goodText' : 'text-text2')}>{d.status === 'Missing' ? 'Not uploaded yet' : d.status === 'Received' ? 'Uploaded · waiting for verification' : 'Verified'}</div></div>
+          <div><div className="font-medium">{d.doc_type}</div><div className={cx('text-[12.5px]', d.status !== 'Received' && d.status !== 'Verified' ? 'text-badText' : d.status === 'Verified' ? 'text-goodText' : 'text-text2')}>{d.status === 'Missing' ? 'Not uploaded yet' : d.status === 'Received' ? 'Uploaded · waiting for verification' : d.status === 'Verified' ? 'Verified' : 'Not accepted · ' + (d.reject_reason ? 'Reason: ' + d.reject_reason + '. ' : '') + 'Please upload a corrected copy. Ask your counsellor if unsure.'}</div></div>
           {d.status !== 'Verified' && (
             <button type="button" disabled={busy === d.id} onClick={() => { setTarget(d); pick.current?.click(); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText">
               <Upload size={15} />{busy === d.id ? 'Uploading…' : d.status === 'Missing' ? 'Upload' : 'Replace'}
@@ -421,6 +468,11 @@ function Fees({ me, onSigned }: { me: Me; onSigned: (text: string, bad?: boolean
       </>}
     </Card>
     <Card icon={IndianRupee} title="Payments">
+      {me.fees && <dl data-testid="fee-summary" className="mb-3 grid grid-cols-3 gap-2 text-center">
+        <div><dt className="text-[12px] text-muted">Paid</dt><dd className="num font-semibold text-goodText">{inr(me.fees.paid)}</dd></div>
+        <div><dt className="text-[12px] text-muted">Total fee</dt><dd className="num font-semibold">{inr(me.fees.total)}</dd></div>
+        <div><dt className="text-[12px] text-muted">Next due</dt><dd className={cx('font-semibold', me.fees.overdue && 'text-badText')}>{Number(me.fees.balance) <= 0 ? 'All paid' : me.fees.overdue ? 'Overdue' : day(me.fees.next_due)}</dd></div>
+      </dl>}
       {pays.length === 0 && <p className="text-[13px] text-text2">No payments yet.</p>}
       {pays.map((p) => (
         <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-3 first:border-0">

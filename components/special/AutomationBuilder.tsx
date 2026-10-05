@@ -35,7 +35,7 @@ export function AutomationBuilder() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 max-w-2xl">
           <h2 className="text-base font-semibold">Build automations in Activepieces</h2>
-          <p className="mt-1 text-[13px] text-text2">In a flow pick <b>Stint CRM</b>: a trigger such as “New lead” or “Payment recorded”, then actions like WhatsApp, email, or “Create follow-up” back in the CRM. Publish and it runs.</p>
+          <p className="mt-1 text-[13px] text-text2">In a flow pick <b>Stint CRM</b>: a trigger such as “New lead” or “Payment recorded”, then actions like WhatsApp, email, or “Create follow-up” back in the CRM. Publish and it runs. A published flow acts on real people straight away, so test it on a demo lead first.</p>
         </div>
         {info.url && (
           <div className="flex flex-wrap gap-2">

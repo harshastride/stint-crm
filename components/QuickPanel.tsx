@@ -1,12 +1,12 @@
 'use client';
 import Link from 'next/link';
-import { CalendarClock, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, MoreHorizontal, Phone, X } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, X } from 'lucide-react';
 import { Avatar } from './kit/Avatar';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { PersonRef, Row } from '@/lib/pages';
-import { Button, Notice, cx, fmtDateTime, money } from './ui';
+import { Button, Notice, cx, fmtDate, fmtDateTime, money } from './ui';
 import { friendlyError } from './Fields';
 import { Recorder } from './Recorder';
 import { Timeline } from './Timeline';
@@ -17,9 +17,9 @@ import { MentionInput } from './kit/MentionInput';
 import { VoiceInput, appendText } from './kit/VoiceInput';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
-import { STEP_ICON } from '@/lib/icons';
-
-import { STAGES, STAGE_OWNER as OWNER, STAGE_INDEX } from '@/lib/journey';
+import { StageControl } from './profile/StageControl';
+import { NextSteps, StepIcon } from './profile/NextSteps';
+import { DetailGroup, PrivateDetails } from './profile/PrivateDetails';
 import { PanelSkeleton } from './Skeletons';
 import { Meter } from './kit/Meter';
 import { Viewers } from './kit/Viewers';
@@ -27,7 +27,6 @@ import { ChatThread } from './kit/ChatThread';
 import { mayActFor } from '@/lib/pages';
 import { Reveal, contactStatus, revealOnce } from './kit/Reveal';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
-const GROUP_LABEL: Record<string, string> = { contact: 'Contact', family: 'Family', identity: 'Identity', bank: 'Bank' };
 
 export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }: { person: PersonRef; onClose: () => void; onChanged: () => void; list?: PersonRef[]; onNavigate?: (p: PersonRef) => void }) {
   const s = useSession();
@@ -54,7 +53,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const [form, setForm] = useState<Row>({});
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [stageAsk, setStageAsk] = useState<string | null>(null);
   const [invite, setInvite] = useState<{ email: string; password: string; url: string; reset: boolean } | null>(null);
   const [tasksOpen, setTasksOpen] = useState(false);
   const [cst, setCst] = useState<{ allowed: boolean; reason: string | null } | null>(null);
@@ -108,7 +107,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
     }
   }, [person.kind, person.id, isLead, idCol]);
 
-  useEffect(() => { setP(null); setProg({}); setMsg(null); setAction(null); setForm({}); setMoreOpen(false); setTasksOpen(false); setInvite(null); load(); }, [load]);
+  useEffect(() => { setP(null); setProg({}); setMsg(null); setAction(null); setForm({}); setStageAsk(null); setTasksOpen(false); setInvite(null); load(); }, [load]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -149,9 +148,6 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
     else { navigator.clipboard?.writeText('+91 ' + digits); toast('Number copied'); }
   };
   const btn = 'flex min-h-[44px] flex-col items-center justify-center rounded-[10px] bg-surface text-[11px] font-semibold text-text2 hover:text-accentText disabled:opacity-40';
-  const si = STAGE_INDEX[p.stage] ?? 0;
-  const days = Math.floor((Date.now() - new Date(p.stage_changed_at).getTime()) / 86400000);
-  const stageList = s.lists[isLead ? 'lead_stage' : 'candidate_stage'] || [];
   const overdue = tasks.filter((t) => new Date(t.due_at).getTime() < Date.now() - 86400000).length;
 
   const done = (text: string) => { setMsg({ tone: 'good', text }); setAction(null); setForm({}); load(); onChanged(); };
@@ -195,14 +191,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
     setBusy(false);
     if (error) return fail(error); done('Follow-up added.');
   };
-  const moveStage = async (stage: string) => {
-    const from = p?.stage;
-    const { error } = await supabase().from(person.kind).update({ stage }).eq('id', person.id);
-    if (error) return fail(error);
-    if (stage === 'Converted') { done('Converted. A candidate record was created with follow-ups for front desk, HR and finance.'); return; }
-    setMsg(null); load(); onChanged();
-    toast('Moved to ' + stage + '. Recorded in status history.', { undo: async () => { await supabase().from(person.kind).update({ stage: from }).eq('id', person.id); toast('Moved back to ' + from + '.'); load(); onChanged(); } });
-  };
+  const moved = (stage: string, message?: string) => { if (message) done(message); else { setMsg(null); load(); onChanged(); } };
   const finishTask = async (t: Row) => {
     const { error } = await supabase().from('follow_up').update({ status: 'Done' }).eq('id', t.id);
     if (error) return fail(error);
@@ -212,9 +201,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
 
   const allowed = (st: Step) => (st.inline === 'call' ? canCall : st.inline === 'convert' ? canWritePerson && isLead : s.can(st.page, 'w'));
   const runStep = (st: Step) => {
-    setMoreOpen(false);
     if (st.inline === 'call') { setAction('call'); setForm({}); setMsg(null); return; }
-    if (st.inline === 'convert') { moveStage('Converted'); return; }
+    if (st.inline === 'convert') { setStageAsk('Converted'); return; }
     if (st.href) router.push(st.href(person));
   };
   const nextSteps = stepsForStage(p.stage).filter(allowed);
@@ -223,7 +211,6 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const save = () => (mode === 'note' ? saveNote() : mode === 'call' ? saveCall() : mode === 'task' ? saveTask() : undefined);
   const iconBtn = 'flex h-11 w-11 items-center justify-center rounded-[10px] text-text2 transition-[background-color,transform] duration-150 ease-out hover:bg-surface2 hover:text-text active:scale-[0.97] motion-reduce:transform-none disabled:opacity-40';
   const tabs = [['Log', null], ['Timeline', timeline.length], ['Chat', null], ['Details', null]] as const;
-  const StepIcon = ({ k, size = 15 }: { k: string; size?: number }) => { const I = STEP_ICON[k]; return I ? <I size={size} strokeWidth={2} aria-hidden /> : null; };
 
   return (
     <aside aria-label="Quick panel" style={{ '--pw': width + 'px' } as React.CSSProperties} className="anim-slide fixed inset-x-0 bottom-0 z-40 flex h-[85dvh] w-full shrink-0 flex-col overflow-hidden rounded-t-2xl border-t border-line bg-surface shadow-2xl md:relative md:z-auto md:h-auto md:max-h-none md:w-[var(--pw)] md:self-stretch md:rounded-none md:border-l md:border-t-0 md:shadow-none">
@@ -248,13 +235,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
             <button type="button" aria-label="Hide panel (Esc)" title="Hide (Esc)" onClick={onClose} className={iconBtn}><X size={17} /></button>
           </div>
         </div>
-        <div className="mt-2.5 flex gap-0.5" aria-hidden>
-          {STAGES.map((_, i) => <span key={i} className={cx('h-1 flex-1 rounded-full transition-colors duration-200', i < si ? 'bg-accent' : i === si ? 'bg-coral' : 'bg-line2')} />)}
-        </div>
-        <div className="mt-1.5 flex justify-between gap-2 text-[11.5px] text-muted">
-          <span className="truncate"><span className="font-semibold text-text2">{STAGES[si]}</span> · {si + 1}/9 · with {OWNER[si]} · {days}d</span>
-          <span className="shrink-0">{s.staff.role} view{list.length > 1 && at >= 0 ? ` · ${at + 1}/${list.length}` : ''}</span>
-        </div>
+        <div className="mt-1 text-right text-[11.5px] text-muted">{s.staff.role} view{list.length > 1 && at >= 0 ? ` · ${at + 1} of ${list.length}` : ''}</div>
       </header>
 
       {/* 2. contact */}
@@ -285,30 +266,18 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
             </div>
           )}
 
-          {/* 3. next step strip */}
+          {/* 3. stage, then next steps (same order and names as the full profile) */}
+          <StageControl compact kind={kind} id={person.id} stage={p.stage} changedAt={p.stage_changed_at} onMoved={moved} request={stageAsk} onRequestSeen={() => setStageAsk(null)} />
           {(nextSteps.length > 0 || tasks.length > 0) && (
             <div className="flex flex-col gap-1.5">
-              {nextSteps.length > 0 && <div className="text-[11.5px] font-semibold text-muted">Next steps · {p.stage}</div>}
-              {nextSteps[0] && <button type="button" title={nextSteps[0].label} onClick={() => runStep(nextSteps[0])} className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[10px] bg-accent px-3 text-[13px] font-semibold text-white transition-transform duration-150 ease-out active:scale-[0.97] motion-reduce:transform-none"><StepIcon k={nextSteps[0].key} /><span className="truncate">{nextSteps[0].label}</span></button>}
-              <div className="flex items-center gap-1.5">
-                {nextSteps.length > 1 && (
-                  <div className="relative flex-1">
-                    <button type="button" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen((o) => !o)} className="flex min-h-[44px] w-full items-center justify-center gap-1 rounded-[10px] bg-surface2 px-3 text-[13px] font-semibold text-text2"><MoreHorizontal size={16} aria-hidden />More steps ({nextSteps.length - 1})</button>
-                    {moreOpen && <>
-                      <div className="fixed inset-0 z-30" onClick={() => setMoreOpen(false)} aria-hidden />
-                      <div role="menu" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setMoreOpen(false); } }} className="anim-fade absolute left-0 top-full z-40 mt-1 flex w-64 max-w-[calc(100vw-2rem)] origin-top-left flex-col rounded-[12px] border border-line bg-surface p-1 shadow-xl">
-                        {nextSteps.slice(1).map((st) => <button key={st.key} role="menuitem" type="button" onClick={() => runStep(st)} className="flex min-h-[44px] items-center gap-2 rounded-lg px-2.5 text-left text-[13px] font-medium hover:bg-surface2"><StepIcon k={st.key} />{st.label}</button>)}
-                      </div>
-                    </>}
-                  </div>
-                )}
+              <NextSteps stage={p.stage} steps={nextSteps} onRun={runStep}>
                 {tasks.length > 0 && (
                   <button type="button" aria-expanded={tasksOpen} onClick={() => setTasksOpen((o) => !o)} className={cx('flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 text-[12.5px] font-semibold', overdue ? 'bg-badBg text-badText' : 'bg-surface2 text-text2', !nextSteps.length && 'flex-1 justify-between')}>
                     <CalendarClock size={15} aria-hidden />{tasks.length} follow-up{tasks.length > 1 ? 's' : ''}{overdue ? ` · ${overdue} late` : ''}
                     <ChevronDown size={14} aria-hidden className={cx('transition-transform duration-200 ease-out', tasksOpen && 'rotate-180')} />
                   </button>
                 )}
-              </div>
+              </NextSteps>
               {tasksOpen && tasks.length > 0 && (
                 <div className="anim-fade flex flex-col divide-y divide-line rounded-[10px] border border-line">
                   {tasks.map((t) => (
@@ -319,7 +288,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
                           <button type="button" className="flex min-h-[36px] items-center gap-1 rounded-md bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}><StepIcon k={st.key} size={13} />{st.label}</button>) : null; })()}
                         {!t.owner_id || mayActFor(t.owner_id, s.staff, s.refs.staff || [])
                           ? <button type="button" className="min-h-[36px] rounded-md border border-line2 bg-surface px-2.5 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
-                          : <span className="text-[11.5px] text-muted" title="Only the owner or their team head can close it">{(s.refs.staff || []).find((x) => x.id === t.owner_id)?.label.split(' ')[0]}’s</span>}
+                          : <span className="max-w-[7rem] text-right text-[11.5px] leading-tight text-muted">Only {(s.refs.staff || []).find((x) => x.id === t.owner_id)?.label.split(' ')[0] || 'the owner'} can close</span>}
                       </span>
                     </div>
                   ))}
@@ -344,15 +313,6 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         <div className="flex flex-1 flex-col gap-2.5 px-4 py-3">
           {tab === 'Log' && (
             <div className="anim-fade flex flex-col gap-2.5">
-              {canWritePerson && (
-                <label className="flex items-center justify-between gap-2 text-[12.5px] text-muted">
-                  Move stage
-                  <select className="h-9 min-w-0 max-w-[60%] rounded-lg border-transparent bg-surface2 px-2.5 text-[13px] font-medium text-text" value={p.stage} onChange={(e) => moveStage(e.target.value)}>
-                    {stageList.map((st) => <option key={st}>{st}</option>)}
-                  </select>
-                </label>
-              )}
-              {!canWritePerson && !canCall && <div className="text-[13px] text-text2">You can add notes and follow-ups here. Changing the stage is for the team that owns it.</div>}
               <div className="text-[11.5px] font-semibold text-muted">Latest</div>
               {timeline.length === 0 && <div className="text-[13px] text-muted">Nothing logged yet. Use the box below.</div>}
               <ul className="flex flex-col gap-1.5">
@@ -370,15 +330,11 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           {tab === 'Details' && (
             <div className="anim-fade flex flex-col gap-2.5">
               {isLead ? (
-                <Group title="Enquiry" rows={[['Mobile', p.mobile_masked], ['Email', p.email_masked], ['City', p.city], ['Source', p.source?.name], ['Preferred mode', p.preferred_mode], ['Currently', p.currently], ['Notes', p.notes]]} />
+                <DetailGroup title="Enquiry" rows={[['Mobile', p.mobile_masked], ['Email', p.email_masked], ['City', p.city], ['Source', p.source?.name], ['Preferred mode', p.preferred_mode], ['Currently', p.currently], ['Notes', p.notes]]} />
               ) : (
                 <>
-                  <Group title="Candidate" rows={[['ID', p.code], ['Program', p.program?.name], ['Batch', p.batch?.code], ['Joined', p.joined_on]]} />
-                  {priv && Object.keys(GROUP_LABEL).map((g) => (
-                    priv.modes[g] === 'h'
-                      ? null   // hidden groups are left out entirely, not announced
-                      : <Group key={g} title={GROUP_LABEL[g]} tag={priv.modes[g] === 'm' ? 'Masked' : 'Full'} rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' '), g === 'contact' && priv.modes[g] === 'm' ? <Reveal kind="candidate" id={person.id} field={k} label={k.replace(/_/g, ' ')} masked={String(v ?? '')} /> : String(v)])} />
-                  ))}
+                  <DetailGroup title="Candidate" rows={[['ID', p.code], ['Program', p.program?.name], ['Batch', p.batch?.code], ['Joined', p.joined_on ? fmtDate(p.joined_on) : '']]} />
+                  <PrivateDetails id={person.id} priv={priv} />
                   <Link href={'/candidate/' + person.id} className="flex min-h-[44px] items-center justify-center rounded-[10px] border border-ink bg-surface text-sm font-semibold">Open full profile</Link>
                   {(s.can('candidate', 'w') || s.can('enrolform', 'w')) && (
                     <Button disabled={busy} onClick={async () => {
@@ -450,24 +406,6 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         {mode && mode !== 'record' && <div className="mt-1.5 text-right text-[11px] text-muted max-md:hidden">Ctrl/⌘ + Enter to save</div>}
       </div>
     </aside>
-  );
-}
-
-function Group({ title, tag, rows }: { title: string; tag?: string; rows: [string, unknown][] }) {
-  return (
-    <div className="rounded-[10px] border border-line p-3">
-      <div className="mb-1.5 flex items-center justify-between">
-        <div className="text-xs font-semibold">{title}</div>
-        {tag && <span className={cx('rounded-full px-2 py-0.5 text-[11px] font-semibold', tag === 'Masked' ? 'bg-warnBg text-warnText' : 'bg-goodBg text-goodText')}>{tag}</span>}
-      </div>
-      {rows.length === 0 && <div className="text-xs text-muted">Nothing filled in yet.</div>}
-      {rows.map(([l, v]) => (
-        <div key={l} className="flex justify-between gap-3 py-1 text-[13px]">
-          <span className="capitalize text-muted">{l}</span>
-          <span className="num text-right font-medium">{v == null || v === '' ? '—' : typeof v === 'object' ? (v as React.ReactNode) : String(v)}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 

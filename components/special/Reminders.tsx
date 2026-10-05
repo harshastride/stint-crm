@@ -42,10 +42,20 @@ export function Reminders() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const toggle = async (r: Row) => {
+  const [turnOn, setTurnOn] = useState<{ rule: Row; count: number } | null>(null);
+  const toggle = async (r: Row, confirmed = false) => {
+    if (!r.active && !confirmed) {
+      // Turning on sends real messages: show who would get it first.
+      const { data, error } = await supabase().rpc('preview_reminders', { p_rule: r.id });
+      if (error) { setMsg({ tone: 'bad', text: friendlyError(error) }); return; }
+      setTurnOn({ rule: r, count: (data || []).filter((x: Row) => !x.opted_out && !x.already_sent).length });
+      return;
+    }
+    setTurnOn(null);
     const { error } = await supabase().from('reminder_rule').update({ active: !r.active }).eq('id', r.id);
-    if (error) setMsg({ tone: 'bad', text: friendlyError(error) }); else load();
+    if (error) setMsg({ tone: 'bad', text: friendlyError(error) }); else { setMsg({ tone: 'good', text: `“${r.name}” is ${r.active ? 'off. Nothing more will be sent' : 'on'}.` }); load(); }
   };
+  const who = (r: Row) => (r.audience === 'student' ? 'students' : 'staff');
   const save = async () => {
     if (!edit) return;
     setBusy(true);
@@ -64,8 +74,15 @@ export function Reminders() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
-      <PageHeader title="Reminders" description={'Automatic WhatsApp and email reminders. Nothing is sent between 9pm and 8am, and nobody gets the same reminder twice in a day.' + (canEdit ? '' : ' View only.')} />
+      <PageHeader title="Reminders" description={'Controls the automatic WhatsApp and email reminders. Turning one on messages real students or staff every day at its time. Nothing is sent between 9pm and 8am, and nobody gets the same reminder twice in a day.' + (canEdit ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      {turnOn && (
+        <div role="alertdialog" aria-label="Confirm turning on" data-testid="reminder-confirm" className="flex flex-wrap items-center gap-3 rounded-[14px] bg-warnBg p-4 text-[13.5px] text-warnText">
+          <span className="min-w-0 flex-1">Turn on <b>{turnOn.rule.name}</b>? Based on today’s data this will message <b>{turnOn.count} {who(turnOn.rule)}</b> by {turnOn.rule.channel === 'whatsapp' ? 'WhatsApp' : 'email'} at {String(turnOn.rule.send_time).slice(0, 5)}{turnOn.count === 0 ? ' (nobody matches today; it starts as soon as someone does)' : ''}, and keeps doing so every day until you turn it off.</span>
+          <Button variant="outline" onClick={() => setTurnOn(null)}>Cancel</Button>
+          <Button variant="primary" loading={busy} onClick={() => toggle(turnOn.rule, true)}>Turn on</Button>
+        </div>
+      )}
 
       <section className="rounded-[14px] bg-surface shadow-[var(--shadow-1)]" data-testid="reminder-rules">
         {rules === null ? <div className="p-6 text-muted">Loading…</div> : (

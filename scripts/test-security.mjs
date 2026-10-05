@@ -748,7 +748,12 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Signed-out users cannot read the calendar feed', !!an.error || (an.data || []).length === 0, 'rows returned');
   const b1 = (await admin.from('batch').select('id').limit(1)).data?.[0];
   const bad = b1 ? await admin.from('batch').update({ class_days: [9] }).eq('id', b1.id) : { error: null };
-  check('Batch class days outside Mon–Sun are refused', !!b1 && !!bad.error, 'update allowed'); }
+  check('Batch class days outside Mon–Sun are refused', !!b1 && !!bad.error, 'update allowed');
+  // migration 068: each item names the responsible staff member; still only rows the role can read
+  const sf = await admin.from('calendar_feed').select('kind, staff_id').eq('kind', 'followup').gte('starts_at', from).lt('starts_at', to).limit(50);
+  check('Calendar follow-ups carry the owner (staff_id)', !sf.error && (sf.data || []).length > 0 && sf.data.every((r) => r.staff_id), sf.error?.message);
+  const fs = await fin.from('calendar_feed').select('kind, staff_id').gte('starts_at', from).lt('starts_at', to).limit(5000);
+  check('Finance still sees no interviews or counselling with the staff column', !fs.error && !(fs.data || []).some((r) => r.kind === 'interview' || r.kind === 'counsel'), fs.error?.message); }
 
 // Team leaderboard (migration 053): names and counts only; signed-out refused
 { const a = await admin.rpc('leaderboard', { p_metric: 'calls', p_period: 'month' });
@@ -996,5 +1001,70 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   check('login guard: Telecaller cannot read the log', (tr.data || []).length === 0);
   const ar = await ad.from('login_attempt').select('id').limit(1);
   check('login guard: Admin can read the log', !ar.error, ar.error?.message); }
+// ---- List summary strip (migration 066) ----
+{ const a = await admin.rpc('list_summary_payment'), f = await fin.rpc('list_summary_payment'), t = await tele.rpc('list_summary_payment');
+  check('list summary: Admin gets payment totals', !a.error && Number(a.data?.collected) >= 0, a.error?.message);
+  check('list summary: Finance totals match Admin', !f.error && JSON.stringify(f.data) === JSON.stringify(a.data), JSON.stringify(f.data));
+  check('list summary: Telecaller (no Payments page) sees zero totals', !t.error && Number(t.data?.collected) === 0 && Number(t.data?.late_students) === 0, JSON.stringify(t.data || t.error));
+  const an = await anon.rpc('list_summary_payment');
+  check('list summary: anonymous cannot call it', !!an.error); }
+// ---- Report definitions (migration 069) ----
+{ const r = await admin.from('rep_roi').select('leads,enrolled,enrol_pct');
+  check('reports: source with no leads shows no rate (not 0%)', !r.error && (r.data || []).filter((x) => Number(x.leads) === 0).every((x) => x.enrol_pct === null), r.error?.message);
+  check('reports: enrolled never exceeds leads per source', (r.data || []).every((x) => Number(x.enrolled) <= Number(x.leads)));
+  const c = await admin.from('rep_cash').select('booked,collected_pct');
+  check('reports: nothing booked shows no collected %', !c.error && (c.data || []).filter((x) => Number(x.booked) === 0).every((x) => x.collected_pct === null), c.error?.message);
+  const t = await tele.from('rep_cash').select('booked');
+  check('reports: Telecaller gets no fee numbers', (t.data || []).every((x) => Number(x.booked) === 0)); }
+// ---- Student portal: rejected documents and next class (migration 071) ----
+{ const st = await as('priya');
+  const mine = (await service.from('student_account').select('candidate_id').eq('user_id', (await st.auth.getUser()).data.user.id).single()).data?.candidate_id;
+  const cand = (await service.from('candidate').select('batch_id, batch:batch_id(code)').eq('id', mine).single()).data;
+  const nc = await st.rpc('portal_next_class');
+  check('portal: next class is only the student\'s own batch', !nc.error && (nc.data === null || nc.data.batch === cand?.batch?.code), JSON.stringify(nc.data || nc.error));
+  const other = (await service.from('candidate').select('id').neq('id', mine).not('batch_id', 'is', null).neq('batch_id', cand?.batch_id || '00000000-0000-0000-0000-000000000000').limit(1)).data?.[0];
+  check('portal: student cannot read another batch\'s classes', !nc.data || nc.data.batch === cand?.batch?.code, String(other?.id));
+  const sf = await st.from('batch').select('id').neq('id', cand?.batch_id || '00000000-0000-0000-0000-000000000000').limit(1);
+  check('portal: student cannot list other batches directly', (sf.data || []).length === 0, JSON.stringify(sf.data));
+  const an = await anon.rpc('portal_next_class'), ar = await anon.rpc('portal_document_reasons');
+  check('portal: anonymous cannot call next class / reasons', !!an.error && !!ar.error);
+  const tr = await tele.rpc('portal_document_reasons');
+  check('portal: staff get no student reasons via portal RPC', !tr.error && (tr.data || []).length === 0, JSON.stringify(tr.error));
+  const d = await service.from('candidate_document').insert({ candidate_id: mine, doc_type: 'SecTest', status: 'Missing' }).select('id').single();
+  const noReason = await admin.from('candidate_document').update({ status: 'Rejected' }).eq('id', d.data.id);
+  check('documents: Rejected needs a reason', !!noReason.error);
+  const withReason = await admin.from('candidate_document').update({ status: 'Rejected', reject_reason: 'Photo is blurred' }).eq('id', d.data.id);
+  check('documents: Rejected with a reason saves', !withReason.error, withReason.error?.message);
+  const rr = await st.rpc('portal_document_reasons');
+  check('portal: student sees the reason for own rejected document', (rr.data || []).some((x) => x.id === d.data.id && x.reject_reason === 'Photo is blurred'), JSON.stringify(rr.data || rr.error));
+  await service.from('candidate_document').delete().eq('id', d.data.id); }
+// ---- Attendance standing (migration 070) ----
+{ const t = await trainer.from('attendance_standing').select('candidate_id,sessions_held,sessions_attended,min_pct').limit(50);
+  check('attendance standing: Trainer reads it', !t.error && (t.data || []).length > 0, t.error?.message);
+  check('attendance standing: attended never exceeds held', (t.data || []).every((r) => r.sessions_attended <= r.sessions_held));
+  const x = await tele.from('attendance_standing').select('candidate_id').limit(1);
+  check('attendance standing: Telecaller (no Attendance page) sees nothing', (x.data || []).length === 0);
+  const an = await anon.from('attendance_standing').select('candidate_id').limit(1);
+  check('attendance standing: anonymous blocked', !!an.error || (an.data || []).length === 0); }
+// ---- Dashboard metrics and cohort funnel (migration 065) ----
+{ const a = await admin.rpc('dashboard_metrics');
+  check('dashboard metrics: Admin gets numbers', !a.error && typeof a.data?.fu_overdue === 'number' && typeof a.data?.leads_month === 'number', a.error?.message);
+  const ft = await fin.rpc('dashboard_metrics');
+  check('dashboard metrics: Finance sees no lead numbers (null, not 0)', !ft.error && ft.data?.leads_month === null && ft.data?.sources === null, JSON.stringify(ft.error));
+  const tt = await tele.rpc('dashboard_metrics');
+  check('dashboard metrics: Telecaller sees no fee numbers', !tt.error && tt.data?.collected_month === null && tt.data?.fees_overdue_amt === null, JSON.stringify(tt.error));
+  const tl = await tele.from('lead_list').select('id', { count: 'exact', head: true }).not('stage', 'in', '(Converted,"Not interested")');
+  check('dashboard metrics: Telecaller open leads = own lead list count', tt.data?.leads_open === tl.count, `${tt.data?.leads_open} vs ${tl.count}`);
+  const an = await anon.rpc('dashboard_metrics');
+  check('dashboard metrics: anonymous blocked', !!an.error || an.data == null);
+  const f = await admin.rpc('funnel_cohort', { p_from: null, p_to: null });
+  const ns = (f.data || []).map((r) => Number(r.n));
+  check('cohort funnel: 5 steps, each <= the step before', !f.error && ns.length === 5 && ns.every((n, i) => i === 0 || n <= ns[i - 1]), JSON.stringify(ns));
+  const fc = await fin.rpc('funnel_cohort', { p_from: null, p_to: null });
+  check('cohort funnel: Finance (no Leads page) gets no counts', !fc.error && (fc.data || []).every((r) => r.n === null), JSON.stringify(fc.data));
+  const ft2 = await tele.rpc('funnel_cohort', { p_from: null, p_to: null });
+  check('cohort funnel: Telecaller gets no enrolment/placement steps', !ft2.error && (ft2.data || []).filter((r) => r.step >= 4).every((r) => r.n === null), JSON.stringify(ft2.data));
+  const fz = await anon.rpc('funnel_cohort', { p_from: null, p_to: null });
+  check('cohort funnel: anonymous blocked', !!fz.error || (fz.data || []).every((r) => r.n === null)); }
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -13,7 +13,7 @@ test.afterAll(async () => {
 test('admin signs in and sees the whole-CRM dashboard', async ({ page }) => {
   await login(page, 'harsha');
   await expect(page.getByText('Whole CRM at a glance')).toBeVisible();
-  await expect(page.getByText('Student journey')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Needs attention' })).toBeVisible();
 });
 
 test('front desk records a walk-in enquiry and it is assigned', async ({ page }) => {
@@ -248,13 +248,13 @@ test('tables: tick rows, bulk reassign, export ticked, hide a column', async ({ 
   for (const r of before!) await db.from('follow_up').update({ owner_id: r.owner_id }).eq('id', r.id);   // put them back
   expect(ids.length).toBe(2);
   // hide a column, and it stays hidden after reload
-  await page.getByRole('button', { name: /Columns/ }).click();
+  await page.getByRole('button', { name: /^View/ }).click();   // columns live in the View menu
   await page.getByRole('menuitemcheckbox', { name: 'Team' }).click();
   await expect(page.locator('thead')).not.toContainText('Team');
   await page.reload();
   await expect(page.locator('thead')).not.toContainText('Team');
-  await page.getByRole('button', { name: /Columns/ }).click();
-  await page.getByRole('button', { name: 'Show all' }).click();
+  await page.getByRole('button', { name: /^View/ }).click();
+  await page.getByRole('button', { name: 'Show all columns' }).click();
   await expect(page.locator('thead')).toContainText('Team');
 });
 
@@ -270,14 +270,14 @@ test('tables: a role without edit rights gets no bulk actions', async ({ page })
 
 test('dashboard: trends, target and tiles follow the role', async ({ page }) => {
   await login(page, 'harsha');
-  await expect(page.getByRole('heading', { name: 'New leads and enrolments' })).toBeVisible();
+  await expect(page.getByText('New leads this month')).toBeVisible();
   await expect(page.getByTestId('target-ring')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'View →' }).first()).toBeVisible();
+  await expect(page.getByTestId('tile-link').first()).toBeVisible();
   await login(page, 'suresh');   // Finance: fees, no leads
-  await expect(page.getByRole('heading', { name: 'Fees collected' })).toBeVisible();
+  await expect(page.getByText('Collected this month')).toBeVisible();
   await expect(page.getByText('New leads this month')).toHaveCount(0);
   await login(page, 'kiran');    // Trainer: no leads, no fees, no targets
-  await expect(page.getByRole('heading', { name: /New leads and enrolments|Fees collected/ })).toHaveCount(0);
+  await expect(page.getByText(/New leads this month|Collected this month/)).toHaveCount(0);
   await expect(page.getByText('My follow-ups').first()).toBeVisible();
 });
 
@@ -299,19 +299,17 @@ test('PDF: fee quote and receipt download for allowed roles only', async ({ page
   expect((await page.request.get('/api/pdf/receipt/' + p!.id)).status()).toBe(404);
 });
 
-test('calendar: month and week views, items open their record, role filtering', async ({ page }) => {
+test('calendar: the old /p/calendar address opens the week calendar, items open their record, role filtering', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/calendar');
-  await expect(page.getByRole('button', { name: 'Counselling', exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2 })).toContainText(new Date().toLocaleDateString('en-IN', { month: 'long' }));
-  await page.getByRole('button', { name: 'week', exact: true }).click();
-  await expect(page.getByText(/items in this week/)).toBeVisible();
-  const first = page.locator('section button').first();
-  if (await first.count()) { await first.click(); await expect(page).toHaveURL(/\/p\/(counsel|mock|followups|batch)/); }
-  await login(page, 'kiran');   // Trainer: no counselling legend
-  await page.goto('/p/calendar');
-  await expect(page.getByRole('button', { name: 'Mock interview' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Counselling', exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/calendar$/);
+  await expect(page.getByRole('heading', { name: 'Week calendar' })).toBeVisible();
+  const first = page.locator('section[data-day] button[data-kind]').first();
+  if (await first.count()) { await first.click(); await expect(page).toHaveURL(/\/p\/(lead|candidate|followups|batch)/); }
+  await login(page, 'kiran');   // Trainer: no counselling items
+  await page.goto('/calendar');
+  await expect(page.getByRole('heading', { name: 'Week calendar' })).toBeVisible();
+  await expect(page.locator('button[data-kind="counsel"]')).toHaveCount(0);
 });
 
 test('command menu: Ctrl+K finds people, pages and actions', async ({ page }) => {
@@ -741,7 +739,8 @@ test('tags, date range, empty state, hover card and the delete bubble on lists',
     await page.getByRole('button', { name: /Full name: Test Tagged/ }).hover();
     await expect(page.getByRole('tooltip').filter({ hasText: 'Click the row' })).toContainText('Click the row for the quick panel');
     // a date range with nothing in it shows the friendly empty state, with a way out
-    await page.getByRole('button', { name: 'Added', exact: true }).click();
+    await page.getByRole('button', { name: /^View/ }).click();   // dates live in the View menu
+    await page.getByRole('dialog', { name: 'View options' }).getByRole('button', { name: 'Added', exact: true }).click();
     await page.getByLabel('From', { exact: true }).fill('2001-01-01'); await page.getByLabel('To', { exact: true }).fill('2001-01-31');
     await page.getByRole('button', { name: 'Apply' }).click();
     await expect(page.getByText('No matches')).toBeVisible();

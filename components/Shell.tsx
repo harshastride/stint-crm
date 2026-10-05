@@ -21,6 +21,17 @@ import { IdleGuard } from './kit/IdleGuard';
 import { Watermark } from './kit/Watermark';
 
 
+/** Admin settings sub-groups in the sidebar (labels only; links unchanged). */
+const ADMIN_SUBGROUPS: [string, string[]][] = [
+  ['People & access', ['users', 'roles', 'accesslog', 'audit']],
+  ['Data', ['fields', 'dropdowns', 'duplicates', 'imports']],
+  ['Automation', ['assign', 'followrules', 'automations', 'builder', 'deliveries', 'connections']],
+  ['Messaging', ['reminders', 'templates', 'announcement']],
+  ['Branding', ['branding']],
+  ['Other', []],
+];
+const ADMIN_SUB_OF: Record<string, string> = Object.fromEntries(ADMIN_SUBGROUPS.flatMap(([l, ids]) => ids.map((id) => [id, l])));
+
 export function Shell({ children }: { children: React.ReactNode }) {
   const s = useSession();
   const path = usePathname();
@@ -155,7 +166,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             {groups.map((g) => (
               <div key={g.name} className="mt-2">
                 {head(g.name, g.name)}
-                {(collapsed || !folded.includes(g.name)) && g.pages.map((p) => item(p))}
+                {(collapsed || !folded.includes(g.name)) && (g.name === 'Admin settings' && !collapsed ? ADMIN_SUBGROUPS.map(([label]) => {
+                  const ps = g.pages.filter((p) => (ADMIN_SUB_OF[p.id] || 'Other') === label);
+                  return ps.length ? <div key={label} role="group" aria-label={label}><div className="px-2.5 pb-0.5 pt-2 text-[10.5px] font-semibold uppercase tracking-wide text-muted/80">{label}</div>{ps.map((p) => item(p))}</div> : null;
+                }) : g.pages.map((p) => item(p)))}
               </div>
             ))}
           </>);

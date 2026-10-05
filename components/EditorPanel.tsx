@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { mayReassign, statusLockedBy, type PageCfg, type Row } from '@/lib/pages';
@@ -33,6 +33,33 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [missingKeys, setMissingKeys] = useState<string[]>([]);
+  const [askClose, setAskClose] = useState(false);
+  const saving = useRef(false); // blocks a second click before the first save returns
+  const formRef = useRef<HTMLDivElement>(null);
+  const initial = useRef<string>('');
+  if (!initial.current) initial.current = JSON.stringify(values);
+  const dirty = JSON.stringify(values) !== initial.current;
+  // leaving the page with unsaved changes asks the browser to confirm
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  const close = () => { if (dirty && !readOnlyAll()) setAskClose(true); else onClose(); };
+  const readOnlyAll = () => !canWrite || !!cfg.readOnly;
+  const isEmpty = (key: string) => values[key] == null || String(values[key]).trim() === '';
+  // checked when the person leaves a required field
+  const blurCheck = (key: string, required?: boolean) => (e: React.FocusEvent<HTMLElement>) => {
+    if (!required || contactLocked(key) || e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    if (isEmpty(key) && !missingKeys.includes(key)) setMissingKeys((m) => [...m, key]);
+  };
+  const focusFirst = (keys: string[]) => requestAnimationFrame(() => {
+    const el = keys.map((k) => formRef.current?.querySelector<HTMLElement>(`[data-field="${k}"]`)).find(Boolean);
+    const ctl = el?.querySelector<HTMLElement>('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])');
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    ctl?.focus({ preventScroll: true });
+  });
   const readOnly = !canWrite || !!cfg.readOnly;
   // the status is decided only by the assigned person (or their team head); reassigning has its own rule
   const lockedBy = cfg.assignee ? statusLockedBy(cfg, values, s.staff, s.refs.staff || []) : null;
@@ -46,31 +73,37 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   const set = (key: string, val: unknown) => { if (missingKeys.includes(key)) setMissingKeys((m) => m.filter((k) => k !== key)); setValues((old) => { const next = { ...old, [key]: val }; return cfg.derive ? cfg.derive(next, s.refs) : next; }); };
 
   const save = async () => {
+    if (saving.current) return;
     const empty = fields.filter((f) => f.required && !contactLocked(f.key) && (values[f.key] == null || String(values[f.key]).trim() === ''));
     setMissingKeys(empty.map((f) => f.key));
     const missing = empty.map((f) => f.label);
     if (cfg.id === 'followups' && isNew && !values.lead_id && !values.candidate_id) missing.push('a lead or a candidate');
-    if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); return; }
+    if (missing.length) {
+      setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' });
+      focusFirst(empty.length ? empty.map((f) => f.key) : ['lead_id']);
+      return;
+    }
     if (fields.some((f) => f.type === 'instalments')) {
       const inst = (values.instalments || []) as Instalment[];
       const sum = inst.reduce((a, i) => a + Number(i.amount || 0), 0);
       if (inst.length && (sum !== planTotal || inst.some((i) => !(Number(i.amount) > 0)))) { setMsg({ tone: 'bad', text: 'The instalments must each be above zero and add up to the final amount.' }); return; }
     }
-    setBusy(true); setMsg(null);
+    saving.current = true; setBusy(true); setMsg(null);
+    const done = () => { saving.current = false; setBusy(false); };
     const payload: Row = {};
     fields.forEach((f) => { if (contactLocked(f.key)) return; if (!f.readOnly || cfg.derive) { const v = values[f.key]; payload[f.key] = typeof v === 'string' ? v.trim() || null : v; } });
     const db = supabase();
     if (cfg.id === 'users' && isNew) {
       const res = await fetch('/api/admin/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const out = await res.json();
-      setBusy(false);
+      done();
       if (!res.ok) { setMsg({ tone: 'bad', text: out.error || 'Could not invite.' }); return; }
       onSaved(`${payload.full_name} invited. Temporary password: ${out.password} — share it privately and ask them to change it.`);
       return;
     }
     if (cfg.id === 'branding' && row) {
       const { error } = await db.from('setting').update({ value: payload.value, updated_by: s.staff.id, updated_at: new Date().toISOString() }).eq('key', row.key);
-      setBusy(false);
+      done();
       if (error) { setMsg({ tone: 'bad', text: friendlyError(error) }); return; }
       onSaved('Saved.');
       return;
@@ -79,8 +112,9 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     // on a new record, leave out what was not filled so the database defaults apply
     const fresh = Object.fromEntries(Object.entries(payload).filter(([, v]) => v != null));
     const { error } = isNew ? await db.from(cfg.table).insert(fresh) : await db.from(cfg.table).update(payload).eq('id', row!.id);
-    setBusy(false);
-    if (error) { setMsg({ tone: 'bad', text: friendlyError(error, 'this ' + cfg.kind.toLowerCase()) }); return; }
+    done();
+    if (error) { setMsg({ tone: 'bad', text: friendlyError(error, 'this ' + cfg.kind.toLowerCase()) + ' Your entries are kept; fix it and save again.' }); return; }
+    initial.current = JSON.stringify(values);
     onSaved(isNew ? cfg.kind + ' added.' : 'Saved.');
   };
 
@@ -93,10 +127,10 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   };
 
   return (
-    <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={onClose}>
-      <div className="flex flex-col gap-4">
+    <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={close}>
+      <div ref={formRef} className="flex flex-col gap-4" onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !readOnly) { e.preventDefault(); save(); } }}>
         {fields.map((f) => (
-          <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments' && f.type !== 'file' && f.type !== 'tags' && !f.cards && !f.slider && !f.addable}>
+          <FieldWrap key={f.key} field={f.key} invalid={missingKeys.includes(f.key)} onBlur={blurCheck(f.key, f.required)} asLabel={f.type !== 'person' && f.type !== 'instalments' && f.type !== 'file' && f.type !== 'tags' && !f.cards && !f.slider && !f.addable}>
             <span>{f.label}{f.required && <span className="text-badText" aria-hidden> *</span>}</span>
             {f.type === 'file'
               ? <FileField page={cfg.id} candidateId={values.candidate_id || null} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />
@@ -112,8 +146,8 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
                   <div className="flex min-h-10 items-center rounded-[10px] bg-surface2 px-3 text-[13.5px] font-normal text-text">{displayValue(values[f.key], f, s.refs)}</div>
                   {!readOnly && locked(f.key) && <span className="text-[12px] font-normal text-muted">{cfg.assignee!.status === f.key ? `Only ${lockedBy} (the ${cfg.assignee!.label}) or their team head can change this.` : 'Only Admin, the person assigned or their team head can reassign this.'}</span>}
                 </div>
-              : <FieldInput field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />}
-            {missingKeys.includes(f.key) && <span className="text-[12px] font-medium text-badText">Please fill this in.</span>}
+              : <FieldInput field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} invalid={missingKeys.includes(f.key)} errorId={'err-' + cfg.id + '-' + f.key} />}
+            {missingKeys.includes(f.key) && <span id={'err-' + cfg.id + '-' + f.key} className="text-[12px] font-medium text-badText">Please fill this in.</span>}
           </FieldWrap>
         ))}
       </div>
@@ -184,6 +218,15 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       )}
       {readOnly && !cfg.readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      {askClose && (
+        <div role="alertdialog" aria-label="Unsaved changes" className="flex flex-col gap-2 rounded-[10px] bg-warnBg p-3 text-[13px] text-warnText">
+          <div className="font-medium">You have changes that are not saved. Close and lose them?</div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" autoFocus onClick={() => setAskClose(false)}>Keep editing</Button>
+            <Button variant="outline" onClick={onClose}>Discard changes</Button>
+          </div>
+        </div>
+      )}
       {!readOnly && (
         <Toolbar className="mt-auto pt-2"
           start={!isNew && s.staff.role === 'Admin' && !['users', 'branding'].includes(cfg.id) ? (
@@ -191,7 +234,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
               className="btn inline-flex h-10 items-center rounded-[10px] border border-transparent px-3 text-[13.5px] font-medium text-badText hover:bg-badBg disabled:opacity-50">Delete</Confirm>
           ) : undefined}
           primary={<Button variant="primary" loading={busy} onClick={save}>{isNew ? cfg.id === 'users' ? 'Send invite' : 'Save' : 'Save changes'}</Button>}>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={close}>Cancel</Button>
         </Toolbar>
       )}
     </SidePanel>
@@ -199,9 +242,9 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
 }
 
 // A person picker swaps its own buttons in and out, so it must not sit inside a <label> (the label would click them).
-function FieldWrap({ asLabel, children }: { asLabel: boolean; children: React.ReactNode }) {
+function FieldWrap({ asLabel, field, invalid, onBlur, children }: { asLabel: boolean; field: string; invalid?: boolean; onBlur?: (e: React.FocusEvent<HTMLElement>) => void; children: React.ReactNode }) {
   const cls = 'flex flex-col gap-1.5 text-[12px] font-medium text-text2';
-  return asLabel ? <label className={cls}>{children}</label> : <div className={cls}>{children}</div>;
+  return asLabel ? <label className={cls} data-field={field} data-invalid={invalid || undefined} onBlur={onBlur}>{children}</label> : <div className={cls} data-field={field} data-invalid={invalid || undefined} onBlur={onBlur}>{children}</div>;
 }
 
 function displayValue(v: unknown, f: { type: string; ref?: string }, refs: Record<string, { id: string; label: string }[]>) {

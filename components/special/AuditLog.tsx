@@ -33,11 +33,12 @@ export function AuditLog() {
   const [staff, setStaff] = useState<Row[]>([]);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<number | null>(null);
-  const [f, setF] = useState({ person: '', table: '', actor: '', from: '', to: '' });
+  const [f, setF] = useState({ person: '', table: '', actor: '', action: '', from: '', to: '' });
 
   const load = useCallback(async () => {
     let q = supabase().from('audit_feed').select('*').order('at', { ascending: false }).limit(500);
     if (f.person) q = q.ilike('row_label', `%${f.person}%`);
+    if (f.action) q = q.eq('action', f.action);
     if (f.table) q = q.eq('table_name', f.table);
     if (f.actor === 'system') q = q.is('actor', null); else if (f.actor) q = q.eq('actor', f.actor);
     if (f.from) q = q.gte('at', new Date(f.from + 'T00:00:00+05:30').toISOString());
@@ -65,22 +66,32 @@ export function AuditLog() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-      <PageHeader title="Audit log" description="Every add, change and removal, newest first. Private details show as [changed]. Kept for 2 years; nobody can edit it."
+      <PageHeader title="Audit log" description="Answers “who changed what, and when” for every add, change and removal, newest first. Read-only: nobody, including Admin, can edit or delete it. Private details show as [changed]; kept for 2 years."
         actions={<Button variant="outline" leftIcon={<Download size={16} />} onClick={csv} disabled={!rows?.length}>Export CSV</Button>}
         filters={
           <div className="flex flex-wrap gap-2">
             <input aria-label="Person or record" placeholder="Person or record" className={field} value={f.person} onChange={set('person')} />
+            <select aria-label="Kind of change" className={field} value={f.action} onChange={set('action')}>
+              <option value="">Any change</option><option value="INSERT">Added</option><option value="UPDATE">Changed</option><option value="DELETE">Removed</option>
+            </select>
             <select aria-label="Table" className={field} value={f.table} onChange={set('table')}>
-              <option value="">All tables</option>{tables.map((t) => <option key={t} value={t}>{nice(t)}</option>)}
+              <option value="">All kinds of record</option>{tables.map((t) => <option key={t} value={t}>{nice(t)}</option>)}
             </select>
             <select aria-label="Changed by" className={field} value={f.actor} onChange={set('actor')}>
               <option value="">Anyone</option><option value="system">System</option>{staff.map((s) => <option key={s.id} value={s.id}>{s.full_name}</option>)}
             </select>
             <input aria-label="From date" type="date" className={field} value={f.from} onChange={set('from')} />
             <input aria-label="To date" type="date" className={field} value={f.to} onChange={set('to')} />
+            {([['Today', 0], ['Last 7 days', 6], ['Last 30 days', 29]] as const).map(([l, d]) => {
+              const day = (n: number) => new Date(Date.now() + 5.5 * 36e5 - n * 864e5).toISOString().slice(0, 10);
+              const on = f.from === day(d) && f.to === day(0);
+              return <Button key={l} size="sm" variant="quiet" active={on} onClick={() => setF((x) => (on ? { ...x, from: '', to: '' } : { ...x, from: day(d), to: day(0) }))}>{l}</Button>;
+            })}
+            {Object.values(f).some(Boolean) && <Button size="sm" variant="ghost" onClick={() => setF({ person: '', table: '', actor: '', action: '', from: '', to: '' })}>Clear filters</Button>}
           </div>
         } />
       {err && <Notice tone="bad">{err}</Notice>}
+      {rows && rows.length > 0 && <p className="text-[12.5px] text-muted">{rows.length === 500 ? 'Showing the newest 500 changes. Narrow the filters to see older ones.' : `${rows.length} change${rows.length === 1 ? '' : 's'}`}</p>}
       {rows === null ? <div className="rounded-[14px] bg-surface p-6 text-muted shadow-[var(--shadow-1)]">Loading…</div>
         : rows.length === 0 ? <EmptyState kind="done" title="Nothing found" body="No changes match these filters." />
         : (

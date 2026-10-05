@@ -4,7 +4,7 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people'; get?: (r: Row) => unknown; /** low-value: hidden by default, still available under Columns */ optional?: boolean };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean };
 export type Field = {
   key: string; label: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
@@ -21,8 +21,12 @@ export type Field = {
 /** A bulk action: set one field on all ticked rows, to a fixed `value` or one picked from a list / options / reference table. */
 export type Bulk = { field: string; label: string; value?: string; list?: string; options?: string[]; ref?: string };
 export type PersonRef = { kind: 'lead' | 'candidate'; id: string };
-export type View = { label: string; where?: (r: Row, me: string) => boolean };
-export type Kpi = { label: string; calc: (rows: Row[]) => string | number };
+/** A database query builder (PostgREST). Server lists add filters to it. */
+export type Q = any;
+/** where: rows already in the browser; filter: the same rule for the database (pages with `server`). */
+export type View = { label: string; where?: (r: Row, me: string) => boolean; filter?: (q: Q, me: string) => Q; order?: { col: string; asc?: boolean } };
+/** One number in the summary strip. Clicking it applies `where` / `filter`. `sumKey`: value comes from the page's summaryRpc. */
+export type Kpi = { label: string; calc: (rows: Row[]) => string | number; where?: (r: Row) => boolean; filter?: (q: Q) => Q; sumKey?: string; money?: boolean };
 export type PageCfg = {
   id: string; table: string; readFrom?: string; /** readFrom view has the same rows/ids as table, so editing in the list still works */ sameRows?: boolean; select?: string; order?: { col: string; asc?: boolean };
   kind: string; purpose: string; cta?: string; readOnly?: boolean; noCreate?: boolean; csv?: boolean;
@@ -31,6 +35,10 @@ export type PageCfg = {
   person?: (r: Row) => PersonRef | null;
   fields?: Field[];
   rowTitle: (r: Row) => string;
+  /** big list: the database pages, sorts, searches and filters (50 rows at a time); views and kpis need `filter` */
+  server?: boolean;
+  /** rpc returning { sumKey: number } for kpis with sumKey */
+  summaryRpc?: string;
   derive?: (values: Row, refs: Record<string, RefRow[]>) => Row;  // fill fields from other fields
   empty?: string;                // what an empty list means on this page
   bulk?: Bulk[];                 // actions for ticked rows (shown only to roles that can edit the page)
@@ -55,7 +63,12 @@ export const mayReassign = (cfg: PageCfg, row: Row, me: Me, staff: RefRow[]) => 
 };
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');
-const count = (label: string, where?: (r: Row) => boolean): Kpi => ({ label, calc: (rows) => (where ? rows.filter(where).length : rows.length) });
+const count = (label: string, where?: (r: Row) => boolean, filter?: (q: Q) => Q): Kpi => ({ label, where, filter, calc: (rows) => (where ? rows.filter(where).length : rows.length) });
+/** Local midnight as an ISO timestamp, `days` from today (0 = today, 1 = tomorrow). */
+export const dayStart = (days = 0) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + days); return d.toISOString(); };
+const today = (col: string) => (q: Q) => q.gte(col, dayStart()).lt(col, dayStart(1));
+const CLOSED_LEAD = ['Converted', 'Not interested'];
+const openLead = (q: Q) => q.not('stage', 'in', '("Converted","Not interested")');
 const sum = (label: string, key: string, where?: (r: Row) => boolean): Kpi => ({ label, calc: (rows) => inr(rows.filter((r) => !where || where(r)).reduce((a, r) => a + Number(r[key] || 0), 0)) });
 const isToday = (v: unknown) => !!v && new Date(String(v)).toDateString() === new Date().toDateString();
 const isPast = (v: unknown) => !!v && new Date(String(v)).getTime() < Date.now();
@@ -75,10 +88,12 @@ export const PAGES: Record<string, PageCfg> = {
     empty: 'You’re all caught up. Follow-ups given to you or your team, and ones the CRM raises from its rules, appear here.',
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'due_at', asc: true },
     columns: [{ key: 'title', label: 'Follow-up' }, { key: 'who', label: 'Person', get: (r) => r.lead?.full_name || r.candidate?.full_name || '—' }, { key: 'owner_role', label: 'Team' },
-      { key: 'owner.full_name', label: 'Owner', type: 'person' }, { key: 'due_at', label: 'Due', type: 'datetime' }, { key: 'status', label: 'Status', type: 'pill' }],
-    views: [{ label: 'Open', where: (r) => r.status === 'Open' }, { label: 'Overdue', where: (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at) },
-      { label: 'Today', where: (r) => r.status === 'Open' && isToday(r.due_at) }, { label: 'Mine', where: (r, id) => r.status === 'Open' && r.owner_id === id }, { label: 'Done', where: (r) => r.status === 'Done' }],
-    kpis: [count('Open', (r) => r.status === 'Open'), count('Overdue', (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at)), count('Today', (r) => r.status === 'Open' && isToday(r.due_at))],
+      { key: 'owner.full_name', label: 'Owner', type: 'person' }, { key: 'due_at', label: 'Due', type: 'due', doneWhen: (r) => r.status === 'Done' }, { key: 'status', label: 'Status', type: 'pill' }],
+    server: true,
+    views: [{ label: 'Open', where: (r) => r.status === 'Open', filter: (q) => q.eq('status', 'Open') }, { label: 'Overdue', where: (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at), filter: (q) => q.eq('status', 'Open').lt('due_at', dayStart()) },
+      { label: 'Today', where: (r) => r.status === 'Open' && isToday(r.due_at), filter: (q) => today('due_at')(q.eq('status', 'Open')) }, { label: 'Mine', where: (r, id) => r.status === 'Open' && r.owner_id === id, filter: (q, id) => q.eq('status', 'Open').eq('owner_id', id) }, { label: 'Done', where: (r) => r.status === 'Done', filter: (q) => q.eq('status', 'Done') }],
+    kpis: [count('Open', (r) => r.status === 'Open', (q) => q.eq('status', 'Open')), count('Overdue', (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at), (q) => q.eq('status', 'Open').lt('due_at', dayStart())),
+      count('Due today', (r) => r.status === 'Open' && isToday(r.due_at), (q) => today('due_at')(q.eq('status', 'Open')))],
     person: (r) => (r.lead_id ? { kind: 'lead', id: r.lead_id } : r.candidate_id ? { kind: 'candidate', id: r.candidate_id } : null),
     fields: [{ key: 'title', label: 'What needs doing', type: 'text', required: true }, { key: 'lead_id', label: 'Lead (if it is about a lead)', type: 'person', person: 'lead', createOnly: true },
       { key: 'candidate_id', label: 'Candidate (if it is about a candidate)', type: 'person', person: 'candidate', createOnly: true },
@@ -107,11 +122,14 @@ export const PAGES: Record<string, PageCfg> = {
     bulk: [{ field: 'owner_id', label: 'Reassign to', ref: 'staff' }, { field: 'stage', label: 'Move to stage', list: 'lead_stage' }],
     id: 'lead', table: 'lead', readFrom: 'lead_list', sameRows: true, kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
     select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
-    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'mobile_masked', label: 'Mobile' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner', type: 'person' },
-      { key: 'source.name', label: 'Source', optional: true }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No'), optional: true }, { key: 'tags', label: 'Tags', type: 'tags', optional: true }],
-    views: [{ label: 'All leads' }, { label: 'My leads', where: (r, id) => r.owner_id === id }, { label: 'Open', where: (r) => !['Converted', 'Not interested'].includes(r.stage) }],
-    kpis: [count('New today', (r) => isToday(r.created_at)), count('Overdue calls', (r) => !['Converted', 'Not interested'].includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at)),
-      count('Interested', (r) => r.stage === 'Interested'), count('Converted', (r) => r.stage === 'Converted')],
+    server: true,
+    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'next_call_at', label: 'Next call', type: 'due', doneWhen: (r) => CLOSED_LEAD.includes(r.stage) }, { key: 'program.name', label: 'Course' }, { key: 'owner.full_name', label: 'Owner', type: 'person' },
+      { key: 'mobile_masked', label: 'Mobile' }, { key: 'source.name', label: 'Source', optional: true }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No'), optional: true }, { key: 'tags', label: 'Tags', type: 'tags', optional: true }],
+    views: [{ label: 'All leads' }, { label: 'Calls due', where: (r) => !CLOSED_LEAD.includes(r.stage) && !!r.next_call_at && new Date(r.next_call_at).getTime() < new Date(dayStart(1)).getTime(), filter: (q) => openLead(q).lt('next_call_at', dayStart(1)), order: { col: 'next_call_at', asc: true } },
+      { label: 'My leads', where: (r, id) => r.owner_id === id, filter: (q, id) => q.eq('owner_id', id) }, { label: 'Open', where: (r) => !CLOSED_LEAD.includes(r.stage), filter: openLead }],
+    kpis: [count('New today', (r) => isToday(r.created_at), today('created_at')), count('Overdue calls', (r) => !CLOSED_LEAD.includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at), (q) => openLead(q).lt('next_call_at', dayStart())),
+      count('Calls due today', (r) => !CLOSED_LEAD.includes(r.stage) && isToday(r.next_call_at), (q) => today('next_call_at')(openLead(q))),
+      count('Interested', (r) => r.stage === 'Interested', (q) => q.eq('stage', 'Interested')), count('Converted', (r) => r.stage === 'Converted', (q) => q.eq('stage', 'Converted'))],
     board: { field: 'stage', list: 'lead_stage' }, person: (r) => ({ kind: 'lead', id: r.id }),
     fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'mobile', label: 'Mobile', type: 'phone', required: true }, { key: 'email', label: 'Email', type: 'text' },
       { key: 'city', label: 'City', type: 'text' }, { key: 'program_id', label: 'Course interested', type: 'ref', ref: 'program' }, { key: 'source_id', label: 'Source', type: 'ref', ref: 'lead_source' },
@@ -123,8 +141,10 @@ export const PAGES: Record<string, PageCfg> = {
     id: 'call', table: 'call_log', kind: 'Call', purpose: 'Every call made, its outcome and the follow-up set.', cta: 'Log call',
     select: '*, lead:lead_id(id,full_name), caller:caller_id(full_name)', order: { col: 'called_at' },
     columns: [leadCol, { key: 'caller.full_name', label: 'Caller' }, { key: 'outcome', label: 'Outcome', type: 'pill' }, { key: 'duration_sec', label: 'Duration', type: 'duration' }, { key: 'notes', label: 'Notes', optional: true }, { key: 'called_at', label: 'When', type: 'datetime' }],
-    views: [{ label: 'Today', where: (r) => isToday(r.called_at) }, { label: 'All' }, { label: 'No answer', where: (r) => r.outcome === 'No answer' }],
-    kpis: [count('Calls today', (r) => isToday(r.called_at)), { label: 'Connected', calc: (rows) => (rows.length ? Math.round((100 * rows.filter((r) => r.outcome !== 'No answer').length) / rows.length) + '%' : '—') }],
+    server: true,
+    views: [{ label: 'Today', where: (r) => isToday(r.called_at), filter: today('called_at') }, { label: 'All' }, { label: 'No answer', where: (r) => r.outcome === 'No answer', filter: (q) => q.eq('outcome', 'No answer') }],
+    kpis: [count('Calls today', (r) => isToday(r.called_at), today('called_at')), count('Connected today', (r) => isToday(r.called_at) && r.outcome !== 'No answer', (q) => today('called_at')(q).neq('outcome', 'No answer')),
+      count('No answer today', (r) => isToday(r.called_at) && r.outcome === 'No answer', (q) => today('called_at')(q).eq('outcome', 'No answer'))],
     person: leadPerson,
     fields: [lead, { key: 'outcome', label: 'Outcome', type: 'select', list: 'call_outcome', required: true }, { key: 'duration_sec', label: 'Duration (seconds)', type: 'number' },
       { key: 'notes', label: 'Notes', type: 'textarea' }, { key: 'caller_id', label: 'Caller', type: 'ref', ref: 'staff', def: me('caller_id') }],
@@ -178,9 +198,11 @@ export const PAGES: Record<string, PageCfg> = {
     bulk: [{ field: 'batch_id', label: 'Assign batch', ref: 'batch' }, { field: 'poc_id', label: 'Change owner', ref: 'staff' }],
     id: 'candidate', table: 'candidate', kind: 'Candidate', purpose: 'Enrolled students. Tap one for the quick panel, or open the full profile.', cta: 'Add candidate',
     select: '*, program:program_id(name), batch:batch_id(code), poc:poc_id(full_name)', order: { col: 'created_at' },
-    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'poc.full_name', label: 'Owner', type: 'person' }, { key: 'tags', label: 'Tags', type: 'tags' }],
-    views: [{ label: 'All' }, { label: 'My candidates', where: (r, id) => r.poc_id === id }, { label: 'Ready', where: (r) => r.stage === 'Ready' }],
-    kpis: [count('Active', (r) => !['Placed', 'Alumni'].includes(r.stage)), count('In training', (r) => r.stage === 'Training'), count('Ready', (r) => r.stage === 'Ready'), count('Placed', (r) => ['Placed', 'Alumni'].includes(r.stage))],
+    server: true,
+    columns: [{ key: 'full_name', label: 'Candidate' }, { key: 'code', label: 'ID' }, { key: 'stage', label: 'Stage', type: 'progress', list: 'candidate_stage' }, { key: 'program.name', label: 'Program' }, { key: 'batch.code', label: 'Batch' }, { key: 'poc.full_name', label: 'Owner', type: 'person' }, { key: 'tags', label: 'Tags', type: 'tags' }],
+    views: [{ label: 'All' }, { label: 'My candidates', where: (r, id) => r.poc_id === id, filter: (q, id) => q.eq('poc_id', id) }, { label: 'Ready', where: (r) => r.stage === 'Ready', filter: (q) => q.eq('stage', 'Ready') }],
+    kpis: [count('Active', (r) => !['Placed', 'Alumni'].includes(r.stage), (q) => q.not('stage', 'in', '("Placed","Alumni")')), count('In training', (r) => r.stage === 'Training', (q) => q.eq('stage', 'Training')),
+      count('Ready', (r) => r.stage === 'Ready', (q) => q.eq('stage', 'Ready')), count('Placed', (r) => ['Placed', 'Alumni'].includes(r.stage), (q) => q.in('stage', ['Placed', 'Alumni']))],
     board: { field: 'stage', list: 'candidate_stage' }, person: (r) => ({ kind: 'candidate', id: r.id }),
     fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program' }, { key: 'batch_id', label: 'Batch', type: 'ref', ref: 'batch' },
       { key: 'stage', label: 'Stage', type: 'select', list: 'candidate_stage' }, { key: 'poc_id', label: 'Owner (point of contact)', type: 'ref', ref: 'staff' }, { key: 'joined_on', label: 'Joined on', type: 'date' }, { key: 'tags', label: 'Tags', type: 'tags', list: 'tag' }],
@@ -250,7 +272,7 @@ export const PAGES: Record<string, PageCfg> = {
     columns: [candCol, { key: 'doc_type', label: 'Document' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'verifier.full_name', label: 'Verified by' }, { key: 'verified_at', label: 'Verified', type: 'date' }, { key: 'file', label: 'File', get: (r) => (r.file_path ? 'Attached' : '—') }],
     views: [{ label: 'Missing', where: (r) => r.status === 'Missing' }, { label: 'Received', where: (r) => r.status === 'Received' }, { label: 'Verified', where: (r) => r.status === 'Verified' }, { label: 'All' }],
     kpis: [count('Missing', (r) => r.status === 'Missing'), count('Verified', (r) => r.status === 'Verified')], board: { field: 'status', list: 'document_status' }, person: candPerson,
-    fields: [cand, { key: 'doc_type', label: 'Document', type: 'select', list: 'document_type', required: true, other: true }, { key: 'status', label: 'Status', type: 'select', list: 'document_status' }, { key: 'verified_by', label: 'Verified by', type: 'ref', ref: 'staff' }, { key: 'file_path', label: 'File', type: 'file' }],
+    fields: [cand, { key: 'doc_type', label: 'Document', type: 'select', list: 'document_type', required: true, other: true }, { key: 'status', label: 'Status', type: 'select', list: 'document_status' }, { key: 'reject_reason', label: 'Why rejected (student sees this)', type: 'textarea' }, { key: 'verified_by', label: 'Verified by', type: 'ref', ref: 'staff' }, { key: 'file_path', label: 'File', type: 'file' }],
     rowTitle: (r) => r.doc_type + ' · ' + (r.candidate?.full_name || ''),
   },
   vendor: {
@@ -322,8 +344,12 @@ export const PAGES: Record<string, PageCfg> = {
   payment: {
     id: 'payment', table: 'fee_payment', kind: 'Payment', purpose: 'Every payment received or due, with its receipt. Recording a payment settles the oldest due instalment.', cta: 'Record payment', select: '*, candidate:candidate_id(id,full_name)', order: { col: 'due_on' },
     columns: [candCol, { key: 'label', label: 'For' }, { key: 'amount', label: 'Amount', type: 'money' }, { key: 'mode', label: 'Mode', optional: true }, { key: 'receipt_no', label: 'Receipt', optional: true }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }, { key: 'paid_on', label: 'Paid', type: 'date' }, { key: 'pdf', label: 'Receipt', get: (r) => (r.status === 'Received' ? (r.receipt_no || 'Ready') : '—') }],
-    views: [{ label: 'Due and overdue', where: (r) => ['Due', 'Overdue'].includes(r.status) }, { label: 'Received', where: (r) => r.status === 'Received' }, { label: 'Refunds', where: (r) => /Refund/.test(r.status) }, { label: 'All' }],
-    kpis: [sum('Collected', 'amount', (r) => r.status === 'Received'), sum('Overdue', 'amount', (r) => r.status === 'Overdue'), count('Late students', (r) => r.status === 'Overdue')], person: candPerson,
+    server: true, summaryRpc: 'list_summary_payment',
+    views: [{ label: 'Due and overdue', where: (r) => ['Due', 'Overdue'].includes(r.status), filter: (q) => q.in('status', ['Due', 'Overdue']) }, { label: 'Received', where: (r) => r.status === 'Received', filter: (q) => q.eq('status', 'Received') },
+      { label: 'Refunds', where: (r) => /Refund/.test(r.status), filter: (q) => q.ilike('status', '%Refund%') }, { label: 'All' }],
+    kpis: [{ ...sum('Collected', 'amount', (r) => r.status === 'Received'), where: (r) => r.status === 'Received', filter: (q) => q.eq('status', 'Received'), sumKey: 'collected', money: true },
+      { ...sum('Overdue', 'amount', (r) => r.status === 'Overdue'), where: (r) => r.status === 'Overdue', filter: (q) => q.eq('status', 'Overdue'), sumKey: 'overdue', money: true },
+      { label: 'Students overdue', calc: (rows) => new Set(rows.filter((r) => r.status === 'Overdue').map((r) => r.candidate_id)).size, where: (r) => r.status === 'Overdue', filter: (q) => q.eq('status', 'Overdue'), sumKey: 'late_students' }], person: candPerson,
     fields: [cand, { key: 'amount', label: 'Amount (₹)', type: 'number', required: true }, { key: 'status', label: 'Status', type: 'select', list: 'payment_status', required: true }, { key: 'mode', label: 'Mode', type: 'select', list: 'payment_mode' },
       { key: 'receipt_no', label: 'Receipt number (blank = automatic)', type: 'text' }, { key: 'due_on', label: 'Due on', type: 'date' }, { key: 'paid_on', label: 'Paid on', type: 'date' }],
     rowTitle: (r) => 'Payment · ' + (r.candidate?.full_name || ''),
@@ -360,27 +386,27 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.name,
   },
   rep_funnel: {
-    id: 'rep_funnel', table: 'rep_funnel', top: 'funnel', kind: 'Report row', purpose: 'Leads to placement, month by month.', readOnly: true, csv: true, order: { col: 'month' },
+    id: 'rep_funnel', table: 'rep_funnel', top: 'report', kind: 'Report row', purpose: 'Leads to placement, month by month.', readOnly: true, csv: true, order: { col: 'month' },
     columns: [{ key: 'month', label: 'Month', get: (r) => new Date(r.month).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) }, { key: 'leads', label: 'Leads', type: 'number' }, { key: 'enrolled', label: 'Enrolled', type: 'number' }, { key: 'placed', label: 'Placed', type: 'number' }, { key: 'collected', label: 'Fees collected', type: 'money' }],
     rowTitle: (r) => String(r.month),
   },
   rep_roi: {
-    id: 'rep_roi', table: 'rep_roi', kind: 'Report row', purpose: 'Which lead sources turn into enrolments and fees.', readOnly: true, csv: true, order: { col: 'leads' },
+    id: 'rep_roi', table: 'rep_roi', top: 'report', kind: 'Report row', purpose: 'Which lead sources turn into enrolments and fees.', readOnly: true, csv: true, order: { col: 'leads' },
     columns: [{ key: 'source', label: 'Source' }, { key: 'type', label: 'Type' }, { key: 'leads', label: 'Leads', type: 'number' }, { key: 'enrolled', label: 'Enrolled', type: 'number' }, { key: 'enrol_pct', label: 'Enrol %', type: 'pct' }, { key: 'fees_booked', label: 'Fees booked', type: 'money' }],
     rowTitle: (r) => r.source,
   },
   rep_batch: {
-    id: 'rep_batch', table: 'rep_batch', kind: 'Report row', purpose: 'Attendance and mock pass rate per batch.', readOnly: true, csv: true, order: { col: 'batch', asc: true },
+    id: 'rep_batch', table: 'rep_batch', top: 'report', kind: 'Report row', purpose: 'Attendance and mock pass rate per batch.', readOnly: true, csv: true, order: { col: 'batch', asc: true },
     columns: [{ key: 'batch', label: 'Batch' }, { key: 'trainer', label: 'Trainer' }, { key: 'students', label: 'Students', type: 'number' }, { key: 'attendance_pct', label: 'Attendance', type: 'pct' }, { key: 'mock_pass_pct', label: 'Mock pass', type: 'pct' }],
     rowTitle: (r) => r.batch,
   },
   rep_place: {
-    id: 'rep_place', table: 'rep_place', kind: 'Report row', purpose: 'Placements, pay and days-to-place by program.', readOnly: true, csv: true, order: { col: 'program', asc: true },
-    columns: [{ key: 'program', label: 'Program' }, { key: 'placed', label: 'Placed', type: 'number' }, { key: 'avg_ctc_lpa', label: 'Avg CTC (LPA)', type: 'number' }, { key: 'days_to_place', label: 'Days to place', type: 'number' }],
+    id: 'rep_place', table: 'rep_place', top: 'report', kind: 'Report row', purpose: 'Placements, pay and days-to-place by program.', readOnly: true, csv: true, order: { col: 'program', asc: true },
+    columns: [{ key: 'program', label: 'Program' }, { key: 'placed', label: 'Placed', type: 'number' }, { key: 'placement_rate', label: 'Placement rate', type: 'pct', get: (r) => (Number(r.candidates) > 0 ? Math.round((100 * Number(r.placed_candidates)) / Number(r.candidates)) : null) }, { key: 'avg_ctc_lpa', label: 'Avg CTC (LPA)', type: 'number' }, { key: 'days_to_place', label: 'Days to place', type: 'number' }],
     rowTitle: (r) => r.program,
   },
   rep_cash: {
-    id: 'rep_cash', table: 'rep_cash', kind: 'Report row', purpose: 'Fees booked, collected and overdue by program.', readOnly: true, csv: true, order: { col: 'program', asc: true },
+    id: 'rep_cash', table: 'rep_cash', top: 'report', kind: 'Report row', purpose: 'Fees booked, collected and overdue by program.', readOnly: true, csv: true, order: { col: 'program', asc: true },
     columns: [{ key: 'program', label: 'Program' }, { key: 'booked', label: 'Booked', type: 'money' }, { key: 'collected', label: 'Collected', type: 'money' }, { key: 'overdue', label: 'Overdue', type: 'money' }, { key: 'collected_pct', label: 'Collected %', type: 'pct' }],
     rowTitle: (r) => r.program,
   },

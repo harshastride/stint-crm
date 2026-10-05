@@ -104,7 +104,7 @@ export function ImportPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
-      <PageHeader title="Import / export" description={'Bring leads in from a sheet. Export any list from its own page.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
+      <PageHeader title="Import / export" description={'Bring leads in from a sheet. Imported leads are assigned to telecallers straight away and there is no one-click undo, so check step 3 carefully. Export any list from its own page.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
         actions={canWrite && step === 0 ? <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => { setStep(1); setMsg(null); }}>New import</Button> : undefined} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
@@ -142,7 +142,7 @@ export function ImportPage() {
                 <KpiCard label="Already in the CRM" value={check.dupes.length} />
                 <KpiCard label="Rows with a problem" value={check.bad.length} hint={check.bad.length ? 'Download them below' : undefined} tone="bad" />
               </div>
-              <p className="text-[13px] text-text2">Nothing has been added yet. New leads are given to telecallers by the assignment rule.</p>
+              <p className="text-[13px] text-text2">Nothing has been added yet. When you press Import, {check.ready.length} new leads are created and handed to telecallers by the assignment rule; rows already in the CRM or with a problem are left out.</p>
               <Toolbar sticky={false}
                 start={check.bad.length + check.dupes.length > 0 ? <Button variant="quiet" onClick={() => download([...check.bad, ...check.dupes], 'rows-not-imported.csv')}>Download the rows left out</Button> : undefined}
                 primary={<Button variant="primary" loading={busy} disabled={check.ready.length === 0} onClick={doImport}>{'Import ' + check.ready.length + ' leads'}</Button>}>

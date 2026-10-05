@@ -33,7 +33,8 @@ export function ActivepiecesSetup() {
   return (
     <section className="rounded-card bg-surface p-card shadow-1">
       <h2 className="text-base font-semibold">Activepieces setup</h2>
-      <p className="mt-1 text-[13px] text-text2">Events below are sent to this webhook every minute, signed with the secret (header <code>X-Stint-Signature: sha256=…</code>). Leads come in through the incoming address with the API key.</p>
+      <p className="mt-1 text-[13px] text-text2">Connects the CRM to Activepieces, the tool that sends WhatsApp, email and other automatic actions. Changing the address below changes where every event goes; clearing it pauses all automations (events wait, nothing is lost).</p>
+      <p className="mt-1 text-[12.5px] text-muted">Technical: events go to the webhook (a web address Activepieces listens on) every minute, signed with the secret (header <code>X-Stint-Signature: sha256=…</code>). Leads come in through the incoming address with the API key.</p>
       <div className="mt-4 grid gap-x-6 gap-y-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))' }}>
         <label className={row}>Activepieces webhook URL (outgoing events)
           <div className="flex gap-2">

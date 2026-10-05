@@ -52,7 +52,7 @@ export function Dropdowns() {
 
   return (
     <main className="flex flex-1 flex-col gap-section overflow-y-auto p-page-sm md:p-page">
-      <PageHeader title="Dropdown values" description="The choices in every dropdown, in Stint’s own words. Pick a list to edit its values."
+      <PageHeader title="Dropdown values" description="The choices staff see in every dropdown. Hiding a value removes it for new records only; old records keep it. Locked values drive rules and can’t be hidden."
         actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="grid gap-6 md:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">

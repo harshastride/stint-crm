@@ -25,3 +25,13 @@ test('non-admin cannot open the audit log', async ({ page }) => {
   await page.goto('/p/audit');
   await expect(page.getByText('This page isn’t open to your role')).toBeVisible({ timeout: 20_000 });
 });
+
+test('audit log filters by kind of change and quick dates', async ({ page }) => {
+  await login(page, 'harsha');
+  await page.goto('/p/audit');
+  await page.getByLabel('Kind of change').selectOption('UPDATE');
+  await page.getByRole('button', { name: 'Last 30 days' }).click();
+  await expect(page.getByRole('button', { name: 'Clear filters' })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filters' }).click();
+  await expect(page.getByLabel('Kind of change')).toHaveValue('');
+});

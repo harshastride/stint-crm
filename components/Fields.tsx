@@ -11,7 +11,7 @@ import { QuickDate } from './QuickDate';
 import { PhoneInput } from './PhoneInput';
 import { VoiceInput, appendText } from './kit/VoiceInput';
 
-const inputCls = 'h-10 w-full rounded-[10px] px-3 text-[13.5px] font-normal';
+const inputCls = 'h-10 w-full rounded-[10px] px-3 text-[13.5px] font-normal aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-badText';
 
 /** Search-as-you-type picker for a lead or a candidate. */
 /** Find leads or candidates by name or mobile digits; the database masks the mobile and applies row visibility. */
@@ -132,14 +132,16 @@ function RefPicker({ field, value, onChange, disabled }: { field: Field; value: 
 }
 
 /** One form control, chosen from the field's type. */
-export function FieldInput({ field, value, onChange, disabled }: { field: Field; value: unknown; onChange: (v: unknown) => void; disabled?: boolean }) {
+export function FieldInput({ field, value, onChange, disabled, invalid, errorId }: { field: Field; value: unknown; onChange: (v: unknown) => void; disabled?: boolean; invalid?: boolean; errorId?: string }) {
   const s = useSession();
+  // marks the control as needing attention and links it to the message under it
+  const aria = { 'aria-invalid': invalid || undefined, 'aria-describedby': invalid ? errorId : undefined, 'aria-required': field.required || undefined };
   // true/false columns shown as a Yes/No dropdown
   const v = value == null ? '' : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value);
   if (field.type === 'person') return <PersonSearch kind={field.person!} value={(value as string) || null} onChange={(id) => onChange(id)} disabled={disabled} label={field.label} />;
   if (field.type === 'textarea') return (
     <div className="flex flex-col gap-1.5">
-      <textarea className="min-h-[88px] w-full rounded-[10px] px-3 py-2 text-[13.5px] font-normal" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <textarea {...aria} className="aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-badText min-h-[88px] w-full rounded-[10px] px-3 py-2 text-[13.5px] font-normal" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       {!disabled && <VoiceInput context="field" label={'Speak ' + field.label} onText={(t) => onChange(appendText(v, t))} />}
     </div>
   );
@@ -147,7 +149,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
   if (field.type === 'ref') {
     const opts = s.refs[field.ref!] || [];
     return (
-      <select className={inputCls} value={v} disabled={disabled} onChange={(e) => onChange(e.target.value || null)}>
+      <select {...aria} className={inputCls} value={v} disabled={disabled} onChange={(e) => onChange(e.target.value || null)}>
         <option value="">Select</option>
         {opts.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
       </select>
@@ -163,7 +165,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
     const isOther = field.other && v !== '' && !base.includes(v);
     return (
       <div className="flex flex-col gap-2">
-        <select className={inputCls} value={isOther ? '__other' : v} disabled={disabled} onChange={(e) => onChange(e.target.value === '__other' ? ' ' : e.target.value || null)}>
+        <select {...aria} className={inputCls} value={isOther ? '__other' : v} disabled={disabled} onChange={(e) => onChange(e.target.value === '__other' ? ' ' : e.target.value || null)}>
           <option value="">Select</option>
           {base.map((o) => <option key={o} value={o}>{o}</option>)}
           {field.other && <option value="__other">Other</option>}
@@ -175,7 +177,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
   if (field.type === 'tags') return <TagPicker label={field.label} value={(value as string[]) || []} options={s.lists[field.list || ''] || []} onChange={onChange} disabled={disabled} />;
   if (field.type === 'phone') return <PhoneInput label={field.label} value={v} onChange={(d) => onChange(d || null)} disabled={disabled} />;
   if (field.type === 'datetime') return <QuickDate label={field.label} value={(value as string) || null} onChange={onChange} disabled={disabled} />;
-  return <input type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} className={inputCls} value={field.type === 'date' ? v.slice(0, 10) : v} disabled={disabled}
+  return <input {...aria} type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} className={inputCls} value={field.type === 'date' ? v.slice(0, 10) : v} disabled={disabled}
     onChange={(e) => onChange(field.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value || null)} />;
 }
 

@@ -7,7 +7,7 @@ import { cx } from '../ui';
 // Board view: columns of cards. Drag with mouse, finger or trackpad (pointer events),
 // or with the keyboard: focus a card, Space to pick up, Left/Right to choose a column,
 // Space to drop, Esc to cancel. The database decides if a move is allowed.
-export function Board<T extends Record<string, any>>({ stages, items, stageOf, canMove, onMove, onOpen, renderCard, selectedId, storageKey }: {
+export function Board<T extends Record<string, any>>({ stages, items, stageOf, canMove, onMove, onOpen, renderCard, selectedId, storageKey, totals }: {
   stages: string[];
   items: T[];
   stageOf: (r: T) => string;
@@ -17,6 +17,8 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
   renderCard: (r: T, next: string | undefined) => React.ReactNode;
   selectedId?: string | null;
   storageKey?: string;
+  /** true number of records per column when `items` is only the first part (big lists) */
+  totals?: Record<string, number>;
 }) {
   const [drag, setDrag] = useState<{ id: string; x: number; y: number; dx: number; dy: number; w: number; on: boolean } | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -97,7 +99,7 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
               className={cx('ui-col-head group min-h-[44px] rounded-lg text-left transition-colors hover:bg-surface hover:text-text', closed && 'flex-col !px-0 py-2')}>
               {closed && <ChevronRight size={14} aria-hidden />}
               <span className={cx('truncate', closed ? '[writing-mode:vertical-rl]' : 'flex-1')}>{st}</span>
-              <span className="ui-count" data-testid="col-count">{cards.length}</span>
+              <span className="ui-count" data-testid="col-count">{(totals?.[st] ?? cards.length).toLocaleString('en-IN')}</span>
               {!closed && <ChevronLeft size={14} aria-hidden className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />}
             </button>
             {!closed && cards.length === 0 && <p className="px-2 pb-2 text-[12px] text-muted">No cards</p>}
@@ -117,6 +119,9 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
                 </div>
               );
             })}
+            {!closed && totals && (totals[st] ?? 0) > cards.length && (
+              <p className="px-2 pb-2 text-[12px] text-muted">{((totals[st] ?? 0) - cards.length).toLocaleString('en-IN')} more not shown. Narrow with a filter or use the table.</p>
+            )}
           </section>
         );
       })}

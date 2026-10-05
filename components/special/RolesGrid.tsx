@@ -34,9 +34,13 @@ export function RolesGrid() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const tapPage = async (role: string, page: string, title: string) => {
+  const [pendingRemove, setPendingRemove] = useState<{ role: string; page: string; title: string } | null>(null);
+  const [focusRole, setFocusRole] = useState('');
+  const tapPage = async (role: string, page: string, title: string, confirmed = false) => {
     if (!canWrite) return;
     const key = role + '|' + page, next = PAGE_NEXT[pageAccess[key] || ''];
+    if (!next && !confirmed) { setPendingRemove({ role, page, title }); return; }
+    setPendingRemove(null);
     const db = supabase();
     const { error } = next ? await db.from('role_page_access').upsert({ role, page_id: page, mode: next }) : await db.from('role_page_access').delete().eq('role', role).eq('page_id', page);
     if (error) { setMsg({ tone: 'bad', text: error.message }); return; }
@@ -96,10 +100,40 @@ export function RolesGrid() {
 
   return (
     <main className="flex flex-1 flex-col gap-section overflow-y-auto p-page-sm md:p-page">
-      <PageHeader title="Roles & permissions" description="Which pages, sensitive details and records each role can see. Tap to change."
+      <PageHeader title="Roles & permissions" description="What each role can open and change. Taking access away really blocks it, not just hides it."
         actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>}
         filters={<ButtonGroup label="Permission type">{(['Pages', 'Sensitive details', 'Records'] as const).map((t) => <Button key={t} size="sm" variant="quiet" active={tab === t} onClick={() => setTab(t)}>{t}</Button>)}</ButtonGroup>} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      {pendingRemove && (
+        <div role="alertdialog" aria-label="Confirm removing access" data-testid="roles-confirm" className="flex flex-wrap items-center gap-3 rounded-[14px] bg-warnBg p-4 text-[13.5px] text-warnText">
+          <span className="min-w-0 flex-1">Remove <b>{pendingRemove.title}</b> from <b>{pendingRemove.role}</b>? Everyone with this role loses the page the next time they open the app, and anything they do there stops working.</span>
+          <Button variant="outline" onClick={() => setPendingRemove(null)}>Cancel</Button>
+          <Button variant="primary" onClick={() => tapPage(pendingRemove.role, pendingRemove.page, pendingRemove.title, true)}>Remove access</Button>
+        </div>
+      )}
+      {tab === 'Pages' && (
+        <section className="rounded-card bg-surface p-card shadow-1" aria-label="What a role can do" data-testid="role-summary">
+          <label className="flex flex-wrap items-center gap-2 text-[13.5px] font-medium">In plain words, what can
+            <select aria-label="Role to summarise" className="h-11 rounded-[10px] border border-line2 bg-surface px-3 text-sm" value={focusRole} onChange={(e) => setFocusRole(e.target.value)}>
+              <option value="">pick a role</option>{roles.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select> do?</label>
+          {focusRole && (() => {
+            const by = (m: string) => s.allPages.filter((p) => (pageAccess[focusRole + '|' + p.id] || '') === m).map((p) => p.title);
+            const sens = GROUPS.map(([g, l]) => `${l}: ${FIELD_LABEL[fieldAccess[focusRole + '|' + g] || 'h'].toLowerCase()}`);
+            const line = (head: string, items: string[], tone: string) => (
+              <div className="grid gap-1 sm:grid-cols-[160px_1fr]"><div className={cx('text-[12.5px] font-semibold', tone)}>{head} ({items.length})</div><div className="text-[13px] text-text2">{items.length ? items.join(', ') : 'Nothing'}</div></div>
+            );
+            return (
+              <div className="mt-3 flex flex-col gap-2">
+                {line('Can change', by('w'), 'text-goodText')}
+                {line('Can only look at', by('r'), 'text-accentText')}
+                {line('Cannot open', by(''), 'text-badText')}
+                {line('Sensitive details', sens, 'text-text')}
+              </div>
+            );
+          })()}
+        </section>
+      )}
       {tab === 'Records' ? (
         <div className="flex flex-col gap-3">
           {roles.map((r) => (

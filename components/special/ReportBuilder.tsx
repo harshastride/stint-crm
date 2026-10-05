@@ -22,6 +22,16 @@ const sel = 'min-h-[44px] max-w-full rounded-[10px] border border-line2 bg-surfa
 const label = 'text-xs font-medium text-muted';
 const AGG_LABEL = { count: 'Count', sum: 'Total', avg: 'Average' } as const;
 
+// Starter reports: ready-made definitions for common questions. They run on live data like any other report.
+const STARTERS: { q: string; def: Def }[] = [
+  { q: 'How many new leads do we get each month?', def: { source: 'leads', group_by: [{ field: 'created_on', bucket: 'month' }], measures: [{ agg: 'count' }], sort: { key: 'created_on', dir: 'asc' } } },
+  { q: 'Which sources bring the most leads?', def: { source: 'leads', group_by: [{ field: 'source' }], measures: [{ agg: 'count' }], sort: { key: 'count', dir: 'desc' } } },
+  { q: 'How much fee did we receive each month?', def: { source: 'payments', group_by: [{ field: 'paid_on', bucket: 'month' }], measures: [{ agg: 'sum', field: 'amount' }], filters: [{ field: 'status', op: 'in', values: ['Received'] }], sort: { key: 'paid_on', dir: 'asc' } } },
+  { q: 'Which companies hire our candidates, and at what pay?', def: { source: 'placements', group_by: [{ field: 'company' }], measures: [{ agg: 'count' }, { agg: 'avg', field: 'ctc_lpa' }], sort: { key: 'count', dir: 'desc' } } },
+  { q: 'How do calls end, by caller?', def: { source: 'calls', group_by: [{ field: 'caller' }, { field: 'outcome' }], measures: [{ agg: 'count' }] } },
+  { q: 'Whose follow-ups are piling up?', def: { source: 'followups', group_by: [{ field: 'owner' }, { field: 'status' }], measures: [{ agg: 'count' }] } },
+];
+
 export function ReportBuilder() {
   const s = useSession();
   const db = supabase();
@@ -135,6 +145,12 @@ export function ReportBuilder() {
     setDef({ ...d, group_by: d.group_by || [], measures: d.measures || [{ agg: 'count' }], columns: d.columns || [], filters: d.filters || [] });
     setSavedId(r.id); setName(r.name); setShare(r.shared_with_roles || []); setChoices({}); setMsg('');
   };
+  const starter = (st: { q: string; def: Def }) => {
+    setMode('summary');
+    setDef({ ...st.def, columns: fields.filter((f) => f.source_key === st.def.source).slice(0, 4).map((f) => f.col), filters: st.def.filters || [], limit: 500 });
+    setSavedId(null); setName(st.q); setShare([]); setChoices({}); setMsg(''); setErr('');
+    const g = st.def.group_by?.[0]; setChart(g && fields.find((f) => f.source_key === st.def.source && f.col === g.field)?.type === 'date' ? 'line' : 'bar');
+  };
   const remove = async () => {
     if (!savedId) return;
     await db.from('saved_report').delete().eq('id', savedId);
@@ -144,6 +160,9 @@ export function ReportBuilder() {
   const groupable = fs.filter((f) => f.groupable);
   const aggregatable = fs.filter((f) => f.aggregatable);
   const firstNum = res?.columns.find((c) => isNum(c) && !(def.group_by || []).some((g) => g.field === c));
+  // A chart only helps for one split with a handful to a few dozen groups; otherwise the table says it better.
+  const showChart = mode === 'summary' && !!firstNum && (def.group_by || []).length === 1 && !!res && res.rows.length > 1 && res.rows.length <= 40;
+  const starters = STARTERS.filter((x) => sources.some((src) => src.key === x.def.source));
 
   return (
     <main className="flex flex-col gap-section p-page-sm md:p-page">
@@ -277,7 +296,7 @@ export function ReportBuilder() {
             </div>
           </div>
 
-          {mode === 'summary' && firstNum && res.rows.length > 1 && (
+          {showChart && firstNum && (
             <div className="rounded-card bg-surface p-card shadow-1">
               <div className="mb-2 flex items-center justify-between">
                 <span className={label}>{colLabel(firstNum)}</span>
@@ -314,7 +333,22 @@ export function ReportBuilder() {
           </div>
         </section>
       )}
-      {!def.source && <div className="rounded-card bg-surface p-card text-text2 shadow-1">Choose what to report on to begin.</div>}
+      {!def.source && (
+        <section aria-label="Starter reports" className="flex flex-col gap-3 rounded-card bg-surface p-card shadow-1">
+          <div>
+            <h2 className="text-[15px] font-semibold text-text">Start from a common question</h2>
+            <p className="text-[13px] text-text2">Each one runs on live data you can see. Change anything after it opens, then save it under your own name.</p>
+          </div>
+          {starters.length ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {starters.map((x) => (
+                <button key={x.q} type="button" onClick={() => starter(x)} className="flex min-h-[44px] items-center rounded-[10px] border border-line2 px-3 py-2 text-left text-[13.5px] text-text hover:bg-accentSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">{x.q}</button>
+              ))}
+            </div>
+          ) : <p className="text-[13px] text-text2">No starter fits the data your role can see. Choose what to report on above.</p>}
+          <p className="text-xs text-muted">Or pick a data source above to build your own.</p>
+        </section>
+      )}
     </main>
   );
 }

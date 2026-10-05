@@ -41,7 +41,7 @@ export function Duplicates() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
-      <PageHeader title="Duplicates" description={'Records that look like the same person. Keep one; everything from the other moves onto it.' + (s.staff.role === 'Admin' ? '' : ' View only.')} />
+      <PageHeader title="Duplicates" description={'Records that look like the same person (same phone or email). Merging keeps one record, moves all calls, notes, payments and classes from the other onto it, and deletes the other. It can’t be undone.' + (s.staff.role === 'Admin' ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {pairs === null ? <div className="rounded-[14px] bg-surface p-6 text-muted shadow-[var(--shadow-1)]">Looking for duplicates…</div>
         : pairs.length === 0 ? <EmptyState kind="done" title="No duplicates found" body="Leads and students all look unique right now." />
@@ -54,7 +54,7 @@ export function Duplicates() {
             <div className="flex flex-col gap-3 sm:flex-row">{side(p, 'a')}{side(p, 'b')}</div>
             {confirm?.pair === p && (
               <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[10px] bg-warnBg p-3 text-[13px] text-warnText">
-                <span className="flex-1">Keep <b>{confirm.keep === 'a' ? p.a_name : p.b_name}</b> and merge <b>{confirm.keep === 'a' ? p.b_name : p.a_name}</b> into it? This can’t be undone.</span>
+                <span className="flex-1">Keep <b>{confirm.keep === 'a' ? p.a_name : p.b_name}</b> and merge <b>{confirm.keep === 'a' ? p.b_name : p.a_name}</b> into it? All of {confirm.keep === 'a' ? p.b_name : p.a_name}’s calls, notes, payments and classes move across, then that record is deleted. This can’t be undone.</span>
                 <Button variant="outline" size="sm" onClick={() => setConfirm(null)}>Cancel</Button>
                 <Button variant="primary" size="sm" loading={busy} leftIcon={<Merge size={15} />} onClick={merge}>Merge</Button>
               </div>

@@ -61,7 +61,8 @@ export const advCount = (adv: Adv) => (adv ? adv.groups.reduce((n, g) => n + g.r
 
 const blankRule = (fields: Field[]): AdvRule => { const f = fields[0]; return { field: f?.key || '', op: f ? OPS[kindOf(f)][0].id : 'in', values: [] }; };
 
-export function FilterBuilder({ cfg, value, onChange }: { cfg: PageCfg; value: Adv; onChange: (a: Adv) => void }) {
+/** compact: icon only (the name stays for screen readers), for tight toolbars. */
+export function FilterBuilder({ cfg, value, onChange, compact }: { cfg: PageCfg; value: Adv; onChange: (a: Adv) => void; compact?: boolean }) {
   const s = useSession();
   const fields = useMemo(() => advFields(cfg), [cfg]);
   const [open, setOpen] = useState(false);
@@ -114,8 +115,8 @@ export function FilterBuilder({ cfg, value, onChange }: { cfg: PageCfg; value: A
 
   return (
     <div ref={box} className="relative">
-      <Button variant="quiet" size="sm" aria-expanded={open} active={on > 0} aria-pressed={undefined} onClick={() => setOpen(!open)} leftIcon={<SlidersHorizontal size={14} />}>
-        Advanced{on ? ` · ${on}` : ''}
+      <Button variant="quiet" size="sm" aria-expanded={open} active={on > 0} aria-pressed={undefined} onClick={() => setOpen(!open)} leftIcon={<SlidersHorizontal size={14} />} title={compact ? 'Advanced filter' : undefined}>
+        <span className={compact ? 'sr-only' : undefined}>Advanced</span>{on ? ` · ${on}` : ''}
       </Button>
       {open && (
         <div role="dialog" aria-label="Advanced filter" className="fixed left-1/2 top-24 z-50 max-h-[75vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 overflow-y-auto rounded-card bg-surface p-4 shadow-3">

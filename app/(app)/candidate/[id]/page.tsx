@@ -14,11 +14,13 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Pill, cx, fmtDate, fmtDateTime, initials, money } from '@/components/ui';
 import { PageSkeleton } from '@/components/Skeletons';
-import { Reveal } from '@/components/kit/Reveal';
-import { Lock } from 'lucide-react';
+import { StageControl } from '@/components/profile/StageControl';
+import { NextSteps } from '@/components/profile/NextSteps';
+import { DetailGroup, PrivateDetails } from '@/components/profile/PrivateDetails';
+import { Timeline } from '@/components/Timeline';
+import { stepsForStage } from '@/lib/nextSteps';
+import { useRouter } from 'next/navigation';
 import { AvatarStack, type StackPerson } from '@/components/kit/AvatarStack';
-
-const GROUPS: [string, string][] = [['contact', 'Contact and address'], ['family', 'Family'], ['identity', 'Identity'], ['bank', 'Bank']];
 
 export default function Candidate360({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -28,6 +30,9 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
   const [data, setData] = useState<Record<string, Row[]>>({});
   const [tab, setTab] = useState('Profile');
   const [missing, setMissing] = useState(false);
+  const [timeline, setTimeline] = useState<Row[] | null>(null);
+  const [reload, setReload] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     const db = supabase();
@@ -56,14 +61,16 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
       setPriv(p.data);
       setData({ hist: (hist.data || []).map((h: Row) => ({ ...h, by_name: h.by?.full_name })), att: att.data || [], notes: notes.data || [], mocks: mocks.data || [], fb: fb.data || [], res: res.data || [], docs: docs.data || [], plan: plan.data || [], pays: pays.data || [], sig: sig.data || [], plc: plc.data || [], jobs: jobs.data || [], prac: prac.data || [] });
     })();
-  }, [id, s]);
+  }, [id, s, reload]);
+  useEffect(() => { if (tab === 'Activity') supabase().rpc('person_timeline', { p_lead: null, p_candidate: id }).then(({ data }) => setTimeline(data || [])); }, [tab, id, reload]);
 
   if (missing) return <main className="flex-1 p-8 text-text2">This candidate does not exist, or your role can’t open it.</main>;
   if (!c) return <PageSkeleton />;
 
-  const tabs = ['Profile', 'Education', 'Work experience', s.can('attendance') || s.can('note') ? 'Training' : '', s.can('mock') ? 'Mocks' : '', s.can('resume') ? 'Resume' : '', s.can('doc') ? 'Documents' : '', s.can('plan') ? 'Fees' : ''].filter(Boolean);
+  const tabs = ['Profile', 'Activity', 'Education', 'Work experience', s.can('attendance') || s.can('note') ? 'Training' : '', s.can('mock') ? 'Mocks' : '', s.can('resume') ? 'Resume' : '', s.can('doc') ? 'Documents' : '', s.can('plan') ? 'Fees' : ''].filter(Boolean);
   const present = data.att?.length ? Math.round((100 * data.att.filter((a) => a.mark === 'P').length) / data.att.length) + '%' : '—';
   const plan = data.plan?.[0];
+  const nextSteps = stepsForStage(c.stage).filter((st) => !st.inline && s.can(st.page, 'w'));
   const card = 'rounded-card bg-surface p-card shadow-1';
   const Lines = ({ rows, empty }: { rows: [string, React.ReactNode, React.ReactNode?][]; empty: string }) => (
     rows.length === 0 ? <p className="text-text2">{empty}</p> : <>{rows.map(([a, b, cc], i) => (
@@ -77,17 +84,25 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         <Link href={'/p/candidate?person=candidate:' + id} className="flex min-h-[44px] items-center gap-1.5 rounded-row px-2.5 text-[13.5px] font-medium text-text2 transition-colors duration-150 hover:bg-surface2 hover:text-text">← Back to candidates</Link>
         <span className="rounded-full bg-warnBg px-3 py-1 text-[12px] font-medium text-warnText">Viewing as {s.staff.role}{s.staff.role === 'Admin' ? ' · sees everything' : ' · some parts are masked or hidden'}</span>
       </div>
-      <section className={cx(card, 'flex flex-wrap items-center gap-4 p-5')}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-card bg-accentSoft text-xl font-semibold text-accentText">{initials(c.full_name)}</div>
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium text-muted">Candidate 360 · {c.code}</div>
-          <h1 className="truncate text-[22px] font-semibold leading-tight">{c.full_name}</h1>
-          <div className="mt-1.5 flex flex-wrap gap-1.5"><Pill>{(c.program?.name || 'No program') + (c.batch?.code ? ' · ' + c.batch.code : '')}</Pill><Pill>{'Stage: ' + c.stage}</Pill><TagChips tags={c.tags} max={6} /></div>
+      <section className={cx(card, 'flex flex-col gap-4 p-5')} aria-label="Candidate summary">
+        <div className="flex flex-wrap items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-card bg-accentSoft text-lg font-semibold text-accentText sm:h-16 sm:w-16 sm:text-xl" aria-hidden>{initials(c.full_name)}</div>
+          <div className="min-w-0 flex-1 basis-56">
+            <div className="text-xs font-medium text-muted">Candidate · {c.code}</div>
+            <h1 className="line-clamp-2 break-words text-[22px] font-semibold leading-tight">{c.full_name}</h1>
+            <div className="mt-1.5 flex flex-wrap gap-1.5"><Pill>{(c.program?.name || 'No program') + (c.batch?.code ? ' · ' + c.batch.code : ' · No batch yet')}</Pill><TagChips tags={c.tags} max={6} /></div>
+          </div>
+          <CandidateTeam c={c} />
         </div>
-        <CandidateTeam c={c} />
-        {[['Owner', c.poc?.full_name || '—'], ['Attendance', present], ['Fee due', plan ? money(plan.balance) : '—']].map(([l, v]) => (
-          <div key={l} className="rounded-control bg-surface2 px-3.5 py-2.5"><div className="text-[12px] font-medium text-muted">{l}</div><div className="num text-base font-semibold">{v}</div></div>
-        ))}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+          <StageControl kind="candidate" id={id} stage={c.stage} changedAt={c.stage_changed_at} onMoved={() => setReload((n) => n + 1)} />
+          <NextSteps inline stage={c.stage} steps={nextSteps} onRun={(st) => st.href && router.push(st.href({ kind: 'candidate', id }))} />
+        </div>
+        <dl className="grid grid-cols-3 gap-2">
+          {[['Owner', c.poc?.full_name || 'Not set'], ['Attendance', present], ['Fee due', plan ? money(plan.balance) : 'No plan']].map(([l, v]) => (
+            <div key={l} className="min-w-0 rounded-control bg-surface2 px-3 py-2"><dt className="text-[12px] font-medium text-muted">{l}</dt><dd className="num truncate text-[15px] font-semibold">{v}</dd></div>
+          ))}
+        </dl>
       </section>
       {(plan || (data.docs || []).length > 0) && (
         <section className={cx(card, 'grid gap-4 sm:grid-cols-2')} aria-label="Progress">
@@ -122,21 +137,14 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         <div className="grid gap-section" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
           {(s.can('sme') || s.can('mock')) && ((data.fb || []).length > 0 || (data.mocks || []).some((m) => m.status === 'Passed' || m.status === 'Failed')) && <RatingSummary reviews={s.can('sme') ? data.fb || [] : []} mocks={data.mocks || []} />}
           {s.can('practice') && <PracticeCard attempts={(data.prac || []) as unknown as PracticeAttempt[]} />}
-          <section className={card}><h2 className="mb-2 text-base font-semibold">Personal</h2>
-            <Lines empty="Not filled in yet." rows={[['Full name', c.full_name], ...Object.entries(c.profile || {}).filter(([, v]) => v).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()), String(v)] as [string, string]), ['Joined', fmtDate(c.joined_on)]]} />
+          <section className={cx(card, 'flex flex-col gap-2.5')} aria-label="Details">
+            <h2 className="text-base font-semibold">Details</h2>
+            <DetailGroup title="Personal" rows={[['Full name', c.full_name], ...Object.entries(c.profile || {}).filter(([, v]) => v).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()), String(v)] as [string, string]), ['Joined', c.joined_on ? fmtDate(c.joined_on) : '']]} />
+            <PrivateDetails id={id} priv={priv} />
           </section>
-          {priv?.locked && <section className={'flex items-center gap-2 rounded-card bg-warnBg p-card text-[13px] font-medium text-warnText'} role="note"><Lock size={16} aria-hidden />{String(priv.locked)} — ask Admin</section>}
-          {priv && GROUPS.filter(([g]) => priv.modes[g] !== 'h').map(([g, label]) => (
-            <section key={g} className={card}>
-              <div className="mb-2 flex items-center justify-between"><h2 className="text-base font-semibold">{label}</h2>
-                <span className={cx('rounded-full px-2.5 py-1 text-[11px] font-semibold', priv.modes[g] === 'f' ? 'bg-goodBg text-goodText' : 'bg-warnBg text-warnText')}>{priv.modes[g] === 'f' ? 'Full' : priv.modes[g] === 'm' ? 'Masked for ' + s.staff.role : 'Hidden for ' + s.staff.role}</span></div>
-              {priv.modes[g] === 'h' ? <p className="text-text2">Your role can’t see this part.</p>
-                : <Lines empty="Not filled in yet." rows={Object.entries(priv[g] || {}).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()),
-                    g === 'contact' && priv.modes[g] === 'm' ? <Reveal key={k} kind="candidate" id={id} field={k} label={k.replace(/_/g, ' ')} masked={String(v ?? '')} /> : <span key={k} className="num">{String(v)}</span>])} />}
-            </section>
-          ))}
         </div>
       )}
+      {tab === 'Activity' && <section className={card} aria-label="Activity">{timeline === null ? <p className="text-text2">Loading…</p> : <Timeline items={timeline} />}</section>}
       {tab === 'Education' && <section className={card}><Lines empty="No education added. Fill it from the Enrolment form." rows={(c.education || []).map((e: Row) => [e.level || 'Education', [e.years, e.marks && e.marks + '%'].filter(Boolean).join(' · ') || '—', [e.institution, e.board, e.course].filter(Boolean).join(' · ')])} /></section>}
       {tab === 'Work experience' && <section className={card}><Lines empty="No work experience on record." rows={(c.experience || []).map((e: Row) => [e.company || 'Company', [e.joined, e.last_day].filter(Boolean).join(' → ') || '—', [e.role, e.ctc].filter(Boolean).join(' · ')])} /></section>}
       {tab === 'Training' && (

@@ -11,17 +11,18 @@ import { RolesGrid } from '@/components/special/RolesGrid';
 import { Dropdowns } from '@/components/special/Dropdowns';
 import { ImportPage } from '@/components/special/ImportPage';
 import { BuilderPage } from '@/components/special/BuilderPage';
-import { Calendar } from '@/components/special/Calendar';
+import { redirect } from 'next/navigation';
 import { Duplicates } from '@/components/special/Duplicates';
 import { ReportBuilder } from '@/components/special/ReportBuilder';
 import { Reminders } from '@/components/special/Reminders';
 import { AuditLog } from '@/components/special/AuditLog';
 import { PageSkeleton } from '@/components/Skeletons';
 
-const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, calendar: Calendar, duplicates: Duplicates, reminders: Reminders, audit: AuditLog, reports_builder: ReportBuilder };
+const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, audit: AuditLog, reports_builder: ReportBuilder };
 
 export default function Page({ params }: { params: Promise<{ page: string }> }) {
   const { page } = use(params);
+  if (page === 'calendar') redirect('/calendar'); // old month-calendar address, kept for bookmarks
   const s = useSession();
   if (!s.can(page)) {
     return (

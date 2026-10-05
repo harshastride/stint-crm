@@ -1,13 +1,13 @@
 'use client';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button, IconButton, Notice, Toolbar, cx } from '../ui';
 import { PageHeader } from '../kit/PageHeader';
-import { PersonSearch } from '../Fields';
+import { PersonSearch, friendlyError } from '../Fields';
 import { PhoneInput } from '../PhoneInput';
 
 const ctl = 'h-11 w-full px-3 text-sm';
@@ -31,9 +31,26 @@ export function EnrolmentForm() {
   const [priv, setPriv] = useState<Row | null>(null);
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const saving = useRef(false);
+  const loaded = useRef('');
+  const [nameErr, setNameErr] = useState(false);
+  const snap = () => JSON.stringify([c?.full_name, c?.profile, c?.education, c?.experience, priv]);
+  const dirty = !!c && !!priv && !!loaded.current && snap() !== loaded.current;
+  useEffect(() => { if (c && priv && !loaded.current) loaded.current = snap(); }); // eslint-disable-line react-hooks/exhaustive-deps
+  // leaving the page with unsaved changes asks the browser to confirm
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty]);
+  const pick = (next: string | null) => {
+    if (dirty && !window.confirm('The data sheet has changes that are not saved. Open another candidate and lose them?')) return;
+    setId(next);
+  };
 
   useEffect(() => {
-    setC(null); setPriv(null); setMsg(null);
+    setC(null); setPriv(null); setMsg(null); loaded.current = ''; setNameErr(false);
     if (!id) return;
     const db = supabase();
     Promise.all([db.from('candidate').select('*, program:program_id(name), batch:batch_id(code)').eq('id', id).single(), db.rpc('candidate_private_get', { cid: id })]).then(([one, p]) => {
@@ -55,17 +72,20 @@ export function EnrolmentForm() {
   };
 
   const save = async () => {
-    if (!c || !priv) return;
-    setBusy(true); setMsg(null);
+    if (!c || !priv || saving.current) return;
+    if (!String(c.full_name || '').trim()) { setNameErr(true); setMsg({ tone: 'bad', text: 'Still needed: full name.' }); requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[data-field="full_name"] input')?.focus()); return; }
+    saving.current = true; setBusy(true); setMsg(null);
+    const stop = () => { saving.current = false; setBusy(false); };
     const db = supabase();
     const up = await db.from('candidate').update({ full_name: c.full_name, profile: c.profile, education: c.education, experience: c.experience }).eq('id', c.id);
-    if (up.error) { setBusy(false); setMsg({ tone: 'bad', text: up.error.message }); return; }
+    if (up.error) { stop(); setMsg({ tone: 'bad', text: friendlyError(up.error, 'this data sheet') + ' Nothing was lost on screen; try saving again.' }); return; }
     for (const g of Object.keys(GROUPS)) {
       if (priv.modes[g] !== 'f') continue;
       const { error } = await db.rpc('candidate_private_set', { cid: c.id, grp: g, data: priv[g] || {} });
-      if (error) { setBusy(false); setMsg({ tone: 'bad', text: GROUPS[g].title + ': ' + error.message }); return; }
+      if (error) { stop(); setMsg({ tone: 'bad', text: GROUPS[g].title + ': ' + friendlyError(error) + ' The other parts were saved; your entries are still here.' }); return; }
     }
-    setBusy(false);
+    stop();
+    loaded.current = snap();
     setMsg({ tone: 'good', text: `Data sheet saved for ${c.full_name}. Profile is ${filled()}% complete.` });
   };
 
@@ -76,7 +96,7 @@ export function EnrolmentForm() {
         <section className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
           <h2 className="mb-4 text-[15px] font-semibold">Candidate</h2>
           <div className="grid items-end gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-            <div className="flex flex-col gap-1 text-xs font-medium text-text2">Enrolled candidate<PersonSearch kind="candidate" value={id} onChange={setId} /></div>
+            <div className="flex flex-col gap-1 text-xs font-medium text-text2">Enrolled candidate<PersonSearch kind="candidate" value={id} onChange={pick} /></div>
             {c && <div className="truncate rounded-lg bg-surface2 px-3 py-2.5 text-[13.5px] text-text2">{c.program?.name || 'No program'} · {c.batch?.code || 'No batch yet'} · {c.code}</div>}
             {c && <div className="num rounded-lg bg-accentSoft px-3 py-2.5 text-[13.5px] font-semibold text-accentText">Profile {filled()}% complete</div>}
           </div>
@@ -87,8 +107,13 @@ export function EnrolmentForm() {
         {c && priv && (
           <>
             <Section title="Personal" tag="Everyone">
-              <Text label="Full name" value={c.full_name} onChange={(v) => setC({ ...c, full_name: v })} disabled={!canWrite} />
-              {PROFILE.map(([k, l]) => <Text key={k} label={l} value={c.profile?.[k] || ''} onChange={(v) => setProfile(k, v)} disabled={!canWrite} type={k === 'date_of_birth' ? 'date' : 'text'} />)}
+              <div data-field="full_name" className="flex flex-col gap-1">
+                <Text label="Full name" required value={c.full_name} onChange={(v) => { setC({ ...c, full_name: v }); if (v.trim()) setNameErr(false); }} disabled={!canWrite} invalid={nameErr} onBlur={() => setNameErr(!String(c.full_name || '').trim())} />
+                {nameErr && <span id="enr-err-full_name" className="text-[12px] font-medium text-badText">Enter the full name.</span>}
+              </div>
+              {PROFILE.map(([k, l]) => k === 'marital_status'
+                ? <Choice key={k} label={l} value={c.profile?.[k] || ''} options={s.lists.marital_status || []} onChange={(v) => setProfile(k, v)} disabled={!canWrite} />
+                : <Text key={k} label={l} value={c.profile?.[k] || ''} onChange={(v) => setProfile(k, v)} disabled={!canWrite} type={k === 'date_of_birth' ? 'date' : 'text'} />)}
             </Section>
             {Object.entries(GROUPS).map(([g, def]) => {
               const mode = priv.modes[g];
@@ -99,10 +124,10 @@ export function EnrolmentForm() {
                 </Section>
               );
             })}
-            <Repeat title="Education" cols={EDU} rows={c.education || []} onChange={(i, k, v) => setList('education', i, k, v)} onAdd={() => addRow('education')} onDrop={(i) => dropRow('education', i)} disabled={!canWrite} addLabel="Add education" />
+            <Repeat title="Education" cols={EDU} choices={{ level: s.lists.education_level || [] }} rows={c.education || []} onChange={(i, k, v) => setList('education', i, k, v)} onAdd={() => addRow('education')} onDrop={(i) => dropRow('education', i)} disabled={!canWrite} addLabel="Add education" />
             <Repeat title="Work experience" cols={EXP} rows={c.experience || []} onChange={(i, k, v) => setList('experience', i, k, v)} onAdd={() => addRow('experience')} onDrop={(i) => dropRow('experience', i)} disabled={!canWrite} addLabel="Add a company" empty="No work experience. Leave empty for a fresher." />
             {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-            <Toolbar primary={<Button variant="primary" loading={busy} disabled={!canWrite} onClick={save}>Save data sheet</Button>} />
+            <Toolbar start={dirty ? <span className="text-[13px] text-warnText">Unsaved changes</span> : undefined} primary={<Button variant="primary" loading={busy} disabled={!canWrite} onClick={save}>Save data sheet</Button>} />
           </>
         )}
       </div>
@@ -122,12 +147,28 @@ function Section({ title, tag, tone, children }: { title: string; tag: string; t
   );
 }
 
-function Text({ label, value, onChange, disabled, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; type?: string }) {
+function Text({ label, value, onChange, disabled, type = 'text', required, invalid, onBlur }: { label: string; value: string; onChange: (v: string) => void; disabled?: boolean; type?: string; required?: boolean; invalid?: boolean; onBlur?: () => void }) {
   if (/mobile/i.test(label) && !disabled) return <div className="flex flex-col gap-1 text-xs font-medium text-text2">{label}<PhoneInput label={label} value={value} onChange={onChange} /></div>;
-  return <label className="flex flex-col gap-1 text-xs font-medium text-text2">{label}<input type={type} className={ctl} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} /></label>;
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-text2">
+      <span>{label}{required && <span className="text-badText" aria-hidden> *</span>}</span>
+      <input type={type} className={cx(ctl, invalid && 'ring-2 ring-badText')} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} onBlur={onBlur}
+        aria-required={required || undefined} aria-invalid={invalid || undefined} aria-describedby={invalid ? 'enr-err-full_name' : undefined} max={type === 'date' ? new Date().toLocaleDateString('en-CA') : undefined} />
+    </label>
+  );
 }
 
-function Repeat({ title, cols, rows, onChange, onAdd, onDrop, disabled, addLabel, empty }: { title: string; cols: [string, string][]; rows: Row[]; onChange: (i: number, k: string, v: string) => void; onAdd: () => void; onDrop: (i: number) => void; disabled?: boolean; addLabel: string; empty?: string }) {
+/** A staff-editable list (Dropdowns page) instead of free typing; keeps an old typed value visible. */
+function Choice({ label, value, options, onChange, disabled }: { label: string; value: string; options: string[]; onChange: (v: string) => void; disabled?: boolean }) {
+  const opts = value && !options.includes(value) ? [...options, value] : options;
+  return (
+    <label className="flex flex-col gap-1 text-xs font-medium text-text2">{label}
+      <select className={ctl} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}><option value="">Select</option>{opts.map((o) => <option key={o}>{o}</option>)}</select>
+    </label>
+  );
+}
+
+function Repeat({ title, cols, rows, onChange, onAdd, onDrop, disabled, addLabel, empty, choices = {} }: { choices?: Record<string, string[]>; title: string; cols: [string, string][]; rows: Row[]; onChange: (i: number, k: string, v: string) => void; onAdd: () => void; onDrop: (i: number) => void; disabled?: boolean; addLabel: string; empty?: string }) {
   return (
     <section className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -137,7 +178,17 @@ function Repeat({ title, cols, rows, onChange, onAdd, onDrop, disabled, addLabel
       {rows.length === 0 && <div className="text-[13px] text-text2">{empty || 'Nothing added yet.'}</div>}
       {rows.map((r, i) => (
         <div key={i} className="mb-2 grid items-end gap-2 rounded-[10px] bg-surface2 p-3" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(130px, 1fr))` }}>
-          {cols.map(([k, l]) => <label key={k} className="flex flex-col gap-1 text-[11px] font-medium text-text2">{l}<input className="h-10 w-full px-2.5 text-[13px]" value={r[k] || ''} disabled={disabled} onChange={(e) => onChange(i, k, e.target.value)} /></label>)}
+          {cols.map(([k, l]) => {
+            const list = choices[k];
+            const opts = list && r[k] && !list.includes(r[k]) ? [...list, r[k]] : list;
+            return (
+              <label key={k} className="flex flex-col gap-1 text-[11px] font-medium text-text2">{l}
+                {opts?.length
+                  ? <select className="h-10 w-full px-2.5 text-[13px]" value={r[k] || ''} disabled={disabled} onChange={(e) => onChange(i, k, e.target.value)}><option value="">Select</option>{opts.map((o) => <option key={o}>{o}</option>)}</select>
+                  : <input className="h-10 w-full px-2.5 text-[13px]" value={r[k] || ''} disabled={disabled} inputMode={k === 'marks' || k === 'ctc' ? 'decimal' : undefined} onChange={(e) => onChange(i, k, e.target.value)} />}
+              </label>
+            );
+          })}
           {!disabled && <div className="flex justify-end"><IconButton aria-label={`Remove ${title.toLowerCase()} row ${i + 1}`} icon={<Trash2 size={16} />} variant="danger" onClick={() => onDrop(i)} /></div>}
         </div>
       ))}

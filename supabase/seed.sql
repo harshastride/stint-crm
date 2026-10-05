@@ -438,3 +438,5 @@ where not exists (select 1 from public.reminder_rule r where r.trigger = v.trigg
 insert into public.page (id, grp, title, sort) values ('reports_builder', 'Reports', 'Report builder', 37) on conflict (id) do nothing;
 -- Message templates page (migration 060): Admin only (Admin sees every page)
 insert into public.page (id, grp, title, sort) values ('templates', 'Admin settings', 'Message templates', 44) on conflict (id) do nothing;
+-- Rejected document status (migration 071): staff must enter a reason
+insert into public.dropdown_value (list_id, value, sort, locked) values ('document_status', 'Rejected', 3, false) on conflict (list_id, value) do nothing;
