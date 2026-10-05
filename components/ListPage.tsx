@@ -311,6 +311,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     if (p && p.includes(':')) { const [kind, id] = p.split(':'); if (kind === 'lead' || kind === 'candidate') { setPerson({ kind, id }); setPanelOpen(true); } }
   }, [params]);
 
+  // long text gets a max width and “…” (full text on hover); badges, people, dates and numbers keep their natural width
+  const clip = (c: Col, i: number) => (['pill', 'person', 'people', 'tags', 'date', 'datetime', 'money', 'number', 'pct', 'duration'].includes(c.type || '') ? '' : cx('truncate', i === 0 ? 'max-w-[260px]' : 'max-w-[220px]'));
   const hover = (on: boolean, r: Row, node: React.ReactNode) => (on ? <HoverCard block card={() => peek(cfg, columns, r)}>{node}</HoverCard> : node);
   // status changes belong to the assigned person; reassigning to Admin, them or their team head
   const lockedFor = (r: Row, key: string) => !!cfg.assignee && ((key === cfg.assignee.status && !!statusLockedBy(cfg, r, s.staff, s.refs.staff || [])) || (key === cfg.assignee.field && !mayReassign(cfg, r, s.staff, s.refs.staff || [])));
@@ -624,11 +626,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         ) : (
           <Table label={(meta?.title || cfg.kind) + ' list'} density={density} className="overflow-x-auto">
             <THead>
-              <Th className="w-11 !pl-1 !pr-0"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></Th>
-              {cols.map((c) => {
+              <Th className="ui-stick1 w-11 !pl-1 !pr-0"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></Th>
+              {cols.map((c, ci) => {
                 const on = sort?.key === c.key, num = NUMERIC.includes(c.type || '');
                 return (
-                  <Th key={c.key} numeric={num} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className="!px-1">
+                  <Th key={c.key} numeric={num} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className={cx('!px-1', ci === 0 && 'ui-stick2')}>
                     <button type="button" onClick={() => setSort(on ? (sort!.asc ? { key: c.key, asc: false } : null) : { key: c.key, asc: true })}
                       className={cx('inline-flex min-h-[32px] items-center gap-1 rounded-chip px-2 uppercase tracking-[inherit] transition-colors hover:bg-surface2 hover:text-text', num && 'flex-row-reverse', on && 'text-text')}>
                       {c.label}{on && (sort!.asc ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
@@ -641,18 +643,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             <TBody>
               {pageRows.map((r) => (
                 <Tr key={r.id ?? r.key ?? JSON.stringify(r)} onOpen={() => openRow(r)} selected={!!((r.id && picked.has(r.id)) || (selId === r.id && cfg.person))}>
-                  <Td className="w-11 !pl-1 !pr-0">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</Td>
+                  <Td className="ui-stick1 w-11 !pl-1 !pr-0">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</Td>
                   {cols.map((c, i) => {
                     const f0 = canWrite && (!cfg.readFrom || cfg.sameRows) && r.id ? fieldFor(cfg, c) : null;
                     const f = f0 && !lockedFor(r, f0.key) ? f0 : null;
                     const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
                     const tip = c.type === 'tags' || c.type === 'people' ? undefined : short(c, r) || undefined;
                     return (
-                      <Td key={c.key} numeric={NUMERIC.includes(c.type || '')} title={editing ? undefined : tip} className={cx("whitespace-nowrap", i === 0 ? "min-w-[220px] max-w-[360px]" : "max-w-[240px]", editing && '!px-2', i === 0 ? 'font-semibold' : 'text-text2')}>
+                      <Td key={c.key} numeric={NUMERIC.includes(c.type || '')} title={editing ? undefined : tip} className={cx("whitespace-nowrap", i === 0 && "ui-stick2", editing && '!px-2', i === 0 ? 'font-semibold' : 'text-text2')}>
                         {editing ? inlineEditor(r, f!) : f ? hover(i === 0 && !!cfg.person?.(r), r,
                           <button type="button" title={(tip ? tip + ' · ' : '') + 'click to change'} aria-label={`${f.label}: ${plain(c, r) || 'empty'}. Change`} onClick={(e) => { e.stopPropagation(); setCellEdit({ id: r.id, key: c.key }); }}
-                            className="-mx-1.5 block max-w-full truncate rounded-chip px-1.5 py-0.5 text-left transition-colors hover:bg-surface2 hover:text-text">{cell(c, r)}</button>
-                        ) : hover(i === 0 && !!cfg.person?.(r), r, <span className="block truncate">{cell(c, r)}</span>)}
+                            className={cx('-mx-1.5 block rounded-chip px-1.5 py-0.5 text-left transition-colors hover:bg-surface2 hover:text-text', clip(c, i))}>{cell(c, r)}</button>
+                        ) : hover(i === 0 && !!cfg.person?.(r), r, <span className={cx('block', clip(c, i))}>{cell(c, r)}</span>)}
                       </Td>
                     );
                   })}
