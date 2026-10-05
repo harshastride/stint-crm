@@ -736,7 +736,7 @@ test('tags, date range, empty state, hover card and the delete bubble on lists',
     await page.keyboard.press('Escape');
     await expect(page.getByRole('cell', { name: /Test Tagged/ }).first()).toBeVisible();
     // hover card on the name
-    await page.getByRole('button', { name: /Full name: Test Tagged/ }).hover();
+    await page.locator('tbody tr', { hasText: 'Test Tagged' }).locator('td').nth(1).getByText('Test Tagged', { exact: true }).hover();
     await expect(page.getByRole('tooltip').filter({ hasText: 'Click the row' })).toContainText('Click the row for the quick panel');
     // a date range with nothing in it shows the friendly empty state, with a way out
     await page.getByRole('button', { name: /^View/ }).click();   // dates live in the View menu

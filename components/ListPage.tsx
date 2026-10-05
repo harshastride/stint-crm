@@ -90,6 +90,8 @@ const fieldFor = (cfg: PageCfg, c: Col): Field | null => {
   if (c.get) return null;
   const key = c.key.includes('.') ? c.key.split('.')[0] + '_id' : c.key;
   const f = (cfg.fields || []).find((x) => x.key === key);
+  // names, IDs and contact details are never edited inside the table (open the record instead)
+  if (f && (f.adminEdit || ['full_name', 'name', 'code', 'mobile', 'email'].includes(f.key))) return null;
   return f && INLINE.includes(f.type) && !f.readOnly && !f.createOnly ? f : null;
 };
 

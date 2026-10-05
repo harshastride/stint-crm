@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "stint-crm", "runtimeExecutable": "infisical", "runtimeArgs": ["run", "--env=dev", "--", "npx", "next", "dev"], "port": 3101, "autoPort": true }
+    { "name": "stint-crm", "url": "http://localhost:3100" }
   ]
 }

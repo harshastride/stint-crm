@@ -64,7 +64,8 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   // the status is decided only by the assigned person (or their team head); reassigning has its own rule
   const lockedBy = cfg.assignee ? statusLockedBy(cfg, values, s.staff, s.refs.staff || []) : null;
   const assigneeLocked = !!cfg.assignee && !isNew && !mayReassign(cfg, row!, s.staff, s.refs.staff || []);
-  const locked = (key: string) => (cfg.assignee?.status === key && !!lockedBy) || (cfg.assignee?.field === key && assigneeLocked);
+  const locked = (key: string) => (cfg.assignee?.status === key && !!lockedBy) || (cfg.assignee?.field === key && assigneeLocked)
+    || (!isNew && s.staff.role !== 'Admin' && !!(cfg.fields || []).find((f) => f.key === key)?.adminEdit);
   // a saved lead's mobile/email are never read back to the screen (only masked); they are shown, not edited, here
   const contactLocked = (key: string) => cfg.table === 'lead' && !isNew && (key === 'mobile' || key === 'email');
   const customFields = s.custom.filter((f) => f.page_id === cfg.id && (!cfg.readFrom || !!cfg.sameRows));

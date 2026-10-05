@@ -16,6 +16,7 @@ export type Field = {
   slider?: { max: number; limitSetting?: string }; // a number picked with a slider (e.g. discount %)
   // addable: a ref picker where a missing name can be added on the spot
   createOnly?: boolean; readOnly?: boolean;
+  adminEdit?: boolean;           // after the record exists, only Admin may change it (names, IDs); never edited inline in tables
   def?: (ctx: { me: string }) => unknown;
 };
 /** A bulk action: set one field on all ticked rows, to a fixed `value` or one picked from a list / options / reference table. */
@@ -204,7 +205,7 @@ export const PAGES: Record<string, PageCfg> = {
     kpis: [count('Active', (r) => !['Placed', 'Alumni'].includes(r.stage), (q) => q.not('stage', 'in', '("Placed","Alumni")')), count('In training', (r) => r.stage === 'Training', (q) => q.eq('stage', 'Training')),
       count('Ready', (r) => r.stage === 'Ready', (q) => q.eq('stage', 'Ready')), count('Placed', (r) => ['Placed', 'Alumni'].includes(r.stage), (q) => q.in('stage', ['Placed', 'Alumni']))],
     board: { field: 'stage', list: 'candidate_stage' }, person: (r) => ({ kind: 'candidate', id: r.id }),
-    fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program' }, { key: 'batch_id', label: 'Batch', type: 'ref', ref: 'batch' },
+    fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true, adminEdit: true }, { key: 'program_id', label: 'Program', type: 'ref', ref: 'program' }, { key: 'batch_id', label: 'Batch', type: 'ref', ref: 'batch' },
       { key: 'stage', label: 'Stage', type: 'select', list: 'candidate_stage' }, { key: 'poc_id', label: 'Owner (point of contact)', type: 'ref', ref: 'staff' }, { key: 'joined_on', label: 'Joined on', type: 'date' }, { key: 'tags', label: 'Tags', type: 'tags', list: 'tag' }],
     rowTitle: (r) => r.full_name,
   },

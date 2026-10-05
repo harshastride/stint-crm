@@ -1113,5 +1113,16 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   await admin.from('lead').delete().eq('id', sl.id); await admin.from('status_history').delete().eq('entity_id', sl.id);
 }
 
+// Student name and ID: Admin only once the record exists (migration 074)
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const c = (await svc.from('candidate').select('id, full_name, code').limit(1).single()).data;
+  const r1 = await hr.from('candidate').update({ full_name: c.full_name + ' X' }).eq('id', c.id).select('id');
+  check('Non-admin cannot rename a student', !!r1.error || (r1.data || []).length === 0, JSON.stringify(r1.data));
+  const r2 = await hr.from('candidate').update({ code: 'HACK-1' }).eq('id', c.id).select('id');
+  check('Non-admin cannot change a student ID', !!r2.error || (r2.data || []).length === 0);
+  const r3 = await admin.from('candidate').update({ full_name: c.full_name + ' X' }).eq('id', c.id).select('id');
+  check('Admin can correct a student name', !r3.error && (r3.data || []).length === 1, r3.error?.message);
+  await svc.from('candidate').update({ full_name: c.full_name }).eq('id', c.id);
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
