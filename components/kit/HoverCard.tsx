@@ -2,13 +2,13 @@
 import { useRef, useState } from 'react';
 
 // Show a small card after the pointer rests on something for a moment. Touch screens just tap through.
-export function HoverCard({ children, card }: { children: React.ReactNode; card: () => React.ReactNode }) {
+export function HoverCard({ children, card, block }: { children: React.ReactNode; card: () => React.ReactNode; block?: boolean }) {
   const [open, setOpen] = useState(false);
   const t = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const enter = (e: React.PointerEvent) => { if (e.pointerType !== 'mouse') return; clearTimeout(t.current); t.current = setTimeout(() => setOpen(true), 450); };
   const leave = () => { clearTimeout(t.current); t.current = setTimeout(() => setOpen(false), 120); };
   return (
-    <span className="relative inline-block" onPointerEnter={enter} onPointerLeave={leave}>
+    <span className={block ? 'relative block max-w-full' : 'relative inline-block'} onPointerEnter={enter} onPointerLeave={leave}>
       {children}
       {open && (
         <span role="tooltip" onPointerEnter={() => clearTimeout(t.current)} onPointerLeave={leave}

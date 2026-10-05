@@ -74,17 +74,17 @@ export function Reveal({ kind, id, field, masked, label, onRevealed }: { kind: R
   const locked = status && !status.allowed;
   const why = reason || (locked ? status!.reason : null);
   return (
-    <span className="inline-flex flex-wrap items-center justify-end gap-2" data-reveal={field}>
+    <span className="inline-flex flex-wrap items-center justify-end gap-1" data-reveal={field}>
       <span className="num font-medium" aria-live="polite">{value ?? masked}</span>
       {value != null ? (
         <>
           <span className="text-[11.5px] text-muted">Hides in {left}s</span>
-          <button type="button" onClick={hide} aria-label={'Hide ' + name + ' now'} className="inline-flex min-h-[44px] items-center gap-1 rounded-[10px] border border-line2 bg-surface px-2.5 text-xs font-semibold text-text2"><EyeOff size={14} aria-hidden />Hide now</button>
+          <button type="button" onClick={hide} aria-label={'Hide ' + name + ' now'} className="btn inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-text2 hover:bg-surface2 hover:text-text"><EyeOff size={13} aria-hidden />Hide</button>
         </>
       ) : locked || reason ? (
         <span className="inline-flex items-center gap-1 text-[11.5px] text-muted" title={why || ''}><Lock size={13} aria-hidden />{why}</span>
       ) : (
-        <button type="button" disabled={busy} onClick={show} aria-label={'Show ' + name} className="inline-flex min-h-[44px] items-center gap-1 rounded-[10px] border border-line2 bg-surface px-2.5 text-xs font-semibold text-accentText disabled:opacity-50"><Eye size={14} aria-hidden />Show</button>
+        <button type="button" disabled={busy} onClick={show} aria-label={'Show ' + name} className="btn inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-accentText hover:bg-accentSoft disabled:opacity-50"><Eye size={13} aria-hidden />Show</button>
       )}
     </span>
   );

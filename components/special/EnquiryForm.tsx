@@ -5,8 +5,8 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
-import { Button, Notice } from '../ui';
-import { PageHeader } from '../ListPage';
+import { Button, Notice, Toolbar } from '../ui';
+import { PageHeader } from '../kit/PageHeader';
 import { PhoneInput, phoneProblem } from '../PhoneInput';
 import { VoiceInput, appendText } from '../kit/VoiceInput';
 
@@ -76,21 +76,21 @@ export function EnquiryForm() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-      <PageHeader group="Front desk" title="New enquiry" purpose="Quick form for a walk-in or phone enquiry. Takes about a minute." scope={s.staff.role + (canWrite ? ' · can edit' : ' · view only')} />
-      <div className="flex max-w-[860px] flex-col gap-3">
+    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+      <PageHeader title="New enquiry" description={'Walk-in or phone enquiry. Takes about a minute.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')} />
+      <div className="flex max-w-[860px] flex-col gap-4">
         <ol className="grid grid-cols-3 gap-2" aria-label="Steps">
           {STEPS.map((t, i) => (
             <li key={t} aria-current={i === step ? 'step' : undefined}>
               <button type="button" disabled={i > step} onClick={() => setStep(i)} className="flex w-full flex-col gap-1.5 text-left disabled:cursor-default">
-                <span className={'h-1.5 rounded-full ' + (i <= step ? 'bg-accent' : 'bg-line2')} />
+                <span className={'h-1 rounded-full transition-colors duration-150 ' + (i <= step ? 'bg-accent' : 'bg-surface2')} />
                 <span className={'text-[12px] font-semibold ' + (i === step ? 'text-text' : 'text-muted')}><span className="num">{i + 1}.</span> {t}</span>
               </button>
             </li>
           ))}
         </ol>
-        {step === 0 && <section className="anim-fade rounded-xl border border-line bg-surface p-4">
-          <h2 className="mb-3 text-base font-semibold">Who is enquiring</h2>
+        {step === 0 && <section className="anim-fade rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
+          <h2 className="mb-4 text-[15px] font-semibold">Who is enquiring</h2>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Full name *<input className={ctl} value={v.full_name} onChange={set('full_name')} placeholder="As they say it" /></label>
             <div className="flex flex-col gap-1 text-xs font-medium text-text2">Mobile *<PhoneInput label="Mobile" value={v.mobile} onChange={(m) => setV({ ...v, mobile: m })} /></div>
@@ -98,8 +98,8 @@ export function EnquiryForm() {
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">City<input className={ctl} value={v.city} onChange={set('city')} /></label>
           </div>
         </section>}
-        {step === 1 && <section className="anim-fade rounded-xl border border-line bg-surface p-4">
-          <h2 className="mb-3 text-base font-semibold">What they want</h2>
+        {step === 1 && <section className="anim-fade rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
+          <h2 className="mb-4 text-[15px] font-semibold">What they want</h2>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Course interested *
               <select className={ctl} value={v.program_id} onChange={set('program_id')}>
@@ -112,8 +112,8 @@ export function EnquiryForm() {
             <div className="flex flex-col gap-1 text-xs font-medium text-text2">Currently<RadioCards label="Currently" options={s.lists.currently || []} value={v.currently || null} onChange={(x) => setV({ ...v, currently: x || '' })} /></div>
           </div>
         </section>}
-        {step === 2 && <section className="anim-fade rounded-xl border border-line bg-surface p-4">
-          <h2 className="mb-3 text-base font-semibold">How they found us</h2>
+        {step === 2 && <section className="anim-fade rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
+          <h2 className="mb-4 text-[15px] font-semibold">How they found us</h2>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Source
               <select className={ctl} value={v.source_id} onChange={set('source_id')}><option value="">Select</option>{s.refs.lead_source.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
@@ -128,15 +128,15 @@ export function EnquiryForm() {
             <input type="checkbox" className="h-5 w-5" checked={!!v.consent} onChange={(e) => setV({ ...v, consent: e.target.checked })} />
             <span>They agree to get course updates and offers on WhatsApp, SMS and email <span className="text-muted">(ask them; leave unticked if not)</span></span>
           </label>
-          <p className="mt-3 rounded-[10px] border border-line px-3 py-2 text-[13px] text-text2"><b className="text-text">{v.full_name}</b> · +91 {String(v.mobile).replace(/(\d{5})(\d{5})/, '$1 $2')}{v.email ? ' · ' + v.email : ''} · wants <b className="text-text">{v.program_id === '__other' ? v.course_other : s.refs.program.find((x) => x.id === v.program_id)?.label}</b></p>
+          <p className="mt-3 truncate rounded-lg bg-surface2 px-3 py-2.5 text-[13px] text-text2"><b className="text-text">{v.full_name}</b> · +91 {String(v.mobile).replace(/(\d{5})(\d{5})/, '$1 $2')}{v.email ? ' · ' + v.email : ''} · wants <b className="text-text">{v.program_id === '__other' ? v.course_other : s.refs.program.find((x) => x.id === v.program_id)?.label}</b></p>
         </section>}
         {msg && <Notice tone={msg.tone}>{msg.text} {msg.id && s.can('lead') && <Link className="underline" href={'/p/lead?person=lead:' + msg.id}>Open the lead</Link>}</Notice>}
-        <div className="flex flex-wrap items-center gap-3">
-          {step > 0 && <Button onClick={() => { setMsg(null); setStep(step - 1); }}>Back</Button>}
-          {step < 2 ? <Button variant="primary" disabled={!canWrite} onClick={next}>Next</Button>
-            : <Button variant="primary" disabled={busy || !canWrite} onClick={save}>{busy ? 'Saving…' : 'Save enquiry'}</Button>}
-          <span className="text-[13px] text-text2">{step === 0 ? 'The mobile is checked for duplicates straight away.' : step === 2 ? 'Saving assigns the lead by the assignment rule.' : ''}</span>
-        </div>
+        <Toolbar
+          start={<span className="text-[13px] text-muted">{step === 0 ? 'The mobile is checked for duplicates straight away.' : step === 2 ? 'Saving assigns the lead by the assignment rule.' : ''}</span>}
+          primary={step < 2 ? <Button variant="primary" disabled={!canWrite} onClick={next}>Next</Button>
+            : <Button variant="primary" loading={busy} disabled={!canWrite} onClick={save}>Save enquiry</Button>}>
+          {step > 0 && <Button variant="outline" onClick={() => { setMsg(null); setStep(step - 1); }}>Back</Button>}
+        </Toolbar>
       </div>
     </main>
   );

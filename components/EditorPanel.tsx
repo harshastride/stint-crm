@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { mayReassign, statusLockedBy, type PageCfg, type Row } from '@/lib/pages';
-import { Button, Notice, SidePanel } from './ui';
+import { Button, Notice, SidePanel, Toolbar } from './ui';
 import { FieldInput, friendlyError } from './Fields';
 import { JobPapers } from './JobPapers';
 import { FileField } from './FileField';
@@ -32,6 +32,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   });
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [missingKeys, setMissingKeys] = useState<string[]>([]);
   const readOnly = !canWrite || !!cfg.readOnly;
   // the status is decided only by the assigned person (or their team head); reassigning has its own rule
   const lockedBy = cfg.assignee ? statusLockedBy(cfg, values, s.staff, s.refs.staff || []) : null;
@@ -42,10 +43,12 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   const customFields = s.custom.filter((f) => f.page_id === cfg.id && (!cfg.readFrom || !!cfg.sameRows));
   const planTotal = cfg.id === 'quote' ? quoteAmount(values) : Number(values.total || 0);
 
-  const set = (key: string, val: unknown) => setValues((old) => { const next = { ...old, [key]: val }; return cfg.derive ? cfg.derive(next, s.refs) : next; });
+  const set = (key: string, val: unknown) => { if (missingKeys.includes(key)) setMissingKeys((m) => m.filter((k) => k !== key)); setValues((old) => { const next = { ...old, [key]: val }; return cfg.derive ? cfg.derive(next, s.refs) : next; }); };
 
   const save = async () => {
-    const missing = fields.filter((f) => f.required && !contactLocked(f.key) && (values[f.key] == null || String(values[f.key]).trim() === '')).map((f) => f.label);
+    const empty = fields.filter((f) => f.required && !contactLocked(f.key) && (values[f.key] == null || String(values[f.key]).trim() === ''));
+    setMissingKeys(empty.map((f) => f.key));
+    const missing = empty.map((f) => f.label);
     if (cfg.id === 'followups' && isNew && !values.lead_id && !values.candidate_id) missing.push('a lead or a candidate');
     if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); return; }
     if (fields.some((f) => f.type === 'instalments')) {
@@ -91,45 +94,46 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
 
   return (
     <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={onClose}>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-4">
         {fields.map((f) => (
           <FieldWrap key={f.key} asLabel={f.type !== 'person' && f.type !== 'instalments' && f.type !== 'file' && f.type !== 'tags' && !f.cards && !f.slider && !f.addable}>
-            <span>{f.label}{f.required && <span className="text-badText"> *</span>}</span>
+            <span>{f.label}{f.required && <span className="text-badText" aria-hidden> *</span>}</span>
             {f.type === 'file'
               ? <FileField page={cfg.id} candidateId={values.candidate_id || null} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />
               : f.type === 'instalments'
               ? <InstalmentsEditor total={planTotal} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />
               : contactLocked(f.key)
               ? <div className="flex flex-col gap-1">
-                  <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm font-normal text-text">{String(row?.[f.key + '_masked'] || '—')}</div>
+                  <div className="flex min-h-10 items-center rounded-[10px] bg-surface2 px-3 text-[13.5px] font-normal text-text">{String(row?.[f.key + '_masked'] || '—')}</div>
                   <span className="text-[12px] font-normal text-muted">Use Show in the quick panel to see it.</span>
                 </div>
               : (readOnly || f.readOnly || locked(f.key)) && f.type !== 'person'
               ? <div className="flex flex-col gap-1">
-                  <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm font-normal text-text">{displayValue(values[f.key], f, s.refs)}</div>
+                  <div className="flex min-h-10 items-center rounded-[10px] bg-surface2 px-3 text-[13.5px] font-normal text-text">{displayValue(values[f.key], f, s.refs)}</div>
                   {!readOnly && locked(f.key) && <span className="text-[12px] font-normal text-muted">{cfg.assignee!.status === f.key ? `Only ${lockedBy} (the ${cfg.assignee!.label}) or their team head can change this.` : 'Only Admin, the person assigned or their team head can reassign this.'}</span>}
                 </div>
               : <FieldInput field={f} value={values[f.key]} onChange={(v) => set(f.key, v)} disabled={readOnly} />}
+            {missingKeys.includes(f.key) && <span className="text-[12px] font-medium text-badText">Please fill this in.</span>}
           </FieldWrap>
         ))}
       </div>
       {customFields.length > 0 && (
-        <div className="flex flex-col gap-2.5 border-t border-line pt-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted">More details</div>
+        <section aria-label="More details" className="flex flex-col gap-4 pt-2">
+          <div className="text-[12px] font-medium text-muted">More details</div>
           {customFields.map((f) => {
             const v = (values.custom || {})[f.key];
             const setC = (x: unknown) => set('custom', { ...(values.custom || {}), [f.key]: x === '' ? null : x });
-            const cls = 'h-[42px] w-full px-3 text-sm font-normal';
+            const cls = 'h-10 w-full rounded-[10px] px-3 text-[13.5px] font-normal';
             return (
-              <label key={f.id} className="flex flex-col gap-1 text-xs font-medium text-text2">{f.label}
-                {readOnly ? <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm font-normal text-text">{v === true ? 'Yes' : v === false ? 'No' : v ?? '—'}</div>
+              <label key={f.id} className="flex flex-col gap-1.5 text-[12px] font-medium text-text2">{f.label}
+                {readOnly ? <div className="flex min-h-10 items-center rounded-[10px] bg-surface2 px-3 text-[13.5px] font-normal text-text">{v === true ? 'Yes' : v === false ? 'No' : v ?? '—'}</div>
                   : f.type === 'Yes / No' ? <select className={cls} value={v === true ? 'Yes' : v === false ? 'No' : ''} onChange={(e) => setC(e.target.value === '' ? null : e.target.value === 'Yes')}><option value="">—</option><option>Yes</option><option>No</option></select>
                   : f.type === 'Choice' ? <select className={cls} value={v ?? ''} onChange={(e) => setC(e.target.value)}><option value="">—</option>{(f.options || '').split(',').map((o) => o.trim()).filter(Boolean).map((o) => <option key={o}>{o}</option>)}</select>
                   : <input className={cls} type={f.type === 'Number' ? 'number' : f.type === 'Date' ? 'date' : 'text'} value={v ?? ''} onChange={(e) => setC(f.type === 'Number' && e.target.value !== '' ? Number(e.target.value) : e.target.value)} />}
               </label>
             );
           })}
-        </div>
+        </section>
       )}
       {cfg.id === 'resume' && row?.id && row.candidate_id && <ResumeCompare candidateId={String(row.candidate_id)} currentId={String(row.id)} />}
       {cfg.id === 'jobdocs' && row && <JobPapers job={{ ...row, ...values }} canWrite={!readOnly} />}
@@ -148,19 +152,19 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
         </div>
       )}
       {cfg.id === 'quote' && row?.id && (
-        <a href={'/api/pdf/quote/' + row.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface text-sm font-semibold">
+        <a href={'/api/pdf/quote/' + row.id} target="_blank" rel="noopener" className="btn inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface px-4 text-[13.5px] font-medium hover:bg-surface2">
           <FileDown size={16} aria-hidden /> Fee quote PDF
         </a>
       )}
       {cfg.id === 'payment' && row?.id && row.status === 'Received' && (
-        <a href={'/api/pdf/receipt/' + row.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface text-sm font-semibold">
+        <a href={'/api/pdf/receipt/' + row.id} target="_blank" rel="noopener" className="btn inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface px-4 text-[13.5px] font-medium hover:bg-surface2">
           <FileDown size={16} aria-hidden /> Receipt PDF
         </a>
       )}
       {cfg.id === 'recordings' && row?.id && <RecordingExtras row={row} values={values} setValue={set} onDone={onSaved} />}
       {cfg.id === 'deliveries' && row?.id && (
         <div className="flex flex-col gap-2">
-          <div className="text-xs font-medium text-text2">What was sent</div>
+          <div className="text-[12px] font-medium text-muted">What was sent</div>
           <pre className="max-h-72 overflow-auto rounded-[10px] bg-surface2 p-3 text-[11.5px] leading-relaxed">{JSON.stringify(row.payload, null, 2)}</pre>
           {s.can('deliveries', 'w') && row.status !== 'Sent' && (
             <Button variant="primary" disabled={busy} onClick={async () => {
@@ -171,7 +175,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
         </div>
       )}
       {cfg.id === 'users' && row?.id && !readOnly && row.id !== s.staff.id && (
-        <Button disabled={busy} onClick={async () => {
+        <Button variant="outline" disabled={busy} onClick={async () => {
           setBusy(true);
           const res = await fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staff_id: row.id }) });
           const out = await res.json(); setBusy(false);
@@ -181,14 +185,14 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       {readOnly && !cfg.readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {!readOnly && (
-        <div className="flex flex-col gap-2">
-          <Button variant="primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : isNew ? cfg.id === 'users' ? 'Send invite' : 'Save' : 'Save changes'}</Button>
-          {!isNew && s.staff.role === 'Admin' && !['users', 'branding'].includes(cfg.id) && (
-            <Confirm full disabled={busy} onYes={remove} title={'Delete this ' + cfg.kind.toLowerCase() + '?'} body={cfg.rowTitle(row!) + ' will be removed for good. This cannot be undone.'} yes="Delete for good"
-              className="min-h-[44px] rounded-[10px] border border-line2 bg-surface px-4 text-sm font-medium text-badText">Delete</Confirm>
-          )}
-          <Button onClick={onClose}>Cancel</Button>
-        </div>
+        <Toolbar className="mt-auto pt-2"
+          start={!isNew && s.staff.role === 'Admin' && !['users', 'branding'].includes(cfg.id) ? (
+            <Confirm disabled={busy} align="left" onYes={remove} title={'Delete this ' + cfg.kind.toLowerCase() + '?'} body={cfg.rowTitle(row!) + ' will be removed for good. This cannot be undone.'} yes="Delete for good"
+              className="btn inline-flex h-10 items-center rounded-[10px] border border-transparent px-3 text-[13.5px] font-medium text-badText hover:bg-badBg disabled:opacity-50">Delete</Confirm>
+          ) : undefined}
+          primary={<Button variant="primary" loading={busy} onClick={save}>{isNew ? cfg.id === 'users' ? 'Send invite' : 'Save' : 'Save changes'}</Button>}>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+        </Toolbar>
       )}
     </SidePanel>
   );
@@ -196,7 +200,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
 
 // A person picker swaps its own buttons in and out, so it must not sit inside a <label> (the label would click them).
 function FieldWrap({ asLabel, children }: { asLabel: boolean; children: React.ReactNode }) {
-  const cls = 'flex flex-col gap-1 text-xs font-medium text-text2';
+  const cls = 'flex flex-col gap-1.5 text-[12px] font-medium text-text2';
   return asLabel ? <label className={cls}>{children}</label> : <div className={cls}>{children}</div>;
 }
 

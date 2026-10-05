@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { IconButton } from '../ui';
 
 const isMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
@@ -52,26 +53,26 @@ export function Shortcuts() {
     ['Person panel (when open)', [[['J'], 'Next person in the list'], [['K'], 'Previous person in the list'], [['↓'], 'Next person'], [['↑'], 'Previous person']]],
     ['Menus and lists', [[['↑', '↓'], 'Move between choices'], [['Enter'], 'Pick the highlighted choice']]],
   ];
-  const kbd = 'inline-flex min-w-[28px] items-center justify-center rounded-md border border-line2 bg-surface2 px-1.5 py-0.5 font-sans text-[12px] font-semibold';
+  const kbd = 'inline-flex min-w-[26px] items-center justify-center rounded-chip bg-surface2 px-1.5 py-0.5 font-sans text-[12px] font-semibold';
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 sm:items-center" onClick={close}>
       <div ref={box} role="dialog" aria-modal="true" aria-labelledby="sc-title" onClick={(e) => e.stopPropagation()}
-        className="anim-rise max-h-[85vh] w-full overflow-auto rounded-t-2xl border border-line bg-surface p-4 shadow-2xl sm:w-[460px] sm:rounded-2xl">
+        className="anim-rise max-h-[85vh] w-full overflow-auto rounded-t-card bg-surface p-5 shadow-3 sm:w-[460px] sm:rounded-card">
         <div className="mb-2 flex items-center justify-between">
           <h2 id="sc-title" className="text-[16px] font-semibold">Keyboard shortcuts</h2>
-          <button type="button" aria-label="Close" onClick={close} className="flex h-11 w-11 items-center justify-center rounded-[10px] text-muted hover:bg-surface2"><X size={18} /></button>
+          <IconButton aria-label="Close" onClick={close} icon={<X size={18} />} />
         </div>
         {groups.map(([g, rows]) => (
-          <section key={g} className="mt-3">
-            <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted">{g}</h3>
+          <section key={g} className="mt-4">
+            <h3 className="mb-1 text-[12px] font-medium text-muted">{g}</h3>
             <ul>{rows.map(([keys, what]) => (
-              <li key={what} className="flex min-h-[40px] items-center justify-between gap-3 border-b border-line py-1.5 text-[13.5px] last:border-0">
+              <li key={what} className="flex min-h-[40px] items-center justify-between gap-3 py-1.5 text-[13.5px] text-text">
                 <span>{what}</span>
                 <span className="flex shrink-0 gap-1">{keys.map((k) => <kbd key={k} className={kbd}>{k}</kbd>)}</span>
               </li>))}</ul>
           </section>
         ))}
-        <p className="mt-3 text-[12.5px] text-muted">Shortcuts do not work while you are typing in a box.</p>
+        <p className="mt-4 text-[12.5px] text-muted">Shortcuts do not work while you are typing in a box.</p>
       </div>
     </div>
   );

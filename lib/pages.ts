@@ -4,7 +4,7 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people'; get?: (r: Row) => unknown };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people'; get?: (r: Row) => unknown; /** low-value: hidden by default, still available under Columns */ optional?: boolean };
 export type Field = {
   key: string; label: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
@@ -108,7 +108,7 @@ export const PAGES: Record<string, PageCfg> = {
     id: 'lead', table: 'lead', readFrom: 'lead_list', sameRows: true, kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
     select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
     columns: [{ key: 'full_name', label: 'Lead' }, { key: 'mobile_masked', label: 'Mobile' }, { key: 'program.name', label: 'Course' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'owner.full_name', label: 'Owner', type: 'person' },
-      { key: 'source.name', label: 'Source' }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No') }, { key: 'tags', label: 'Tags', type: 'tags' }],
+      { key: 'source.name', label: 'Source', optional: true }, { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No'), optional: true }, { key: 'tags', label: 'Tags', type: 'tags', optional: true }],
     views: [{ label: 'All leads' }, { label: 'My leads', where: (r, id) => r.owner_id === id }, { label: 'Open', where: (r) => !['Converted', 'Not interested'].includes(r.stage) }],
     kpis: [count('New today', (r) => isToday(r.created_at)), count('Overdue calls', (r) => !['Converted', 'Not interested'].includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at)),
       count('Interested', (r) => r.stage === 'Interested'), count('Converted', (r) => r.stage === 'Converted')],
@@ -122,7 +122,7 @@ export const PAGES: Record<string, PageCfg> = {
   call: {
     id: 'call', table: 'call_log', kind: 'Call', purpose: 'Every call made, its outcome and the follow-up set.', cta: 'Log call',
     select: '*, lead:lead_id(id,full_name), caller:caller_id(full_name)', order: { col: 'called_at' },
-    columns: [leadCol, { key: 'caller.full_name', label: 'Caller' }, { key: 'outcome', label: 'Outcome', type: 'pill' }, { key: 'duration_sec', label: 'Duration', type: 'duration' }, { key: 'notes', label: 'Notes' }, { key: 'called_at', label: 'When', type: 'datetime' }],
+    columns: [leadCol, { key: 'caller.full_name', label: 'Caller' }, { key: 'outcome', label: 'Outcome', type: 'pill' }, { key: 'duration_sec', label: 'Duration', type: 'duration' }, { key: 'notes', label: 'Notes', optional: true }, { key: 'called_at', label: 'When', type: 'datetime' }],
     views: [{ label: 'Today', where: (r) => isToday(r.called_at) }, { label: 'All' }, { label: 'No answer', where: (r) => r.outcome === 'No answer' }],
     kpis: [count('Calls today', (r) => isToday(r.called_at)), { label: 'Connected', calc: (rows) => (rows.length ? Math.round((100 * rows.filter((r) => r.outcome !== 'No answer').length) / rows.length) + '%' : '—') }],
     person: leadPerson,
@@ -157,8 +157,8 @@ export const PAGES: Record<string, PageCfg> = {
   quote: {
     id: 'quote', table: 'fee_quote', kind: 'Fee quote', purpose: 'Price offers sent to a lead, with discount and instalments.', cta: 'New quote',
     select: '*, lead:lead_id(id,full_name), program:program_id(name)', order: { col: 'created_at' },
-    columns: [leadCol, { key: 'program.name', label: 'Program' }, { key: 'list_price', label: 'List price', type: 'money' }, { key: 'discount_pct', label: 'Discount', type: 'pct' }, { key: 'amount', label: 'Final amount', type: 'money' },
-      { key: 'plan', label: 'Plan' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'approval', label: 'Approval', get: (r) => (r.needs_approval ? 'Needs Sales head' : '—') }],
+    columns: [leadCol, { key: 'program.name', label: 'Program' }, { key: 'list_price', label: 'List price', type: 'money', optional: true }, { key: 'discount_pct', label: 'Discount', type: 'pct' }, { key: 'amount', label: 'Final amount', type: 'money' },
+      { key: 'plan', label: 'Plan', optional: true }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'approval', label: 'Approval', get: (r) => (r.needs_approval ? 'Needs Sales head' : '—') }],
     views: [{ label: 'Open', where: (r) => ['Sent', 'Negotiating'].includes(r.status) }, { label: 'Accepted', where: (r) => r.status === 'Accepted' }, { label: 'Expired', where: (r) => r.status === 'Expired' }, { label: 'All' }],
     kpis: [count('Sent', (r) => r.status === 'Sent'), count('Accepted', (r) => r.status === 'Accepted'), sum('Value open', 'amount', (r) => ['Sent', 'Negotiating'].includes(r.status))],
     board: { field: 'status', list: 'quote_status' }, person: leadPerson,
@@ -229,7 +229,7 @@ export const PAGES: Record<string, PageCfg> = {
   sme: {
     assignee: { field: 'sme_id', status: 'verdict', label: 'SME' },
     id: 'sme', table: 'sme_feedback', kind: 'SME feedback', purpose: 'Expert ratings and comments after each mock.', cta: 'Add feedback', select: '*, candidate:candidate_id(id,full_name), sme:sme_id(full_name)', order: { col: 'created_at' },
-    columns: [candCol, { key: 'sme.full_name', label: 'SME' }, { key: 'rating', label: 'Rating', get: (r) => (r.rating ? r.rating + ' / 5' : '—') }, { key: 'verdict', label: 'Verdict', type: 'pill' }, { key: 'comments', label: 'Comments' }, { key: 'created_at', label: 'Date', type: 'date' }],
+    columns: [candCol, { key: 'sme.full_name', label: 'SME' }, { key: 'rating', label: 'Rating', get: (r) => (r.rating ? r.rating + ' / 5' : '—') }, { key: 'verdict', label: 'Verdict', type: 'pill' }, { key: 'comments', label: 'Comments', optional: true }, { key: 'created_at', label: 'Date', type: 'date' }],
     kpis: [count('Feedback given'), { label: 'Avg rating', calc: (rows) => (rows.length ? (rows.reduce((a, r) => a + Number(r.rating || 0), 0) / rows.length).toFixed(1) + ' / 5' : '—') }], person: candPerson,
     fields: [cand, { key: 'rating', label: 'Rating (1 to 5)', type: 'select', options: ['1', '2', '3', '4', '5'], required: true }, { key: 'verdict', label: 'Verdict', type: 'select', list: 'verdict', required: true },
       { key: 'comments', label: 'Comments', type: 'textarea' }, { key: 'sme_id', label: 'SME', type: 'ref', ref: 'staff', def: me('sme_id') }],
@@ -238,7 +238,7 @@ export const PAGES: Record<string, PageCfg> = {
   resume: {
     assignee: { field: 'reviewer_id', status: 'status', label: 'reviewer' },
     id: 'resume', table: 'resume_version', kind: 'Resume', purpose: 'Every resume version and whether it was approved.', cta: 'Add resume version', select: '*, candidate:candidate_id(id,full_name), reviewer:reviewer_id(full_name)', order: { col: 'created_at' },
-    columns: [candCol, { key: 'version', label: 'Version' }, { key: 'reviewer.full_name', label: 'Reviewer' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'reason', label: 'Reason' }, { key: 'created_at', label: 'Date', type: 'date' }, { key: 'file', label: 'File', get: (r) => (r.file_path ? 'Attached' : '—') }],
+    columns: [candCol, { key: 'version', label: 'Version' }, { key: 'reviewer.full_name', label: 'Reviewer' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'reason', label: 'Reason', optional: true }, { key: 'created_at', label: 'Date', type: 'date' }, { key: 'file', label: 'File', get: (r) => (r.file_path ? 'Attached' : '—') }],
     views: [{ label: 'Pending review', where: (r) => r.status === 'Pending' }, { label: 'Approved', where: (r) => r.status === 'Approved' }, { label: 'Rejected', where: (r) => r.status === 'Rejected' }, { label: 'All' }],
     kpis: [count('Pending', (r) => r.status === 'Pending'), count('Approved', (r) => r.status === 'Approved'), count('Rejected', (r) => r.status === 'Rejected')],
     board: { field: 'status', list: 'resume_status' }, person: candPerson,
@@ -321,7 +321,7 @@ export const PAGES: Record<string, PageCfg> = {
   },
   payment: {
     id: 'payment', table: 'fee_payment', kind: 'Payment', purpose: 'Every payment received or due, with its receipt. Recording a payment settles the oldest due instalment.', cta: 'Record payment', select: '*, candidate:candidate_id(id,full_name)', order: { col: 'due_on' },
-    columns: [candCol, { key: 'label', label: 'For' }, { key: 'amount', label: 'Amount', type: 'money' }, { key: 'mode', label: 'Mode' }, { key: 'receipt_no', label: 'Receipt' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }, { key: 'paid_on', label: 'Paid', type: 'date' }, { key: 'pdf', label: 'Receipt', get: (r) => (r.status === 'Received' ? (r.receipt_no || 'Ready') : '—') }],
+    columns: [candCol, { key: 'label', label: 'For' }, { key: 'amount', label: 'Amount', type: 'money' }, { key: 'mode', label: 'Mode', optional: true }, { key: 'receipt_no', label: 'Receipt', optional: true }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }, { key: 'paid_on', label: 'Paid', type: 'date' }, { key: 'pdf', label: 'Receipt', get: (r) => (r.status === 'Received' ? (r.receipt_no || 'Ready') : '—') }],
     views: [{ label: 'Due and overdue', where: (r) => ['Due', 'Overdue'].includes(r.status) }, { label: 'Received', where: (r) => r.status === 'Received' }, { label: 'Refunds', where: (r) => /Refund/.test(r.status) }, { label: 'All' }],
     kpis: [sum('Collected', 'amount', (r) => r.status === 'Received'), sum('Overdue', 'amount', (r) => r.status === 'Overdue'), count('Late students', (r) => r.status === 'Overdue')], person: candPerson,
     fields: [cand, { key: 'amount', label: 'Amount (₹)', type: 'number', required: true }, { key: 'status', label: 'Status', type: 'select', list: 'payment_status', required: true }, { key: 'mode', label: 'Mode', type: 'select', list: 'payment_mode' },

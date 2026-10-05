@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { Minus, Plus } from 'lucide-react';
+import { Button, IconButton } from './ui';
 
 export type Instalment = { label: string; amount: number };
 
@@ -48,17 +49,17 @@ export function InstalmentsEditor({ total, value, onChange, disabled }: { total:
   return (
     <div className="flex flex-col gap-2 font-normal">
       <div className="flex items-center gap-2">
-        <button type="button" aria-label="One fewer instalment" disabled={list.length <= 1} onClick={() => setCount(list.length - 1)} className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-line disabled:opacity-40"><Minus size={16} /></button>
-        <div className="min-w-[120px] text-center text-sm font-semibold text-text">{list.length === 1 ? 'Full payment' : list.length + ' instalments'}</div>
-        <button type="button" aria-label="One more instalment" disabled={list.length >= MAX} onClick={() => setCount(list.length + 1)} className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-line disabled:opacity-40"><Plus size={16} /></button>
-        <button type="button" onClick={() => setCount(list.length)} className="ml-auto h-11 rounded-[10px] px-3 text-[13px] font-medium text-accent">Split evenly</button>
+        <IconButton aria-label="One fewer instalment" variant="outline" disabled={list.length <= 1} onClick={() => setCount(list.length - 1)} icon={<Minus size={16} />} />
+        <div className="min-w-[112px] text-center text-[13.5px] font-semibold text-text">{list.length === 1 ? 'Full payment' : list.length + ' instalments'}</div>
+        <IconButton aria-label="One more instalment" variant="outline" disabled={list.length >= MAX} onClick={() => setCount(list.length + 1)} icon={<Plus size={16} />} />
+        <Button variant="quiet" size="sm" className="ml-auto" onClick={() => setCount(list.length)}>Split evenly</Button>
       </div>
       {list.map((r, i) => (
         <div key={i} className="flex items-center gap-2">
-          <input aria-label={`Instalment ${i + 1} name`} value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} className="h-11 min-w-0 flex-1 px-3 text-sm" />
-          <div className="relative w-[140px]">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted">₹</span>
-            <input aria-label={`Instalment ${i + 1} amount`} type="number" min={0} step={100} value={r.amount ?? ''} onChange={(e) => setRow(i, { amount: e.target.value === '' ? 0 : Number(e.target.value) })} className="num h-11 w-full pl-7 pr-3 text-right text-sm" />
+          <input aria-label={`Instalment ${i + 1} name`} value={r.label} onChange={(e) => setRow(i, { label: e.target.value })} className="h-10 min-w-0 flex-1 rounded-[10px] px-3 text-[13.5px]" />
+          <div className="relative w-[132px] shrink-0">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[13.5px] text-muted">₹</span>
+            <input aria-label={`Instalment ${i + 1} amount`} type="number" min={0} step={100} value={r.amount ?? ''} onChange={(e) => setRow(i, { amount: e.target.value === '' ? 0 : Number(e.target.value) })} className="num h-10 w-full rounded-[10px] pl-7 pr-3 text-right text-[13.5px]" />
           </div>
         </div>
       ))}

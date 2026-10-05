@@ -10,7 +10,7 @@ import { QuickDate } from './QuickDate';
 import { PhoneInput } from './PhoneInput';
 import { VoiceInput, appendText } from './kit/VoiceInput';
 
-const inputCls = 'h-[42px] w-full px-3 text-sm';
+const inputCls = 'h-10 w-full rounded-[10px] px-3 text-[13.5px] font-normal';
 
 /** Search-as-you-type picker for a lead or a candidate. */
 /** Find leads or candidates by name or mobile digits; the database masks the mobile and applies row visibility. */
@@ -45,9 +45,9 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
 
   if (picked) {
     return (
-      <div className="flex min-h-[42px] items-center justify-between gap-2 rounded-[10px] bg-surface2 px-3 py-1.5 text-sm">
-        <span><span className="font-medium">{picked.full_name}</span> <span className="text-muted">· {picked.mobile_masked || picked.code || ''} · {picked.stage}</span></span>
-        {!disabled && <button type="button" className="rounded-md border border-line2 bg-surface px-2 py-1 text-xs" onClick={() => { setPicked(null); onChange(null); setQ(''); }}>Change</button>}
+      <div className="flex min-h-10 items-center justify-between gap-2 rounded-[10px] bg-surface2 py-1 pl-3 pr-1 text-[13.5px] font-normal">
+        <span className="min-w-0 truncate"><span className="font-medium">{picked.full_name}</span> <span className="text-muted">· {picked.mobile_masked || picked.code || ''} · {picked.stage}</span></span>
+        {!disabled && <button type="button" className="btn h-8 shrink-0 rounded-lg px-3 text-[13px] font-medium text-text2 hover:bg-surface hover:text-text" onClick={() => { setPicked(null); onChange(null); setQ(''); }}>Change</button>}
       </div>
     );
   }
@@ -56,10 +56,10 @@ export function PersonSearch({ kind, value, onChange, disabled, label }: { kind:
       <input aria-label={label || 'Find ' + kind} className={inputCls} placeholder={kind === 'lead' ? 'Type a name or mobile' : 'Type a name'} value={q} disabled={disabled}
         onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
       {open && q.trim().length >= 2 && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-[10px] border border-line2 bg-surface shadow-lg">
-          {hits.length === 0 && <div className="px-3 py-2.5 text-[13px] text-muted">No {kind} found.</div>}
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-[10px] border border-line bg-surface p-1 shadow-3">
+          {hits.length === 0 && <div className="px-3 py-2.5 text-[13px] font-normal text-muted">No {kind} found.</div>}
           {hits.map((h) => (
-            <button key={h.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-surface2" onClick={() => { setPicked(h); onChange(h.id, h); setOpen(false); }}>
+            <button key={h.id} type="button" className="block min-h-[44px] w-full rounded-lg px-3 py-2 text-left text-[13.5px] font-normal hover:bg-surface2" onClick={() => { setPicked(h); onChange(h.id, h); setOpen(false); }}>
               <span className="font-medium">{h.full_name}</span> <span className="text-muted">· {h.mobile_masked || h.code || ''} · {h.stage}</span>
             </button>
           ))}
@@ -85,9 +85,9 @@ function RefPicker({ field, value, onChange, disabled }: { field: Field; value: 
 
   if (picked) {
     return (
-      <div className="flex min-h-[42px] items-center justify-between gap-2 rounded-[10px] bg-surface2 px-3 py-1.5 text-sm">
+      <div className="flex min-h-10 items-center justify-between gap-2 rounded-[10px] bg-surface2 py-1 pl-3 pr-1 text-[13.5px] font-normal">
         <span className="font-medium">{picked.label}</span>
-        {!disabled && <button type="button" className="rounded-md border border-line2 bg-surface px-2 py-1 text-xs" onClick={() => { onChange(null); setQ(''); }}>Change</button>}
+        {!disabled && <button type="button" className="btn h-8 shrink-0 rounded-lg px-3 text-[13px] font-medium text-text2 hover:bg-surface hover:text-text" onClick={() => { onChange(null); setQ(''); }}>Change</button>}
       </div>
     );
   }
@@ -113,16 +113,16 @@ function RefPicker({ field, value, onChange, disabled }: { field: Field; value: 
         onChange={(e) => { setQ(e.target.value); setOpen(true); setErr(null); }} onFocus={() => setOpen(true)}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (exact) onChange(exact.id); else if (term) add(); } }} />
       {open && (
-        <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-[10px] border border-line2 bg-surface shadow-lg">
+        <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-[10px] border border-line bg-surface p-1 shadow-3">
           {hits.map((h) => (
-            <button key={h.id} type="button" className="block min-h-[44px] w-full px-3 py-2 text-left text-sm hover:bg-surface2" onClick={() => { onChange(h.id); setOpen(false); }}>{h.label}</button>
+            <button key={h.id} type="button" className="block min-h-[44px] w-full rounded-lg px-3 py-2 text-left text-[13.5px] font-normal hover:bg-surface2" onClick={() => { onChange(h.id); setOpen(false); }}>{h.label}</button>
           ))}
           {term && !exact && meta && (
-            <button type="button" disabled={busy} className="block min-h-[44px] w-full border-t border-line px-3 py-2 text-left text-sm font-medium text-accent hover:bg-surface2" onClick={add}>
+            <button type="button" disabled={busy} className="block min-h-[44px] w-full rounded-lg px-3 py-2 text-left text-[13.5px] font-medium text-accentText hover:bg-surface2" onClick={add}>
               {busy ? 'Adding…' : `+ Add “${term}” as a new ${meta.noun}`}
             </button>
           )}
-          {!term && hits.length === 0 && <div className="px-3 py-2.5 text-[13px] text-muted">Type a name to add the first one.</div>}
+          {!term && hits.length === 0 && <div className="px-3 py-2.5 text-[13px] font-normal text-muted">Type a name to add the first one.</div>}
         </div>
       )}
       {err && <div role="alert" className="mt-1 text-[13px] font-medium text-badText">{err}</div>}
@@ -137,7 +137,7 @@ export function FieldInput({ field, value, onChange, disabled }: { field: Field;
   if (field.type === 'person') return <PersonSearch kind={field.person!} value={(value as string) || null} onChange={(id) => onChange(id)} disabled={disabled} label={field.label} />;
   if (field.type === 'textarea') return (
     <div className="flex flex-col gap-1.5">
-      <textarea className="min-h-[84px] w-full px-3 py-2 text-sm" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
+      <textarea className="min-h-[88px] w-full rounded-[10px] px-3 py-2 text-[13.5px] font-normal" value={v} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
       {!disabled && <VoiceInput context="field" label={'Speak ' + field.label} onText={(t) => onChange(appendText(v, t))} />}
     </div>
   );

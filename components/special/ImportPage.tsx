@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
-import { Button, Notice, fmtDateTime } from '../ui';
-import { PageHeader } from '../ListPage';
+import { Plus, X } from 'lucide-react';
+import { Button, IconButton, Notice, Toolbar, fmtDateTime } from '../ui';
+import { PageHeader, KpiCard } from '../kit/PageHeader';
+import { Table, THead, TBody, Th, Td, Tr } from '../kit/Table';
 import { DropZone } from '../DropZone';
 
 const TARGETS = ['Name', 'Mobile', 'Email', 'City', 'Course', 'Notes', 'Don’t import'];
@@ -101,15 +103,14 @@ export function ImportPage() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
-      <PageHeader group="Admin settings" title="Import / export" purpose="Bring leads in from a sheet. Every import is listed with what went in and what failed. Any list can be exported from its own page." scope={s.staff.role + (canWrite ? ' · can edit' : ' · view only')}>
-        {canWrite && step === 0 && <Button variant="cta" onClick={() => { setStep(1); setMsg(null); }}>New import</Button>}
-      </PageHeader>
+    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+      <PageHeader title="Import / export" description={'Bring leads in from a sheet. Export any list from its own page.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
+        actions={canWrite && step === 0 ? <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => { setStep(1); setMsg(null); }}>New import</Button> : undefined} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
       {step > 0 && (
-        <section className="anim-fade flex max-w-[760px] flex-col gap-3 rounded-xl border border-accent bg-surface p-4">
-          <div className="flex items-center justify-between"><h2 className="text-base font-semibold">New import · step {step} of 3</h2><button type="button" className="text-[13px] font-medium text-text2" onClick={() => { setStep(0); setGrid([]); setCheck(null); }}>Cancel</button></div>
+        <section className="anim-fade flex max-w-[760px] flex-col gap-4 rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
+          <div className="flex items-center justify-between gap-3"><div><div className="text-xs font-medium text-muted">Step {step} of 3</div><h2 className="text-[15px] font-semibold">New import</h2></div><IconButton aria-label="Cancel import" icon={<X size={18} />} onClick={() => { setStep(0); setGrid([]); setCheck(null); }} /></div>
           {step === 1 && (
             <>
               <label className="flex flex-col gap-1 text-xs font-medium text-text2">Source for these leads
@@ -131,41 +132,42 @@ export function ImportPage() {
                   </label>
                 ))}
               </div>
-              <div className="flex gap-2"><Button variant="primary" disabled={busy} onClick={runCheck}>{busy ? 'Checking…' : 'Next: check the rows'}</Button><Button onClick={() => setStep(1)}>Back</Button></div>
+              <Toolbar sticky={false} primary={<Button variant="primary" loading={busy} onClick={runCheck}>Next: check the rows</Button>}><Button variant="outline" onClick={() => setStep(1)}>Back</Button></Toolbar>
             </>
           )}
           {step === 3 && check && (
             <>
-              <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-                {[['Ready to import', check.ready.length], ['Already in the CRM', check.dupes.length], ['Rows with a problem', check.bad.length]].map(([l, n]) => (
-                  <div key={l} className="rounded-[10px] bg-surface2 p-3"><div className="text-xs font-medium text-muted">{l}</div><div className="num text-2xl font-semibold">{n}</div></div>
-                ))}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <KpiCard label="Ready to import" value={check.ready.length} tone="good" />
+                <KpiCard label="Already in the CRM" value={check.dupes.length} />
+                <KpiCard label="Rows with a problem" value={check.bad.length} hint={check.bad.length ? 'Download them below' : undefined} tone="bad" />
               </div>
               <p className="text-[13px] text-text2">Nothing has been added yet. New leads are given to telecallers by the assignment rule.</p>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="primary" disabled={busy || check.ready.length === 0} onClick={doImport}>{busy ? 'Importing…' : 'Import ' + check.ready.length + ' leads'}</Button>
-                {check.bad.length + check.dupes.length > 0 && <Button onClick={() => download([...check.bad, ...check.dupes], 'rows-not-imported.csv')}>Download the rows left out</Button>}
-                <Button onClick={() => setStep(2)}>Back</Button>
-              </div>
+              <Toolbar sticky={false}
+                start={check.bad.length + check.dupes.length > 0 ? <Button variant="quiet" onClick={() => download([...check.bad, ...check.dupes], 'rows-not-imported.csv')}>Download the rows left out</Button> : undefined}
+                primary={<Button variant="primary" loading={busy} disabled={check.ready.length === 0} onClick={doImport}>{'Import ' + check.ready.length + ' leads'}</Button>}>
+                <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+              </Toolbar>
             </>
           )}
         </section>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-        <table className="w-full border-collapse text-left text-[13px]">
-          <thead><tr className="bg-surface2 text-xs text-text2">{['File', 'Into', 'Rows', 'Result', 'By', 'When'].map((h) => <th key={h} className="px-4 py-3 font-semibold">{h}</th>)}</tr></thead>
-          <tbody>
-            {runs.length === 0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-text2">No imports yet.</td></tr>}
-            {runs.map((r) => (
-              <tr key={r.id} className="border-t border-line">
-                <td className="px-4 py-3 font-semibold">{r.file}</td><td className="px-4 py-3 text-text2">{r.into_table}</td><td className="num px-4 py-3 text-text2">{r.total_rows}</td>
-                <td className="px-4 py-3 text-text2">{r.ok_rows} ok · {r.duplicate_rows} already there · {r.failed_rows} failed</td><td className="px-4 py-3 text-text2">{r.by?.full_name || '—'}</td><td className="px-4 py-3 text-text2">{fmtDateTime(r.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table label="Past imports">
+        <THead><Th>File</Th><Th>Into</Th><Th numeric>Rows</Th><Th>Result</Th><Th>By</Th><Th>When</Th></THead>
+        <TBody>
+          {runs.length === 0 && <Tr><Td colSpan={6} className="text-center text-text2">No imports yet.</Td></Tr>}
+          {runs.map((r) => {
+            const result = `${r.ok_rows} ok · ${r.duplicate_rows} already there · ${r.failed_rows} failed`;
+            return (
+              <Tr key={r.id}>
+                <Td className="max-w-[260px] truncate font-medium" title={r.file}>{r.file}</Td><Td className="whitespace-nowrap text-text2">{r.into_table}</Td><Td numeric className="text-text2">{r.total_rows}</Td>
+                <Td className="max-w-[300px] truncate text-text2" title={result}>{result}</Td><Td className="whitespace-nowrap text-text2">{r.by?.full_name || '—'}</Td><Td className="whitespace-nowrap text-text2">{fmtDateTime(r.created_at)}</Td>
+              </Tr>
+            );
+          })}
+        </TBody>
+      </Table>
     </main>
   );
 }

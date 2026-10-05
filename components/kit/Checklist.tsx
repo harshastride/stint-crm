@@ -26,10 +26,10 @@ export function Checklist() {
   if (n === items.length) return null;
   const hide = () => { setHidden(true); try { localStorage.setItem(k, '1'); } catch {} };
   return (
-    <section className="anim-rise rounded-2xl border border-[rgba(68,116,185,.4)] bg-[rgba(68,116,185,.06)] p-5" aria-label="Getting started">
+    <section className="anim-rise rounded-card bg-accentSoft p-5" aria-label="Getting started">
       <div className="flex items-start justify-between gap-3">
         <div><h2 className="text-base font-semibold">Getting started</h2><p className="text-xs text-text2">{n} of {items.length} done · learn the CRM by doing</p></div>
-        <button type="button" onClick={hide} aria-label="Hide getting started" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-surface"><X size={16} /></button>
+        <button type="button" onClick={hide} aria-label="Hide getting started" className="flex h-11 w-11 items-center justify-center rounded-row text-muted transition-colors duration-150 hover:bg-surface"><X size={16} /></button>
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: (100 * n) / items.length + '%' }} /></div>
       <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
@@ -37,7 +37,7 @@ export function Checklist() {
           const ok = !!done[i.key];
           const body = <><span className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2', ok ? 'border-accent bg-accent text-white' : 'border-line2 bg-surface')}>{ok && <Check size={12} strokeWidth={3} />}</span>
             <span className={cx('text-[13.5px]', ok ? 'text-muted line-through' : 'font-medium')}>{i.label}</span></>;
-          return <li key={i.key}>{i.href && !ok ? <Link href={i.href} className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3 hover:ring-1 hover:ring-accent">{body}</Link> : <span className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3">{body}</span>}</li>;
+          return <li key={i.key}>{i.href && !ok ? <Link href={i.href} className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3 shadow-1 transition-shadow duration-150 hover:shadow-2">{body}</Link> : <span className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3">{body}</span>}</li>;
         })}
       </ul>
     </section>

@@ -46,3 +46,50 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .stint-range::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -8px; height: 24px; width: 24px; border-radius: 999px; background: #fff; border: 3px solid var(--bar); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
 .stint-range::-moz-range-thumb { height: 18px; width: 18px; border-radius: 999px; background: #fff; border: 3px solid var(--bar); }
 .stint-range:focus-visible { outline: 2px solid #4474B9; outline-offset: 2px; border-radius: 8px; }
+
+/* ── Buttons (see docs/design/buttons.md). Sidebar language: 8px radius, 13.5px, soft accent active. ── */
+.btn { position: relative; isolation: isolate; -webkit-tap-highlight-color: transparent; transition: transform 120ms cubic-bezier(0.23,1,0.32,1), background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease; }
+.btn::before { content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn:disabled { cursor: not-allowed; opacity: .55; }
+.btn[data-loading] { opacity: 1; cursor: progress; }
+.btn-spin { animation: btn-spin 600ms linear infinite; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+.btn-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translate(-50%, 2px) scale(.97); opacity: 0; pointer-events: none; transition: opacity 125ms ease-out, transform 125ms ease-out; transition-delay: 0ms; white-space: nowrap; z-index: 50; }
+.btn-tipwrap:hover .btn-tip, .btn-tipwrap:focus-within .btn-tip { opacity: 1; transform: translate(-50%, 0) scale(1); transition-delay: 350ms; }
+@media (hover: none) { .btn-tip { display: none; } }
+@media (prefers-reduced-motion: reduce) { .btn { transition: background-color 150ms ease, color 150ms ease; } .btn:active:not(:disabled) { transform: none; } .btn-spin { animation-duration: 1.5s; } .btn-tip { transition: opacity 125ms ease; transform: translate(-50%, 0); } }
+
+/* ── Design system tokens (docs/design/system.md). 4px scale; whitespace and tint over borders. ── */
+:root {
+  --space-page: 24px; --space-page-sm: 16px; --space-section: 24px; --space-card: 16px;
+  --radius-sm: 6px; --radius-md: 8px; --radius-lg: 10px; --radius-xl: 14px;
+  --shadow-1: 0 1px 2px rgba(15,37,69,.04); --shadow-2: 0 2px 8px rgba(15,37,69,.06), 0 1px 2px rgba(15,37,69,.04); --shadow-3: 0 12px 32px rgba(15,37,69,.10);
+  --row: 48px; --row-compact: 40px;
+}
+:root[data-theme='dark'] { --shadow-1: 0 1px 2px rgba(0,0,0,.3); --shadow-2: 0 2px 8px rgba(0,0,0,.35); --shadow-3: 0 12px 32px rgba(0,0,0,.5); }
+
+/* Table: sticky muted header, hairline rows, sidebar-style hover/selected */
+.ui-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13.5px; }
+.ui-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); height: 36px; padding: 0 12px; text-align: left; font-size: 11.5px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ui-table tbody td { height: var(--row); padding: 0 12px; border-bottom: 1px solid var(--line); color: var(--text); }
+.ui-table[data-density='compact'] tbody td { height: var(--row-compact); }
+.ui-table tbody tr:last-child td { border-bottom: 0; }
+.ui-table tbody tr { transition: background-color 120ms ease; }
+.ui-table tbody tr[data-clickable] { cursor: pointer; }
+@media (hover: hover) { .ui-table tbody tr:hover { background: var(--surface2); } }
+.ui-table tbody tr[aria-selected='true'] { background: var(--accentSoft); }
+.ui-table tbody tr[aria-selected='true'] td:first-child { font-weight: 600; color: var(--accentText); }
+.ui-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ui-row-actions { opacity: 1; }
+@media (hover: hover) and (pointer: fine) { .ui-row-actions { opacity: 0; transition: opacity 120ms ease; } tr:hover .ui-row-actions, tr:focus-within .ui-row-actions { opacity: 1; } }
+
+/* Board: flat columns/cards, shadow on hover only */
+.ui-col { background: var(--surface2); border-radius: var(--radius-xl); padding: 8px; }
+.ui-col-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.ui-card { background: var(--surface); border-radius: var(--radius-lg); padding: 12px; box-shadow: var(--shadow-1); transition: box-shadow 150ms ease, transform 120ms cubic-bezier(.23,1,.32,1); }
+@media (hover: hover) { .ui-card:hover { box-shadow: var(--shadow-2); } }
+.ui-card[aria-selected='true'] { box-shadow: 0 0 0 2px var(--accent); }
+.ui-count { border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: 700; background: var(--accentSoft); color: var(--accentText); font-variant-numeric: tabular-nums; }
+.ui-count[data-tone='bad'] { background: var(--coral); color: #fff; }

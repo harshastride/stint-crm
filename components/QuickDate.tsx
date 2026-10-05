@@ -24,7 +24,7 @@ export function QuickDate({ value, onChange, disabled, label, dateOnly = false }
         <div className="flex flex-wrap gap-1.5" role="group" aria-label={label + ' quick choices'}>
           {options.map(([l, d]) => (
             <button key={l} type="button" aria-pressed={same(d)} onClick={() => onChange(dateOnly ? d.toLocaleDateString('en-CA') : d.toISOString())}
-              className={cx('min-h-[34px] rounded-full border px-3 text-[12.5px] font-medium', same(d) ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface text-text2 hover:text-text')}>{l}</button>
+              className={cx('min-h-[36px] rounded-row px-3 text-[12.5px] font-medium transition-colors duration-150 active:scale-[0.97]', same(d) ? 'bg-accentSoft text-accentText' : 'bg-surface2 text-text2 hover:text-text')}>{l}</button>
           ))}
         </div>
       )}

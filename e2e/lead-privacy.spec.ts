@@ -32,10 +32,15 @@ test('telecaller sees masked numbers, can search by last digits and edit the sta
   expect(await table.innerText()).not.toContain(mobile);
 
   // search by the last 4 digits (command menu / person search use search_people)
-  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k');
-  await page.keyboard.type(mobile.slice(-4));
-  await expect(page.getByText(name).last()).toBeVisible();
+  const menu = page.getByRole('dialog', { name: 'Command menu' });
+  await expect(async () => {
+    if (!(await menu.isVisible())) await page.keyboard.press(process.platform === 'darwin' ? 'Meta+k' : 'Control+k');
+    await expect(menu).toBeVisible({ timeout: 1000 });
+  }).toPass();
+  await menu.getByRole('combobox').fill(mobile.slice(-4));
+  await expect(menu.getByText(name).first()).toBeVisible();
   await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
 
   // inline stage edit still saves
   const row = page.locator('tr', { hasText: name });

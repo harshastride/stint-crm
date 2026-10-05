@@ -33,7 +33,7 @@ export function ChangePassword({ forced, onDone }: { forced?: boolean; onDone: (
         <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} className="h-11 px-3 text-sm" />
       </label>
       {msg && <Notice tone="bad">{msg}</Notice>}
-      <Button variant="primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save new password'}</Button>
+      <Button variant="primary" fullWidth loading={busy} disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save new password'}</Button>
     </div>
   );
 }

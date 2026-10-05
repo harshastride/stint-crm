@@ -4,7 +4,7 @@ import { Check, Plus, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Field, PageCfg } from '@/lib/pages';
-import { cx } from '../ui';
+import { Button, cx } from '../ui';
 
 // Advanced filter: rows of [field][operator][value], grouped with AND / OR.
 // Turned into one PostgREST `or=(...)` filter so the database does the filtering (and row security still applies).
@@ -113,11 +113,11 @@ export function FilterBuilder({ cfg, value, onChange }: { cfg: PageCfg; value: A
 
   return (
     <div ref={box} className="relative">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className={cx('flex h-[38px] items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium', on ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>
-        <SlidersHorizontal size={14} /> Advanced{on ? ` · ${on}` : ''}
-      </button>
+      <Button variant="quiet" size="sm" aria-expanded={open} active={on > 0} aria-pressed={undefined} onClick={() => setOpen(!open)} leftIcon={<SlidersHorizontal size={14} />}>
+        Advanced{on ? ` · ${on}` : ''}
+      </Button>
       {open && (
-        <div role="dialog" aria-label="Advanced filter" className="fixed left-1/2 top-24 z-50 max-h-[75vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-lg">
+        <div role="dialog" aria-label="Advanced filter" className="fixed left-1/2 top-24 z-50 max-h-[75vh] w-[min(640px,calc(100vw-32px))] -translate-x-1/2 overflow-y-auto rounded-card bg-surface p-4 shadow-3">
           <div className="mb-2 flex items-center gap-2">
             <div className="text-[13px] font-semibold">Advanced filter</div>
             {d.groups.length > 1 && <Join label="Join groups" v={d.join} set={(j) => set({ ...d, join: j })} />}
@@ -125,7 +125,7 @@ export function FilterBuilder({ cfg, value, onChange }: { cfg: PageCfg; value: A
           </div>
           {d.groups.length === 0 && <p className="px-1 py-3 text-[13px] text-text2">No conditions yet. Add one to narrow this list.</p>}
           {d.groups.map((g, gi) => (
-            <div key={gi} className="mb-2 rounded-lg border border-line p-2" aria-label={'Group ' + (gi + 1)}>
+            <div key={gi} className="mb-2 rounded-control bg-surface2 p-2" aria-label={'Group ' + (gi + 1)}>
               <div className="mb-1.5 flex items-center gap-2">
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Group {gi + 1}</span>
                 {g.rules.length > 1 && <Join label={'Join in group ' + (gi + 1)} v={g.join} set={(j) => setGroup(gi, { ...g, join: j })} />}
@@ -171,8 +171,8 @@ export function FilterBuilder({ cfg, value, onChange }: { cfg: PageCfg; value: A
             <button type="button" onClick={() => set({ ...d, groups: [...d.groups, { join: 'and', rules: [blankRule(fields)] }] })} className="flex min-h-[44px] items-center gap-1 rounded-lg border border-dashed border-line2 px-3 text-[12.5px] font-medium text-text2 hover:text-accentText"><Plus size={13} /> {d.groups.length ? 'Add group' : 'Add condition'}</button>
             <span className="text-[12.5px] text-text2" aria-live="polite" data-testid="adv-count">{err || (count == null ? 'Counting…' : `${count.toLocaleString('en-IN')} match${count === 1 ? '' : 'es'}`)}</span>
             <div className="ml-auto flex gap-1.5">
-              {(draft || value) && <button type="button" onClick={() => { setDraft(null); onChange(null); setOpen(false); }} className="min-h-[44px] px-3 text-[12.5px] text-text2">Clear</button>}
-              <button type="button" disabled={!!err} onClick={() => { onChange(draft); setOpen(false); }} className="min-h-[44px] rounded-lg bg-accent px-4 text-[13px] font-semibold text-white disabled:opacity-50">Apply</button>
+              {(draft || value) && <Button variant="quiet" size="lg" onClick={() => { setDraft(null); onChange(null); setOpen(false); }}>Clear</Button>}
+              <Button variant="primary" size="lg" disabled={!!err} onClick={() => { onChange(draft); setOpen(false); }}>Apply</Button>
             </div>
           </div>
         </div>

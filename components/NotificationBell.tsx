@@ -37,9 +37,9 @@ export function NotificationBell() {
   return (
     <div ref={box} className="relative shrink-0">
       <button type="button" aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'} aria-expanded={open} onClick={() => { setOpen(!open); if (!open) load(); }}
-        className="relative flex h-11 w-11 items-center justify-center rounded-[10px] border border-line2 bg-surface">
+        className="relative flex h-11 w-11 items-center justify-center rounded-[10px] text-text2 transition-colors hover:bg-surface2 hover:text-text active:scale-[0.96]">
         <Bell size={17} />
-        {unread > 0 && <span className="num absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-coral px-1 text-[10.5px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
+        {unread > 0 && <span className="num absolute right-1 top-1 flex h-[18px] min-w-[18px] ring-2 ring-surface items-center justify-center rounded-full bg-coral px-1 text-[10.5px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {open && (
         <div role="dialog" aria-label="Notifications" className="anim-rise absolute right-0 z-50 mt-2 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl">

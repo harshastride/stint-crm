@@ -21,7 +21,7 @@ export function RangeSlider({ label, min, max, value, onChange }: { label: strin
     const v = clamp(n);
     onChange(i === 0 ? [Math.min(v, hi), hi] : [lo, Math.max(v, lo)]);
   };
-  const box = 'num h-11 w-full rounded-lg border border-line2 bg-surface px-2 text-[13.5px]';
+  const box = 'num h-10 w-full rounded-[10px] border border-line2 bg-surface px-3 text-[13.5px]';
   return (
     <div className="flex flex-col gap-2 px-2.5 py-2">
       <div className="relative h-11">

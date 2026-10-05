@@ -13,7 +13,7 @@ export function PracticeCard({ attempts, title = 'Interview practice' }: { attem
   const trend = list.slice(0, 10).reverse().map((a) => Number(a.overall ?? 0));
   const pts = trend.map((v, i) => `${trend.length > 1 ? (i * 120) / (trend.length - 1) : 60},${30 - (v / 100) * 28}`).join(' ');
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5" aria-label={title}>
+    <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]" aria-label={title}>
       <h2 className="mb-2 text-base font-semibold">{title}</h2>
       {!latest ? <p className="text-sm text-text2">No practice yet.</p> : (
         <>
@@ -24,7 +24,7 @@ export function PracticeCard({ attempts, title = 'Interview practice' }: { attem
           <div className="mb-3 grid gap-2 sm:grid-cols-3">
             {(['accuracy', 'fluency', 'completeness'] as const).map((f) => { const v = avg(list.map((a) => a[f])); return <Meter key={f} label={'Average ' + f} value={v ?? 0} max={100} text={v == null ? '—' : String(v)} />; })}
           </div>
-          <ul className="divide-y divide-line text-sm">
+          <ul className="mt-1 divide-y divide-line/70 text-sm">
             {list.slice(0, 5).map((a, i) => (
               <li key={i} className="flex items-center justify-between gap-3 py-2">
                 <span className="min-w-0"><span className="block truncate font-medium">{a.topic || 'Practice'}</span>{a.question && <span className="block truncate text-text2">{a.question}</span>}</span>

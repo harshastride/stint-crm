@@ -3,8 +3,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
-import { Notice, cx } from '../ui';
-import { PageHeader } from '../ListPage';
+import { Button, ButtonGroup, Notice, cx } from '../ui';
+import { PageHeader } from '../kit/PageHeader';
+import { Table, THead, TBody, Th, Td, Tr } from '../kit/Table';
 
 const GROUPS: [string, string][] = [['contact', 'Contact and address'], ['family', 'Family'], ['identity', 'Identity (PAN, Aadhaar, passport)'], ['bank', 'Bank']];
 const PAGE_NEXT: Record<string, string | null> = { '': 'r', r: 'w', w: null };
@@ -12,7 +13,7 @@ const FIELD_NEXT: Record<string, string> = { h: 'm', m: 'f', f: 'h' };
 const PAGE_LABEL: Record<string, string> = { '': '—', r: 'View', w: 'Edit' };
 const FIELD_LABEL: Record<string, string> = { h: 'Hidden', m: 'Masked', f: 'Full' };
 type RoleRules = { owns: string[]; picks_up: string[]; sees_candidate_stages: string[]; sees_lead_stages: string[]; contact_lead_stages: string[] | null; contact_candidate_stages: string[] | null };
-const tone = (level: number) => (level === 2 ? 'bg-accent text-white border-accent' : level === 1 ? 'bg-accentSoft text-accentText border-accent' : 'bg-surface text-muted border-line2');
+const tone = (level: number) => (level === 2 ? 'bg-accent text-white' : level === 1 ? 'bg-accentSoft text-accentText' : 'bg-transparent text-muted hover:bg-surface2');
 
 export function RolesGrid() {
   const s = useSession();
@@ -60,7 +61,7 @@ export function RolesGrid() {
   };
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const leadStages = s.lists.lead_stage || [], candStages = s.lists.candidate_stage || [];
-  const chip = (on: boolean) => cx('min-h-[30px] rounded-full border px-2.5 text-xs font-semibold', on ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface text-muted');
+  const chip = (on: boolean) => cx('btn relative min-h-[32px] rounded-lg px-2.5 text-[12.5px] transition-colors duration-150 disabled:cursor-default', on ? 'bg-accentSoft font-semibold text-accentText' : 'bg-surface2 font-medium text-text2 hover:text-text');
   const StageChips = ({ role, k, all, what }: { role: string; k: 'sees_candidate_stages' | 'sees_lead_stages' | 'picks_up' | 'contact_lead_stages' | 'contact_candidate_stages'; all: string[]; what: string }) => {
     const cur = rules[role]?.[k] || [];
     const isPick = k === 'picks_up';
@@ -90,22 +91,21 @@ export function RolesGrid() {
 
   const groups: { name: string; pages: { id: string; title: string }[] }[] = [];
   s.allPages.forEach((p) => { let g = groups.find((x) => x.name === p.grp); if (!g) groups.push((g = { name: p.grp, pages: [] })); g.pages.push(p); });
-  const th = 'whitespace-nowrap px-2 py-2.5 text-center text-xs font-semibold text-text2';
-  const btn = 'min-h-[32px] w-full min-w-[64px] rounded-lg border text-xs font-semibold';
+  const th = '!text-center whitespace-nowrap';
+  const btn = 'btn relative h-8 w-full min-w-[64px] rounded-lg text-[12.5px] font-semibold transition-colors duration-150 disabled:cursor-default';
 
   return (
-    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
-      <PageHeader group="Admin settings" title="Roles & permissions" purpose="Which pages each role can open, which sensitive details it can see, and which records. Tap to change." scope={s.staff.role + (canWrite ? ' · can edit' : ' · view only')} />
-      <div className="flex gap-1 border-b border-line pb-2">
-        {(['Pages', 'Sensitive details', 'Records'] as const).map((t) => <button key={t} type="button" onClick={() => setTab(t)} className={cx('min-h-[38px] rounded-[10px] px-3.5 text-[13px] font-medium', tab === t ? 'bg-ink text-white' : 'text-text2')}>{t}</button>)}
-      </div>
+    <main className="flex flex-1 flex-col gap-section overflow-y-auto p-page-sm md:p-page">
+      <PageHeader title="Roles & permissions" description="Which pages, sensitive details and records each role can see. Tap to change."
+        actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>}
+        filters={<ButtonGroup label="Permission type">{(['Pages', 'Sensitive details', 'Records'] as const).map((t) => <Button key={t} size="sm" variant="quiet" active={tab === t} onClick={() => setTab(t)}>{t}</Button>)}</ButtonGroup>} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {tab === 'Records' ? (
         <div className="flex flex-col gap-3">
           {roles.map((r) => (
-            <section key={r} className="rounded-xl border border-line bg-surface p-4">
+            <section key={r} className="rounded-card bg-surface p-card shadow-1">
               <h2 className="text-[15px] font-semibold">{r}</h2>
-              <div className="mt-2 grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
+              <div className="mt-3 grid gap-x-6 gap-y-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
                 <div><div className="mb-1 text-xs font-medium text-text2">Sees students in these stages</div><StageChips role={r} k="sees_candidate_stages" all={candStages} what="students" /></div>
                 <div><div className="mb-1 text-xs font-medium text-text2">Sees leads in these stages</div><StageChips role={r} k="sees_lead_stages" all={leadStages} what="leads" /></div>
                 <div>
@@ -126,39 +126,35 @@ export function RolesGrid() {
           <p className="text-xs text-muted">“All” and “Any stage” mean no limit. Every time someone shows a phone, email or address it is logged. Juniors and Heads are set per person under Users &amp; staff. Page access still applies: a role needs the page to see the records at all. Admin always sees everything.</p>
         </div>
       ) : (<>
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-        <table className="w-full border-collapse text-[13px]">
-          <thead>
-            <tr className="bg-surface2">
-              <th className="px-4 py-2.5 text-left text-xs font-semibold text-text2">{tab === 'Pages' ? 'Page' : 'Detail group'}</th>
-              <th className={th}>Admin</th>
-              {roles.map((r) => <th key={r} className={th}>{r}</th>)}
-            </tr>
-          </thead>
-          <tbody>
+      <Table label={tab === 'Pages' ? 'Page access by role' : 'Sensitive details by role'} density="compact">
+          <THead>
+              <Th className="sticky left-0 z-[2] bg-surface">{tab === 'Pages' ? 'Page' : 'Detail group'}</Th>
+              <Th className={th}>Admin</Th>
+              {roles.map((r) => <Th key={r} className={th} title={r}>{r}</Th>)}
+          </THead>
+          <TBody>
             {tab === 'Pages' ? groups.map((g) => [
-              <tr key={g.name}><td colSpan={roles.length + 2} className="bg-surface2/60 px-4 py-1.5 text-xs font-semibold text-text2">{g.name}</td></tr>,
+              <tr key={g.name}><td colSpan={roles.length + 2} className="!h-auto bg-surface2/60 !pt-4 !pb-1.5 text-xs font-medium text-muted">{g.name}</td></tr>,
               ...g.pages.map((p) => (
-                <tr key={p.id} className="border-t border-line">
-                  <td className="whitespace-nowrap px-4 py-1.5 font-medium">{p.title}</td>
-                  <td className="px-1 py-1"><div className={cx(btn, tone(2), 'flex items-center justify-center opacity-60')}>Edit</div></td>
+                <Tr key={p.id}>
+                  <Td className="sticky left-0 z-[1] whitespace-nowrap bg-surface font-medium">{p.title}</Td>
+                  <td className="!px-1"><div className={cx(btn, tone(2), 'flex items-center justify-center opacity-60')}>Edit</div></td>
                   {roles.map((r) => { const m = pageAccess[r + '|' + p.id] || ''; return (
-                    <td key={r} className="px-1 py-1"><button type="button" disabled={!canWrite} aria-label={`${r}, ${p.title}: ${PAGE_LABEL[m]}`} onClick={() => tapPage(r, p.id, p.title)} className={cx(btn, tone(m === 'w' ? 2 : m === 'r' ? 1 : 0))}>{PAGE_LABEL[m]}</button></td>
+                    <td key={r} className="!px-1"><button type="button" disabled={!canWrite} aria-label={`${r}, ${p.title}: ${PAGE_LABEL[m]}`} onClick={() => tapPage(r, p.id, p.title)} className={cx(btn, tone(m === 'w' ? 2 : m === 'r' ? 1 : 0))}>{PAGE_LABEL[m]}</button></td>
                   ); })}
-                </tr>
+                </Tr>
               )),
             ]) : GROUPS.map(([g, label]) => (
-              <tr key={g} className="border-t border-line">
-                <td className="whitespace-nowrap px-4 py-2 font-medium">{label}</td>
-                <td className="px-1 py-1"><div className={cx(btn, tone(2), 'flex items-center justify-center opacity-60')}>Full</div></td>
+              <Tr key={g}>
+                <Td className="sticky left-0 z-[1] whitespace-nowrap bg-surface font-medium">{label}</Td>
+                <td className="!px-1"><div className={cx(btn, tone(2), 'flex items-center justify-center opacity-60')}>Full</div></td>
                 {roles.map((r) => { const m = fieldAccess[r + '|' + g] || 'h'; return (
-                  <td key={r} className="px-1 py-1"><button type="button" disabled={!canWrite} aria-label={`${r}, ${label}: ${FIELD_LABEL[m]}`} onClick={() => tapField(r, g, label)} className={cx(btn, tone(m === 'f' ? 2 : m === 'm' ? 1 : 0))}>{FIELD_LABEL[m]}</button></td>
+                  <td key={r} className="!px-1"><button type="button" disabled={!canWrite} aria-label={`${r}, ${label}: ${FIELD_LABEL[m]}`} onClick={() => tapField(r, g, label)} className={cx(btn, tone(m === 'f' ? 2 : m === 'm' ? 1 : 0))}>{FIELD_LABEL[m]}</button></td>
                 ); })}
-              </tr>
+              </Tr>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TBody>
+      </Table>
       <p className="text-xs text-muted">{tab === 'Pages' ? 'Tap steps through no access → View → Edit. The database enforces this, not just the screen.' : 'Masked shows only the last 4 characters. Hidden shows nothing.'} Admin always has everything.</p>
       </>)}
     </main>

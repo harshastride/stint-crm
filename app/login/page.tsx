@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { Button } from '@/components/ui';
 
 // Demo logins from scripts/seed-demo.mjs. Shown only in development, never in a production build.
 const DEMO_PASSWORD = 'stint-demo-1234';
@@ -60,7 +61,7 @@ export default function LoginPage() {
         </div>
       </aside>
       <div className="flex items-center justify-center p-4 sm:p-8">
-        <form onSubmit={submit} className="w-full max-w-[400px] rounded-2xl border border-line bg-surface p-7 shadow-sm lg:border-0 lg:bg-transparent lg:shadow-none">
+        <form onSubmit={submit} className="w-full max-w-[400px] rounded-2xl bg-surface p-7 shadow-[0_8px_30px_rgba(16,24,40,.08)] sm:p-8">
           <div className="flex items-end gap-2 lg:hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/brand/stint-logo.svg" alt="Stint" width={104} height={34} className="logo-light h-[34px] w-auto" />
@@ -68,7 +69,7 @@ export default function LoginPage() {
             <img src="/brand/stint-logo-dark.svg" alt="" width={104} height={34} className="logo-dark h-[34px] w-auto" />
             <span className="mb-[12px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">CRM</span>
           </div>
-          <h1 className="mt-6 text-[28px] font-semibold leading-tight lg:mt-0">Welcome back</h1>
+          <h1 className="mt-6 text-[26px] font-semibold leading-tight tracking-tight lg:mt-0">Welcome back</h1>
           <p className="mt-1 text-text2">Sign in with the email your admin invited. Students use the same page.</p>
           <label className="mt-6 flex flex-col gap-1 text-xs font-medium text-text2">
             Email
@@ -85,9 +86,7 @@ export default function LoginPage() {
           </label>
           {idleOut && !error && <div role="status" className="mt-3 rounded-[10px] bg-accentSoft px-3 py-2.5 text-[13px] font-medium text-accentText">Signed out after 30 minutes without activity. Sign in again to carry on.</div>}
           {error && <div role="alert" className="mt-3 rounded-[10px] bg-badBg px-3 py-2.5 text-[13px] font-medium text-badText">{error}</div>}
-          <button type="submit" disabled={busy} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-[10px] bg-accent text-sm font-semibold text-white hover:brightness-110 disabled:opacity-70">
-            {busy && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" aria-hidden />}{busy ? 'Signing in…' : 'Sign in'}
-          </button>
+          <Button type="submit" variant="primary" size="lg" fullWidth loading={busy} className="mt-6">{busy ? 'Signing in…' : 'Sign in'}</Button>
           <p className="mt-4 text-center text-[12.5px] text-muted">Forgot your password? Ask your admin to reset it.</p>
           {IS_DEV && (
             <label className="mt-5 flex flex-col gap-1 border-t border-line pt-4 text-xs font-medium text-text2">

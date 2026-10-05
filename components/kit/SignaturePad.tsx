@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Eraser } from 'lucide-react';
+import { Button } from '../ui';
 
 // Sign with a finger or mouse. Gives back a PNG (data URL) or null while empty.
 export function SignaturePad({ onChange, height = 160 }: { onChange: (png: string | null) => void; height?: number }) {
@@ -24,13 +25,13 @@ export function SignaturePad({ onChange, height = 160 }: { onChange: (png: strin
   const clear = () => { const c = cv.current!; c.getContext('2d')!.clearRect(0, 0, c.width, c.height); setEmpty(true); onChange(null); };
   return (
     <div>
-      <div className="relative rounded-xl border-2 border-dashed border-line2 bg-white">
-        <canvas ref={cv} aria-label="Signature box: sign here with your finger or mouse" style={{ height, touchAction: 'none' }} className="block w-full cursor-crosshair rounded-xl"
+      <div className="relative rounded-[10px] border border-dashed border-line2 bg-white">
+        <canvas ref={cv} aria-label="Signature box: sign here with your finger or mouse" style={{ height, touchAction: 'none' }} className="block w-full cursor-crosshair rounded-[10px]"
           onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
         {empty && <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[13px] text-[#94A3B8]">Sign here</span>}
         <span className="pointer-events-none absolute bottom-8 left-6 right-6 border-b border-[#CBD5E1]" />
       </div>
-      <button type="button" onClick={clear} disabled={empty} className="mt-2 flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 text-[13px] font-medium text-text2 disabled:opacity-40"><Eraser size={14} /> Clear and sign again</button>
+      <Button variant="quiet" size="sm" className="mt-2" onClick={clear} disabled={empty} leftIcon={<Eraser size={14} />}>Clear and sign again</Button>
     </div>
   );
 }

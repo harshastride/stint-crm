@@ -21,7 +21,7 @@ export function Funnel({ title = 'Conversion funnel' }: { title?: string }) {
 
   const top = Math.max(1, ...(steps || []).map((x) => Number(x.n)));
   return (
-    <section data-testid="funnel" className="rounded-2xl border border-line bg-surface p-5">
+    <section data-testid="funnel" className="rounded-card bg-surface shadow-1 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{title}</h2>
         <DateRange value={range} onChange={setRange} label="All time" />

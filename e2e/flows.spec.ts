@@ -439,7 +439,7 @@ test('custom fields: admin adds one, it shows in the form and the list', async (
   const { data: c } = await db.from('candidate').select('id, full_name, custom').eq('full_name', 'Priya Reddy').single();
   await login(page, 'harsha');
   await page.goto('/p/fields');
-  await page.getByRole('button', { name: 'Add field' }).click();
+  await page.getByRole('button', { name: 'Add field' }).first().click();
   const form = page.getByRole('complementary', { name: 'New custom field' });
   await form.getByLabel('Add it to').selectOption('candidate');
   await form.getByLabel('Field name').fill('E2E Laptop issued');
@@ -576,6 +576,7 @@ test('toasts: a change shows Undo, and Undo puts it back', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/candidate?person=candidate:' + fu!.candidate_id);
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
+  await panel.getByRole('button', { name: /follow-up/, expanded: false }).click();   // follow-ups fold into a count chip
   await panel.locator('div').filter({ hasText: f!.title }).getByRole('button', { name: 'Done' }).first().click();
   await expect(page.getByRole('status').filter({ hasText: 'Done: ' + f!.title })).toBeVisible();
   expect((await db.from('follow_up').select('status').eq('id', f!.id).single()).data!.status).toBe('Done');
@@ -738,7 +739,7 @@ test('tags, date range, empty state, hover card and the delete bubble on lists',
     await expect(page.getByRole('cell', { name: /Test Tagged/ }).first()).toBeVisible();
     // hover card on the name
     await page.getByRole('button', { name: /Full name: Test Tagged/ }).hover();
-    await expect(page.getByRole('tooltip')).toContainText('Click the row for the quick panel');
+    await expect(page.getByRole('tooltip').filter({ hasText: 'Click the row' })).toContainText('Click the row for the quick panel');
     // a date range with nothing in it shows the friendly empty state, with a way out
     await page.getByRole('button', { name: 'Added', exact: true }).click();
     await page.getByLabel('From', { exact: true }).fill('2001-01-01'); await page.getByLabel('To', { exact: true }).fill('2001-01-31');

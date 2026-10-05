@@ -32,9 +32,9 @@ export function TagPicker({ value, options, onChange, disabled, label = 'Tags' }
       ))}
       {!disabled && left.length > 0 && (
         <span className="relative">
-          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-line2 px-2.5 text-[12.5px] font-medium text-text2"><Plus size={12} /> Add tag</button>
+          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-h-[32px] items-center gap-1 rounded-full border border-dashed border-line2 px-2.5 text-[12.5px] font-medium text-text2 transition-colors hover:bg-surface2 hover:text-text"><Plus size={12} /> Add tag</button>
           {open && (
-            <span role="menu" className="absolute left-0 z-30 mt-1 block max-h-60 w-48 overflow-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
+            <span role="menu" className="absolute left-0 z-30 mt-1 block max-h-60 w-48 overflow-auto rounded-[10px] border border-line bg-surface p-1 shadow-3">
               {left.map((o) => <button key={o} type="button" role="menuitem" onClick={() => { onChange([...cur, o]); setOpen(false); }} className="flex min-h-[38px] w-full items-center gap-2 rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2"><span className={cx('h-2.5 w-2.5 rounded-full', tagTone(o).split(' ')[0])} />{o}</button>)}
             </span>
           )}

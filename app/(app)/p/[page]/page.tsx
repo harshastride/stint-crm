@@ -23,7 +23,7 @@ export default function Page({ params }: { params: Promise<{ page: string }> }) 
   if (!s.can(page)) {
     return (
       <main className="flex flex-1 items-center justify-center p-6">
-        <div className="max-w-sm rounded-2xl border border-line bg-surface p-6 text-center">
+        <div className="max-w-sm rounded-card bg-surface p-6 text-center shadow-1">
           <div className="text-lg font-semibold">This page isn’t open to your role</div>
           <p className="mt-2 text-text2">{s.staff.role} can’t open it. An admin can change that under Roles &amp; permissions.</p>
         </div>
@@ -33,6 +33,6 @@ export default function Page({ params }: { params: Promise<{ page: string }> }) 
   const Special = SPECIAL[page];
   if (Special) return <Suspense fallback={<PageSkeleton />}><Special /></Suspense>;
   const cfg = PAGES[page];
-  if (!cfg) return <main className="p-6 text-text2">This page has not been built yet.</main>;
+  if (!cfg) return <main className="p-page-sm text-text2 md:p-page">This page has not been built yet.</main>;
   return <Suspense fallback={<PageSkeleton />}><ListPage cfg={cfg} /></Suspense>;
 }

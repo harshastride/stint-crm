@@ -37,7 +37,7 @@ export function Leaderboard({ role }: { role: string }) {
   const btn = (on: boolean) => cx('min-h-[44px] rounded-lg px-3 text-[13px] font-medium', on ? 'bg-accent text-white' : 'text-text2 hover:bg-surface2');
 
   return (
-    <section aria-label="Team leaderboard" data-testid="leaderboard" className="rounded-2xl border border-line bg-surface p-5">
+    <section aria-label="Team leaderboard" data-testid="leaderboard" className="rounded-card bg-surface shadow-1 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Team leaderboard</h2>
         <div role="group" aria-label="Period" className="flex gap-1 rounded-xl bg-surface2 p-1">

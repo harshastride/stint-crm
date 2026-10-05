@@ -35,11 +35,10 @@ android {
 
     buildTypes {
         debug {
-            // Emulator address of the CRM running on this computer (npm run dev)
-            buildConfigField("String", "DEFAULT_SERVER", "\"http://10.0.2.2:3100\"")
+            buildConfigField("String", "DEFAULT_SERVER", "\"https://crm.skillxen.com\"")
         }
         release {
-            buildConfigField("String", "DEFAULT_SERVER", "\"\"")
+            buildConfigField("String", "DEFAULT_SERVER", "\"https://crm.skillxen.com\"")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (keystore.isNotEmpty()) signingConfig = signingConfigs.getByName("release")

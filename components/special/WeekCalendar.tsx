@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { PageHeader } from '../ListPage';
-import { cx } from '../ui';
+import { Button, ButtonGroup, IconButton, cx } from '../ui';
 import { TableSkeleton } from '../Skeletons';
 
 // Mon–Sun week of follow-ups, batch classes, mock interviews and counselling (view calendar_feed).
@@ -59,7 +59,7 @@ export function WeekCalendar() {
     return (
       <button key={e.kind + e.id + e.starts_at} type="button" data-kind={e.kind} onClick={() => router.push(href(e))}
         title={e.title + (e.detail ? ' · ' + e.detail : '')}
-        className={cx('flex min-h-[44px] w-full flex-col items-start rounded-lg border-l-4 px-2 py-1.5 text-left', KIND[e.kind].chip, late && 'ring-1 ring-badText')}>
+        className={cx('flex min-h-[44px] w-full flex-col items-start rounded-lg border-l-[3px] px-2 py-1.5 text-left transition-shadow hover:shadow-2', KIND[e.kind].chip, late && 'ring-1 ring-badText')}>
         <span className="num text-[11px] font-semibold opacity-80">{hm(e.starts_at)}{e.ends_at ? '–' + hm(e.ends_at) : ''}{late ? ' · overdue' : ''}</span>
         <span className="w-full truncate text-[12.5px] font-medium">{e.title}</span>
         {e.detail && <span className="w-full truncate text-[11px] opacity-75">{e.detail}</span>}
@@ -71,17 +71,17 @@ export function WeekCalendar() {
     <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
       <PageHeader group="Home" title="Week calendar" purpose="Follow-ups, batch classes and mock interviews for the week. Tap an item to open it." scope={s.staff.role + ' · what your role can see'} />
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <button type="button" aria-label="Previous week" onClick={() => step(-1)} className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-line2 bg-surface"><ChevronLeft size={17} /></button>
-          <button type="button" onClick={goToday} className="h-11 rounded-[10px] border border-line2 bg-surface px-4 text-[13px] font-medium">Today</button>
-          <button type="button" aria-label="Next week" onClick={() => step(1)} className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-line2 bg-surface"><ChevronRight size={17} /></button>
-        </div>
-        <h2 className="text-lg font-semibold" aria-live="polite">{title}</h2>
+        <ButtonGroup label="Week">
+          <IconButton aria-label="Previous week" icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
+          <Button variant="quiet" onClick={goToday}>Today</Button>
+          <IconButton aria-label="Next week" icon={<ChevronRight size={16} />} onClick={() => step(1)} />
+        </ButtonGroup>
+        <h2 className="text-[17px] font-semibold tracking-tight" aria-live="polite">{title}</h2>
       </div>
       <div className="flex flex-wrap gap-2" aria-label="Show or hide">
         {(Object.keys(KIND) as Kind[]).filter((k) => present.has(k) || !show[k]).map((k) => (
           <button key={k} type="button" aria-pressed={show[k]} onClick={() => setShow({ ...show, [k]: !show[k] })}
-            className={cx('flex min-h-[44px] items-center gap-2 rounded-full border px-3 text-xs font-semibold', show[k] ? 'border-line2 bg-surface text-text' : 'border-line text-muted line-through')}>
+            className={cx('flex min-h-[44px] items-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-surface2', show[k] ? 'text-text' : 'text-muted line-through opacity-70')}>
             <span className={cx('h-2.5 w-2.5 rounded-full', KIND[k].dot)} />{KIND[k].label}
           </button>
         ))}
@@ -91,7 +91,7 @@ export function WeekCalendar() {
       <div className="grid grid-cols-7 gap-1 md:hidden" role="tablist" aria-label="Day">
         {days.map((d, i) => (
           <button key={i} type="button" role="tab" aria-selected={day === i} onClick={() => setDay(i)}
-            className={cx('flex min-h-[52px] flex-col items-center justify-center rounded-[10px] border text-[11px]', day === i ? 'border-accent bg-accentSoft font-semibold text-accentText' : 'border-line bg-surface text-text2')}>
+            className={cx('flex min-h-[52px] flex-col items-center justify-center rounded-[10px] text-[11px] transition-colors', day === i ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>
             {d.toLocaleDateString('en-IN', { weekday: 'narrow' })}
             <span className={cx('num text-[14px] font-semibold', same(d, today) && 'text-coral')}>{d.getDate()}</span>
             {onDay(d).length > 0 && <span className="h-1 w-1 rounded-full bg-accent" />}
@@ -106,10 +106,10 @@ export function WeekCalendar() {
             const list = onDay(d);
             return (
               <section key={d.toISOString()} aria-label={d.toDateString()} data-day={i}
-                className={cx('min-h-[160px] flex-col gap-1.5 rounded-xl border bg-surface p-2 md:flex', i === day ? 'flex' : 'hidden', same(d, today) ? 'border-accent' : 'border-line')}>
-                <div className="flex items-baseline justify-between px-1">
-                  <span className="text-[11px] font-semibold uppercase text-text2">{d.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
-                  <span className={cx('num text-[15px] font-semibold', same(d, today) && 'text-accentText')}>{d.getDate()}</span>
+                className={cx('ui-col min-h-[160px] flex-col gap-1.5 md:flex', i === day ? 'flex' : 'hidden', same(d, today) && 'ring-1 ring-inset ring-accent')}>
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <span className="text-[12px] font-medium text-muted">{d.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+                  <span className={cx('num flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold', same(d, today) && 'bg-accent text-white')}>{d.getDate()}</span>
                 </div>
                 {list.length === 0 ? <span className="px-1 text-[12px] text-muted">Nothing planned</span> : list.map(card)}
               </section>

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
-import { fmtDateTime } from '../ui';
+import { Button, fmtDateTime } from '../ui';
 
 const EVENT_NAME: Record<string, string> = {
   'lead.created': 'New lead', 'lead.assigned': 'Lead assigned', 'counselling.booked': 'Counselling booked', 'quote.sent': 'Fee quote sent',
@@ -31,30 +31,30 @@ export function AutomationBuilder() {
   const save = async () => { await supabase().from('integration_config').update({ value: url.trim() || null }).eq('key', 'builder_url'); load(); };
 
   return (
-    <section className="rounded-xl border border-line bg-surface p-4">
+    <section className="rounded-card bg-surface p-card shadow-1">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="min-w-0 max-w-2xl">
           <h2 className="text-base font-semibold">Build automations in Activepieces</h2>
           <p className="mt-1 text-[13px] text-text2">In a flow pick <b>Stint CRM</b>: a trigger such as “New lead” or “Payment recorded”, then actions like WhatsApp, email, or “Create follow-up” back in the CRM. Publish and it runs.</p>
         </div>
         {info.url && (
           <div className="flex flex-wrap gap-2">
-            {s.can('builder') && <Link href="/p/builder" className="flex min-h-[44px] items-center rounded-[10px] bg-accent px-4 text-sm font-semibold text-white">Open automation builder</Link>}
-            <button type="button" onClick={() => openBuilder(info.url)} className="flex min-h-[44px] items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-sm font-medium">New tab <ExternalLink size={14} /></button>
+            {s.can('builder') && <Link href="/p/builder" className="btn inline-flex h-10 items-center rounded-[10px] bg-accent px-4 text-[13.5px] font-semibold text-white hover:brightness-110">Open automation builder</Link>}
+            <Button variant="outline" onClick={() => openBuilder(info.url)} rightIcon={<ExternalLink size={15} />}>New tab</Button>
           </div>
         )}
       </div>
-      <div className="mt-3 text-xs font-medium text-text2">Live flows listening to the CRM</div>
+      <div className="mt-4 text-xs font-medium text-muted">Live flows listening to the CRM</div>
       {info.listening.length ? (
         <ul className="mt-1.5 flex flex-wrap gap-1.5">
           {info.listening.map((l, i) => <li key={i} title={'Since ' + fmtDateTime(l.since)} className="rounded-full bg-goodBg px-2.5 py-1 text-xs font-semibold text-goodText">{EVENT_NAME[l.event] || l.event}</li>)}
         </ul>
       ) : <p className="mt-1 text-[13px] text-muted">None yet. Turn on a flow with a Stint CRM trigger and it shows here.</p>}
       {isAdmin && (
-        <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-text2">Builder address (admin)
+        <label className="mt-4 flex flex-col gap-1.5 text-xs font-medium text-muted">Builder address (admin)
           <div className="flex gap-2">
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://automations.stintacademy.com" className="h-11 min-w-0 flex-1 px-3 text-sm" />
-            <button type="button" onClick={save} className="h-11 rounded-[10px] border border-line2 bg-surface px-3 text-sm font-medium">Save</button>
+            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://automations.stintacademy.com" className="h-10 min-w-0 flex-1 px-3 text-sm" />
+            <Button variant="outline" onClick={save}>Save</Button>
           </div>
         </label>
       )}

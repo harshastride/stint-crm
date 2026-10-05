@@ -14,8 +14,8 @@ export function PhoneInput({ value, onChange, disabled, label = 'Mobile', placeh
   const problem = phoneProblem(d);
   return (
     <div className={cx('flex flex-col gap-1', className)}>
-      <div className={cx('flex h-11 items-center overflow-hidden rounded-[10px] border bg-surface', problem && d.length === 10 ? 'border-badText' : 'border-line2', disabled && 'opacity-60')}>
-        <span className="flex h-full items-center border-r border-line2 bg-surface2 px-2.5 text-sm font-medium text-text2" aria-hidden>+91</span>
+      <div className={cx('flex h-11 items-center overflow-hidden rounded-control border bg-surface', problem && d.length === 10 ? 'border-badText' : 'border-line2', disabled && 'opacity-60')}>
+        <span className="flex h-full items-center bg-surface2 px-2.5 text-sm font-medium text-text2" aria-hidden>+91</span>
         <input aria-label={label} type="tel" inputMode="numeric" autoComplete="tel-national" disabled={disabled} placeholder={placeholder}
           value={pretty(d)} onChange={(e) => onChange(digits10(e.target.value))}
           className="num h-full w-full border-0 bg-transparent px-3 text-sm tracking-wide outline-none focus:ring-0" />

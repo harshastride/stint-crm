@@ -16,6 +16,7 @@ import { StatSkeleton } from '../kit/StatSkeleton';
 import { Leaderboard } from '../kit/Leaderboard';
 import { Funnel } from '../kit/Funnel';
 import { TargetRing } from '../kit/TargetRing';
+import { PageHeader } from '../kit/PageHeader';
 
 const JOURNEY: [string, 'lead' | 'candidate', string[]][] = [
   ['Leads', 'lead', ['New']], ['Calls', 'lead', ['Callback', 'Interested']], ['Counselling', 'lead', ['Counselling']], ['Enrolled', 'candidate', ['Enrolled']],
@@ -61,12 +62,8 @@ export function Dashboard() {
 
   const [title, sub] = TITLES[s.staff.role] || TITLES.Admin;
   if (!d) return (
-    <main className="flex flex-1 flex-col gap-5 overflow-y-auto p-8">
-      <header>
-        <div className="text-[13px] font-medium text-muted">{s.staff.role} · Stint Academy</div>
-        <h1 className="mt-1 text-[30px] font-semibold leading-tight">{title}</h1>
-        <p className="mt-1 text-text2">{sub}</p>
-      </header>
+    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-5 md:p-8">
+      <PageHeader title={title} description={`${s.staff.role} · ${sub}`} />
       <StatSkeleton count={4} />
       <PageSkeleton />
     </main>
@@ -104,12 +101,8 @@ export function Dashboard() {
   const max = Math.max(1, ...JOURNEY.map(([, kind, st]) => (kind === 'lead' ? d.leads : d.cands).filter((x) => st.includes(x.stage)).length));
 
   return (
-    <main className="flex flex-1 flex-col gap-5 overflow-y-auto p-8">
-      <header>
-        <div className="text-[13px] font-medium text-muted">{s.staff.role} · Stint Academy</div>
-        <h1 className="mt-1 text-[30px] font-semibold leading-tight">{title}</h1>
-        <p className="mt-1 text-text2">{sub}</p>
-      </header>
+    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-5 md:p-8">
+      <PageHeader title={title} description={`${s.staff.role} · ${sub}`} />
 
       <Checklist />
 
@@ -124,11 +117,11 @@ export function Dashboard() {
         {tiles.map((t, i) => {
           const up = (t.delta ?? 0) >= 0, good = t.goodWhenUp ? up : !up;
           return (
-            <div key={t.label} className="anim-rise flex flex-col rounded-2xl border border-line bg-surface" style={{ animationDelay: 200 + i * 50 + 'ms' }}>
+            <div key={t.label} className="anim-rise flex flex-col rounded-card bg-surface shadow-1" style={{ animationDelay: 200 + i * 50 + 'ms' }}>
               <div className="px-5 pb-3 pt-4">
                 <div className="flex items-start justify-between gap-2">
                   <span className="flex items-center gap-2 text-[13px] font-medium text-muted">
-                    {(() => { const I = pageIcon(t.href.split('/').pop() || ''); return <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accentSoft text-accentText"><I size={15} strokeWidth={2} aria-hidden /></span>; })()}
+                    {(() => { const I = pageIcon(t.href.split('/').pop() || ''); return <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accentSoft text-accentText"><I size={14} strokeWidth={2} aria-hidden /></span>; })()}
                     {t.label}
                   </span>
                   {t.delta != null && !t.spark?.length && (
@@ -137,7 +130,7 @@ export function Dashboard() {
                     </span>
                   )}
                 </div>
-                <div className={cx('num mt-1.5 text-[28px] font-semibold', t.bad && 'text-badText')}><CountUp value={t.value} /></div>
+                <div className={cx('num mt-2 text-[26px] font-semibold leading-none', t.bad && 'text-badText')}><CountUp value={t.value} /></div>
                 {t.note && <div className="mt-0.5 text-xs text-muted">{t.note}</div>}
                 {t.spark && (() => {
                   const last = t.spark.slice(-30), pc = periodChange(t.spark, 30), pUp = (pc ?? 0) >= 0, pGood = t.goodWhenUp === false ? !pUp : pUp;
@@ -154,7 +147,7 @@ export function Dashboard() {
                   );
                 })()}
               </div>
-              <Link href={t.href} className="mt-auto flex justify-end border-t border-line px-5 py-2.5 text-[13px] font-medium text-accentText hover:bg-surface2">View →</Link>
+              <Link href={t.href} className="mt-auto flex min-h-[44px] items-center justify-end rounded-b-card px-5 text-[13px] font-medium text-accentText hover:bg-surface2">View →</Link>
             </div>
           );
         })}
@@ -167,16 +160,16 @@ export function Dashboard() {
       {showJourney && <Funnel />}
 
       {showJourney && (
-        <section className="rounded-2xl bg-ink p-5 text-[#E6EBF5]">
-          <h2 className="text-lg font-semibold">Student journey — where everyone is</h2>
+        <section className="rounded-card bg-surface p-5 shadow-1">
+          <h2 className="text-base font-semibold">Student journey — where everyone is</h2>
           <div className="mt-4 flex flex-wrap gap-2.5">
             {JOURNEY.map(([name, kind, st], i) => {
               const n = (kind === 'lead' ? d.leads : d.cands).filter((x) => st.includes(x.stage)).length;
               return (
-                <div key={name} className="min-w-0 rounded-xl bg-white/10 p-3" style={{ flex: '1 1 max(120px, calc(20% - 10px))' }}>
-                  <div className="text-[11px] font-medium text-[#9AA8C4]">{i + 1}. {name}</div>
-                  <div className="num mt-1 text-2xl font-semibold text-white"><CountUp value={n} /></div>
-                  <div className="mt-2 h-1.5 rounded bg-white/15"><div className="h-full rounded bg-coral" style={{ width: Math.round((100 * n) / max) + '%' }} /></div>
+                <div key={name} className="min-w-0 rounded-lg bg-surface2 p-3" style={{ flex: '1 1 max(120px, calc(20% - 10px))' }}>
+                  <div className="truncate text-[11.5px] font-medium text-muted">{i + 1}. {name}</div>
+                  <div className="num mt-1 text-[22px] font-semibold"><CountUp value={n} /></div>
+                  <div className="mt-2 h-1 rounded-full bg-line"><div className="h-full rounded-full bg-accent" style={{ width: Math.round((100 * n) / max) + '%' }} /></div>
                 </div>
               );
             })}
@@ -185,10 +178,10 @@ export function Dashboard() {
       )}
 
       <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
-        <section className="rounded-2xl border border-line bg-surface p-5">
+        <section className="rounded-card bg-surface p-5 shadow-1">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold">Follow-ups due</h2>
-            <Link href="/p/followups" className="text-[13px] font-medium text-accentText">Open all</Link>
+            <Link href="/p/followups" className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText hover:underline">Open all</Link>
           </div>
           {d.tasks.length === 0 && <p className="mt-3 text-text2">Nothing due. You’re clear.</p>}
           {d.tasks.slice(0, 7).map((t) => (
@@ -202,15 +195,15 @@ export function Dashboard() {
           ))}
         </section>
         {s.can('alert') && (
-          <section className="rounded-2xl border border-line bg-surface p-5">
+          <section className="rounded-card bg-surface p-5 shadow-1">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold">Open alerts</h2>
-              <Link href="/p/alert" className="text-[13px] font-medium text-accentText">Open all</Link>
+              <Link href="/p/alert" className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText hover:underline">Open all</Link>
             </div>
             {d.alerts.length === 0 && <p className="mt-3 text-text2">No open alerts.</p>}
             {d.alerts.map((a) => (
               <div key={a.id} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0">
-                <div className="truncate text-[13px] font-medium">{a.title}: {a.lead?.full_name || a.candidate?.full_name || ''}</div>
+                <div className="truncate text-[13px] font-medium" title={a.title}>{a.title}: {a.lead?.full_name || a.candidate?.full_name || ''}</div>
                 <Pill>{a.priority}</Pill>
               </div>
             ))}

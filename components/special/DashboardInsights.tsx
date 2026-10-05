@@ -65,7 +65,7 @@ export function DashboardInsights({ leads, cands, fees, target, targetLabel, sou
   return (
     <section className="grid gap-4 lg:grid-cols-3" aria-label="Trends and targets">
       {chart && (
-        <div className="anim-rise rounded-2xl border border-line bg-surface p-5 lg:col-span-2" style={{ animationDelay: '0ms' }}>
+        <div className="anim-rise rounded-card bg-surface shadow-1 p-5 lg:col-span-2" style={{ animationDelay: '0ms' }}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <div><h2 className="text-base font-semibold">{chart.title}</h2><p className="text-xs text-muted">{chart.sub}</p></div>
             <div className="flex gap-3 text-xs text-text2">
@@ -115,7 +115,7 @@ export function DashboardInsights({ leads, cands, fees, target, targetLabel, sou
           </div>
         )}
         {insight && (
-          <div className="anim-rise flex flex-1 flex-col justify-between rounded-2xl border border-line bg-surface p-5" style={{ animationDelay: '160ms' }}>
+          <div className="anim-rise flex flex-1 flex-col justify-between rounded-card bg-surface shadow-1 p-5" style={{ animationDelay: '160ms' }}>
             <div>
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-muted">Worth knowing</p>
               <p className="mt-2 text-[14px] leading-relaxed text-text">{insight.text}</p>

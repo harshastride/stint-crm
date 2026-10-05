@@ -48,21 +48,21 @@ export function FileTree({ folders, label = 'Files' }: { folders: TreeFolder[]; 
         {folders.map((d) => (
           <li key={d.id} role="treeitem" aria-expanded={!!open[d.id]} aria-selected={focus === d.id} data-id={d.id} tabIndex={focus === d.id ? 0 : -1}
             onKeyDown={(e) => onKey(e, d.id, d)} onFocus={(e) => { if (e.target === e.currentTarget) setFocus(d.id); }} className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent">
-            <div onClick={() => { setFocus(d.id); setOpen({ ...open, [d.id]: !open[d.id] }); }} className="flex min-h-[44px] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-semibold text-text hover:bg-surface2">
+            <div onClick={() => { setFocus(d.id); setOpen({ ...open, [d.id]: !open[d.id] }); }} className="flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] font-semibold text-text transition-colors duration-150 hover:bg-surface2">
               <ChevronRight size={15} className={cx('shrink-0 text-muted transition-transform', open[d.id] && 'rotate-90')} />
               <Folder size={15} className="shrink-0 text-accentText" />
-              <span className="flex-1">{d.name}</span>
-              <span className="text-xs font-normal text-muted">{d.files.filter((f) => f.path).length} of {d.files.length}</span>
+              <span className="min-w-0 flex-1 truncate" title={d.name}>{d.name}</span>
+              <span className="ui-count">{d.files.filter((f) => f.path).length} of {d.files.length}</span>
             </div>
             {open[d.id] && (
-              <ul role="group" className="ml-6 flex flex-col border-l border-line pl-2">
+              <ul role="group" className="ml-[18px] flex flex-col border-l border-line pl-2">
                 {d.files.length === 0 && <li role="none" className="flex min-h-[44px] items-center px-2 text-sm text-muted">Nothing here yet</li>}
                 {d.files.map((f) => (
                   <li key={f.id} role="treeitem" aria-selected={focus === f.id} aria-disabled={!f.path} data-id={f.id} tabIndex={focus === f.id ? 0 : -1}
                     onKeyDown={(e) => onKey(e, f.id, undefined, f, d.id)} onFocus={() => setFocus(f.id)} onClick={() => { setFocus(f.id); openFile(f); }}
-                    className={cx('flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-accent', f.path ? 'cursor-pointer text-text hover:bg-surface2' : 'text-muted')}>
+                    className={cx('flex min-h-[44px] items-center gap-2.5 rounded-lg px-2.5 text-[13.5px] outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent', f.path ? 'cursor-pointer text-text hover:bg-surface2' : 'text-muted')}>
                     <FileText size={14} className="shrink-0 text-muted" />
-                    <span className="min-w-0 flex-1 truncate">{f.name}{f.note && <span className="ml-2 text-xs text-muted">{f.note}</span>}</span>
+                    <span className="min-w-0 flex-1 truncate" title={f.name + (f.note ? ' · ' + f.note : '')}>{f.name}{f.note && <span className="ml-2 text-xs text-muted">{f.note}</span>}</span>
                     {f.path || (f.status && f.status !== 'Missing') ? (f.status && <Pill>{f.status}</Pill>) : <span className="text-xs italic">Not uploaded</span>}
                   </li>
                 ))}

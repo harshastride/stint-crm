@@ -44,7 +44,7 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
     <div ref={root} className="relative shrink-0">
       <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Account menu, ${staff.full_name}`}
         onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); } }}
-        className={cx('flex min-h-[44px] items-center gap-2 rounded-[12px] border px-1.5 md:pr-2.5', open ? 'border-accent bg-accentSoft' : 'border-line2 bg-surface')}>
+        className={cx('flex min-h-[44px] items-center gap-2 rounded-[12px] px-1.5 transition-colors md:pr-2.5', open ? 'bg-accentSoft' : 'hover:bg-surface2')}>
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-[12px] font-semibold text-white">{initials(staff.full_name)}</span>
         <span className="hidden text-left leading-tight md:block">
           <span className="block max-w-[140px] truncate text-[13px] font-semibold">{staff.full_name}</span>

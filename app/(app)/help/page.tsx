@@ -52,9 +52,9 @@ const TOPICS: Topic[] = [
 
 export default function HelpPage() {
   return (
-    <div className="mx-auto max-w-3xl p-4 md:p-6">
-      <h1 className="text-[22px] font-semibold">Help</h1>
-      <p className="mt-1 text-[13.5px] text-muted">Short answers to common questions. Tap a question to see the answer.</p>
+    <div className="mx-auto max-w-3xl p-page-sm md:p-page">
+      <h1 className="text-[22px] font-semibold leading-tight">Help</h1>
+      <p className="mt-1 text-[13.5px] text-text2">Short answers to common questions. Tap a question to see the answer.</p>
       <HelpList topics={TOPICS} footer="Still stuck? Ask your admin." />
     </div>
   );

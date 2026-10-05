@@ -1,13 +1,13 @@
 'use client';
 import { Board } from './kit/Board';
 import { Funnel } from './kit/Funnel';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Search, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, Minus, Pencil, Rows3, Rows4, Search, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { getPath, mayReassign, statusLockedBy, type Bulk, type Col, type Field, type PageCfg, type PersonRef, type Row } from '@/lib/pages';
-import { Button, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } from './ui';
+import { Button, ButtonGroup, IconButton, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } from './ui';
 import { EditorPanel } from './EditorPanel';
 import { QuickPanel } from './QuickPanel';
 import { friendlyError } from './Fields';
@@ -25,6 +25,8 @@ import { CountUp } from './kit/CountUp';
 import { RangeSlider, rupees } from './kit/RangeSlider';
 import { FilterBuilder, advExpr, advFields, type Adv } from './kit/FilterBuilder';
 import { PersonChip } from './kit/Avatar';
+import { Table, THead, TBody, Th, Td, Tr, RowActions, useDensity } from './kit/Table';
+import { KpiCard } from './kit/PageHeader';
 import { AvatarStack, type StackPerson } from './kit/AvatarStack';
 
 const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder, compare: ProgramCompare, funnel: Funnel };
@@ -115,14 +117,13 @@ const short = (c: Col, r: Row) => {
 
 export function PageHeader({ group, title, purpose, scope, children }: { group: string; title: string; purpose: string; scope: string; children?: React.ReactNode }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <div className="text-xs font-medium text-muted">{group}</div>
-        <h1 className="mt-0.5 text-[26px] font-semibold leading-tight">{title}</h1>
-        <p className="mt-1 text-text2">{purpose}</p>
-        <span className="mt-2 inline-block rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{scope}</span>
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-xs font-medium text-muted">{group}{group && scope ? ' · ' : ''}<span className="text-accentText">{scope}</span></div>
+        <h1 className="mt-0.5 text-[22px] font-semibold leading-tight">{title}</h1>
+        <p className="mt-1 max-w-[70ch] text-[13.5px] text-text2">{purpose}</p>
       </div>
-      <div className="flex gap-2">{children}</div>
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
     </header>
   );
 }
@@ -167,6 +168,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const [activeSaved, setActiveSaved] = useState<string | null>(null);
   const [cellEdit, setCellEdit] = useState<{ id: string; key: string } | null>(null);
   const [saving, setSaving] = useState<{ name: string; shared: string } | null>(null);
+  const [density, setDensity] = useDensity();
   const loadSaved = useCallback(async () => {
     const { data } = await supabase().from('saved_view').select('*').eq('page_id', cfg.id).order('created_at');
     setSavedViews(data || []);
@@ -205,7 +207,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
 
   useEffect(() => {
     setQ(''); setSort(null); setPage(0); setPicked(new Set()); setBulkOpen(null); setColsOpen(false); setFilters({}); setFilterOpen(null); setAmount(null); setAdv(null);
-    try { setHidden(new Set(JSON.parse(localStorage.getItem('stint-cols:' + cfg.id) || '[]'))); } catch { setHidden(new Set()); }
+    const optional = cfg.columns.filter((c) => (c as Col & { optional?: boolean }).optional).map((c) => c.key);
+    try { const saved = localStorage.getItem('stint-cols:' + cfg.id); setHidden(new Set(saved ? JSON.parse(saved) : optional)); } catch { setHidden(new Set(optional)); }
   }, [cfg]);
   const toggleCol = (key: string) => setHidden((old) => {
     const n = new Set(old); if (n.has(key)) n.delete(key); else if (cfg.columns.length - n.size > 1) n.add(key);
@@ -308,7 +311,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     if (p && p.includes(':')) { const [kind, id] = p.split(':'); if (kind === 'lead' || kind === 'candidate') { setPerson({ kind, id }); setPanelOpen(true); } }
   }, [params]);
 
-  const hover = (on: boolean, r: Row, node: React.ReactNode) => (on ? <HoverCard card={() => peek(cfg, columns, r)}>{node}</HoverCard> : node);
+  const hover = (on: boolean, r: Row, node: React.ReactNode) => (on ? <HoverCard block card={() => peek(cfg, columns, r)}>{node}</HoverCard> : node);
   // status changes belong to the assigned person; reassigning to Admin, them or their team head
   const lockedFor = (r: Row, key: string) => !!cfg.assignee && ((key === cfg.assignee.status && !!statusLockedBy(cfg, r, s.staff, s.refs.staff || [])) || (key === cfg.assignee.field && !mayReassign(cfg, r, s.staff, s.refs.staff || [])));
   const views = cfg.views || [{ label: 'All' }];
@@ -416,29 +419,29 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
       <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden p-4 md:p-6 [&>*]:shrink-0">
         <PageHeader group={meta?.grp || ''} title={meta?.title || cfg.id} purpose={cfg.purpose}
           scope={s.staff.role === 'Admin' ? 'Admin · all records' : s.staff.role + (canWrite ? ' · can edit' : ' · view only')}>
-          {cfg.csv && canExport && <Button onClick={exportCsv}>Export</Button>}
-          {cfg.person && person && !panelOpen && <Button onClick={() => setPanelOpen(true)}>Show panel</Button>}
+          {cfg.csv && canExport && <Button variant="quiet" onClick={exportCsv}>Export</Button>}
+          {cfg.person && person && !panelOpen && <Button variant="quiet" onClick={() => setPanelOpen(true)}>Show panel</Button>}
           {canWrite && cfg.fields && !cfg.noCreate && cfg.cta && <Button variant="cta" onClick={onCta}>{cfg.cta}</Button>}
         </PageHeader>
 
         {cfg.top && TOP[cfg.top] && (() => { const Top = TOP[cfg.top!]; return <Top />; })()}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
-          <div className="flex flex-wrap gap-1" role="tablist">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap gap-1" role="tablist">
             {views.map((v, i) => (
               <button key={v.label} type="button" role="tab" aria-selected={view === i && !activeSaved} onClick={() => { setView(i); setActiveSaved(null); }}
-                className={cx('min-h-[38px] rounded-[10px] px-3.5 text-[13px] font-medium', view === i ? 'bg-ink text-white' : 'text-text2')}>{v.label}</button>
+                className={cx('min-h-[36px] rounded-row px-3 text-[13px] font-medium transition-colors duration-150', view === i && !activeSaved ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>{v.label}</button>
             ))}
           </div>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-1.5">
           {dateKey && rows && rows.length > 0 && <DateRange value={range} onChange={setRange} label={dateLabel} />}
           {(filterable.length > 0 || moneyBounds) && (
             <div className="relative">
-              <button type="button" aria-expanded={filterOpen !== null} onClick={() => setFilterOpen(filterOpen === null ? '' : null)} className={cx('flex h-[38px] items-center gap-1.5 rounded-[10px] border px-3 text-[13px] font-medium', filterCount ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>
-                <ListFilter size={14} /> Filter{filterCount ? ` · ${filterCount}` : ''}
-              </button>
+              <Button variant="quiet" size="sm" aria-expanded={filterOpen !== null} active={filterCount > 0} aria-pressed={undefined} onClick={() => setFilterOpen(filterOpen === null ? '' : null)} leftIcon={<ListFilter size={14} />}>
+                Filter{filterCount ? ` · ${filterCount}` : ''}
+              </Button>
               {filterOpen !== null && (
-                <div role="dialog" aria-label="Filter" className="absolute right-0 z-30 mt-1 w-64 rounded-xl border border-line bg-surface p-1 shadow-lg">
+                <div role="dialog" aria-label="Filter" className="absolute right-0 z-30 mt-1 w-64 rounded-card bg-surface p-1 shadow-3">
                   {filterOpen === '' && moneyCol && moneyBounds && (
                     <button type="button" onClick={() => setFilterOpen('__amount')} className="flex min-h-[44px] w-full items-center justify-between rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">
                       <span>Amount</span><span className="text-[11.5px] text-muted">{amountOn ? 'On' : '›'}</span>
@@ -477,11 +480,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <FilterBuilder cfg={cfg} value={adv} onChange={setAdv} />
           {layout === 'table' && (
             <div className="relative">
-              <button type="button" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} className="flex h-[38px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">
-                <Columns3 size={14} /> Columns{hidden.size ? ` · ${cols.length}/${columns.length}` : ''}
-              </button>
+              <Button variant="quiet" size="sm" aria-expanded={colsOpen} onClick={() => setColsOpen(!colsOpen)} leftIcon={<Columns3 size={14} />}>
+                Columns{hidden.size ? ` · ${cols.length}/${columns.length}` : ''}
+              </Button>
               {colsOpen && (
-                <div role="menu" className="absolute right-0 z-30 mt-1 w-56 rounded-xl border border-line bg-surface p-1 shadow-lg">
+                <div role="menu" className="absolute right-0 z-30 mt-1 w-56 rounded-card bg-surface p-1 shadow-3">
                   <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Show columns</div>
                   {columns.map((c) => (
                     <button key={c.key} type="button" role="menuitemcheckbox" aria-checked={!hidden.has(c.key)} onClick={() => toggleCol(c.key)}
@@ -490,7 +493,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                       {c.label}
                     </button>
                   ))}
-                  {hidden.size > 0 && <button type="button" onClick={() => { setHidden(new Set()); try { localStorage.removeItem('stint-cols:' + cfg.id); } catch {} }} className="mt-1 min-h-[36px] w-full rounded-lg border-t border-line text-[12.5px] font-medium text-accent">Show all</button>}
+                  {hidden.size > 0 && <button type="button" onClick={() => { setHidden(new Set()); try { localStorage.setItem('stint-cols:' + cfg.id, '[]'); } catch {} }} className="mt-1 min-h-[36px] w-full rounded-lg border-t border-line text-[12.5px] font-medium text-accent">Show all</button>}
                 </div>
               )}
             </div>
@@ -498,25 +501,27 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <label className="relative">
             <span className="sr-only">Search this list</span>
             <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this list" className="h-[44px] w-[180px] pl-8 pr-3 text-[13px] md:h-[38px] md:w-[220px]" />
+            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search this list" className="h-[44px] w-[180px] pl-8 pr-3 text-[13px] md:h-9 md:w-[200px]" />
           </label>
+          {layout === 'table' && <IconButton size="icon-sm" aria-label={density === 'compact' ? 'Comfortable rows' : 'Compact rows'} onClick={() => setDensity(density === 'compact' ? 'comfortable' : 'compact')}
+            icon={density === 'compact' ? <Rows3 size={15} /> : <Rows4 size={15} />} className="max-md:h-11 max-md:w-11" />}
           {cfg.board && (
-            <div className="flex rounded-[10px] bg-surface2 p-1">
+            <ButtonGroup label="Layout">
               {(['table', 'board'] as const).map((l) => (
-                <button key={l} type="button" onClick={() => setLayout(l)} className={cx('min-h-[32px] rounded-lg px-3 text-xs font-semibold capitalize', layout === l ? 'bg-surface shadow-sm' : 'text-text2')}>{l}</button>
+                <Button key={l} variant="quiet" size="sm" active={layout === l} onClick={() => setLayout(l)} className="capitalize">{l}</Button>
               ))}
-            </div>
+            </ButtonGroup>
           )}
           </div>
         </div>
 
         <div className="-mt-1 flex flex-wrap items-center gap-1.5" aria-label="Saved views">
           {savedViews.map((v) => (
-            <span key={v.id} className={cx('flex min-h-[34px] items-center rounded-full border text-[12.5px] font-medium', activeSaved === v.id ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface text-text2')}>
+            <span key={v.id} className={cx('flex min-h-[34px] items-center rounded-row text-[12.5px] font-medium transition-colors', activeSaved === v.id ? 'bg-accentSoft text-accentText' : 'bg-surface2 text-text2 hover:text-text')}>
               <button type="button" aria-pressed={activeSaved === v.id} onClick={() => applySaved(v)} className="flex min-h-[34px] items-center gap-1.5 pl-3 pr-2" title={v.shared === 'me' ? 'Only you' : v.shared === 'team' ? 'Shared with ' + v.owner_role : 'Shared with everyone'}>
                 <Bookmark size={13} aria-hidden />{v.name}{v.shared !== 'me' && <span className="text-[10.5px] text-muted">· {v.shared === 'team' ? 'team' : 'all'}</span>}
               </button>
-              {(v.owner_id === s.staff.id || s.staff.role === 'Admin') && <Confirm align="left" ariaLabel={'Delete view ' + v.name} title={'Remove the view “' + v.name + '”?'} body={v.shared === 'me' ? undefined : 'Others who use it will lose it too.'} yes="Remove" onYes={() => deleteView(v)} className="flex h-[34px] w-7 items-center justify-center rounded-r-full text-muted hover:text-badText"><X size={13} /></Confirm>}
+              {(v.owner_id === s.staff.id || s.staff.role === 'Admin') && <Confirm align="left" ariaLabel={'Delete view ' + v.name} title={'Remove the view “' + v.name + '”?'} body={v.shared === 'me' ? undefined : 'Others who use it will lose it too.'} yes="Remove" onYes={() => deleteView(v)} className="flex h-[34px] w-7 items-center justify-center rounded-r-row text-muted hover:text-badText"><X size={13} /></Confirm>}
             </span>
           ))}
           {saving ? (
@@ -526,13 +531,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 <option value="me">Just me</option><option value="team">My team ({s.staff.role})</option>
                 {(s.staff.role === 'Admin' || s.staff.level === 'Head') && <option value="all">Everyone</option>}
               </select>
-              <button type="submit" className="h-[34px] rounded-full bg-accent px-3 text-[12.5px] font-semibold text-white">Save</button>
-              <button type="button" onClick={() => setSaving(null)} className="h-[34px] px-2 text-[12.5px] text-text2">Cancel</button>
+              <Button type="submit" variant="primary" size="sm">Save</Button>
+              <Button variant="quiet" size="sm" onClick={() => setSaving(null)}>Cancel</Button>
             </form>
           ) : (
-            <button type="button" onClick={() => setSaving({ name: '', shared: 'me' })} className="flex min-h-[34px] items-center gap-1.5 rounded-full border border-dashed border-line2 px-3 text-[12.5px] font-medium text-text2 hover:text-accentText">
-              <BookmarkPlus size={13} aria-hidden /> Save this view
-            </button>
+            <Button variant="quiet" size="sm" onClick={() => setSaving({ name: '', shared: 'me' })} leftIcon={<BookmarkPlus size={13} />} className="text-[12.5px]">Save this view</Button>
           )}
         </div>
 
@@ -555,13 +558,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         )}
 
         {cfg.kpis && rows && (
-          <section className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-            {cfg.kpis.map((k) => (
-              <div key={k.label} className="rounded-xl border border-line bg-surface px-3 py-2.5 md:px-4 md:py-3.5">
-                <div className="text-xs font-medium text-muted">{k.label}</div>
-                <div className="num mt-1 text-xl font-semibold md:text-2xl"><CountUp value={k.calc(rows)} /></div>
-              </div>
-            ))}
+          <section aria-label="Key numbers" className="grid grid-cols-2 gap-3 md:grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
+            {cfg.kpis.map((k) => <KpiCard key={k.label} label={k.label} value={<CountUp value={k.calc(rows)} />} />)}
           </section>
         )}
 
@@ -576,15 +574,15 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         )}
 
         {layout === 'table' && pickedRows.length > 0 && (
-          <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-accent bg-accentSoft px-3 py-2" aria-live="polite">
+          <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 rounded-card bg-accentSoft px-3 py-2 shadow-2" aria-live="polite">
             <span className="text-[13px] font-semibold text-accentText">{pickedRows.length} selected</span>
             {canBulk && cfg.bulk!.map((b) => b.value ? (
-              <button key={b.label} type="button" disabled={bulkBusy} onClick={() => runBulk(b, b.value!)} className="min-h-[36px] rounded-[10px] bg-accent px-3 text-[13px] font-semibold text-white">{b.label}</button>
+              <Button key={b.label} variant="primary" size="sm" disabled={bulkBusy} onClick={() => runBulk(b, b.value!)}>{b.label}</Button>
             ) : (
               <span key={b.label} className="relative">
-                <button type="button" disabled={bulkBusy} aria-expanded={bulkOpen?.label === b.label} onClick={() => setBulkOpen(bulkOpen?.label === b.label ? null : b)} className="min-h-[36px] rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">{b.label} …</button>
+                <Button variant="outline" size="sm" disabled={bulkBusy} aria-expanded={bulkOpen?.label === b.label} onClick={() => setBulkOpen(bulkOpen?.label === b.label ? null : b)}>{b.label} …</Button>
                 {bulkOpen?.label === b.label && (
-                  <div role="menu" className="absolute left-0 z-30 mt-1 max-h-72 w-56 overflow-auto rounded-xl border border-line bg-surface p-1 shadow-lg">
+                  <div role="menu" className="absolute left-0 z-30 mt-1 max-h-72 w-56 overflow-auto rounded-card bg-surface p-1 shadow-3">
                     {(b.ref ? (s.refs[b.ref] || []).map((x) => [x.id, x.label + ((x as { extra?: { role?: string } }).extra?.role ? ' · ' + (x as { extra?: { role?: string } }).extra!.role : '')]) : (b.options || s.lists[b.list || ''] || []).map((v) => [v, v])).map(([v, l]) => (
                       <button key={v} type="button" role="menuitem" onClick={() => runBulk(b, v)} className="block min-h-[38px] w-full rounded-lg px-2.5 text-left text-[13px] hover:bg-surface2">{l}</button>
                     ))}
@@ -592,8 +590,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 )}
               </span>
             ))}
-            {canExport && <button type="button" onClick={exportCsv} className="min-h-[36px] rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">Export {pickedRows.length}</button>}
-            <button type="button" aria-label="Clear selection" onClick={() => setPicked(new Set())} className="ml-auto flex h-9 w-9 items-center justify-center rounded-lg hover:bg-surface"><X size={16} /></button>
+            {canExport && <Button variant="outline" size="sm" onClick={exportCsv}>Export {pickedRows.length}</Button>}
+            <span className="ml-auto"><IconButton size="icon-sm" aria-label="Clear selection" onClick={() => setPicked(new Set())} icon={<X size={16} />} /></span>
           </div>
         )}
 
@@ -624,67 +622,64 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               </div>
             </>)} />
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-            <table className="w-full border-collapse text-left text-[13px]">
-              <thead>
-                <tr className="bg-surface2 text-xs text-text2">
-                  <th className="w-11 pl-1"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></th>
-                  {cols.map((c) => {
-                    const on = sort?.key === c.key;
+          <Table label={(meta?.title || cfg.kind) + ' list'} density={density} className="overflow-x-auto">
+            <THead>
+              <Th className="w-11 !pl-1 !pr-0"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></Th>
+              {cols.map((c) => {
+                const on = sort?.key === c.key, num = NUMERIC.includes(c.type || '');
+                return (
+                  <Th key={c.key} numeric={num} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className="!px-1">
+                    <button type="button" onClick={() => setSort(on ? (sort!.asc ? { key: c.key, asc: false } : null) : { key: c.key, asc: true })}
+                      className={cx('inline-flex min-h-[32px] items-center gap-1 rounded-chip px-2 uppercase tracking-[inherit] transition-colors hover:bg-surface2 hover:text-text', num && 'flex-row-reverse', on && 'text-text')}>
+                      {c.label}{on && (sort!.asc ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                    </button>
+                  </Th>
+                );
+              })}
+              {cfg.person && cfg.fields && <Th className="w-12"><span className="sr-only">Actions</span></Th>}
+            </THead>
+            <TBody>
+              {pageRows.map((r) => (
+                <Tr key={r.id ?? r.key ?? JSON.stringify(r)} onOpen={() => openRow(r)} selected={!!((r.id && picked.has(r.id)) || (selId === r.id && cfg.person))}>
+                  <Td className="w-11 !pl-1 !pr-0">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</Td>
+                  {cols.map((c, i) => {
+                    const f0 = canWrite && (!cfg.readFrom || cfg.sameRows) && r.id ? fieldFor(cfg, c) : null;
+                    const f = f0 && !lockedFor(r, f0.key) ? f0 : null;
+                    const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
+                    const tip = c.type === 'tags' || c.type === 'people' ? undefined : short(c, r) || undefined;
                     return (
-                      <th key={c.key} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className="whitespace-nowrap px-2 py-1.5 font-semibold">
-                        <button type="button" onClick={() => setSort(on ? (sort!.asc ? { key: c.key, asc: false } : null) : { key: c.key, asc: true })}
-                          className={cx('flex min-h-[36px] items-center gap-1 rounded-md px-2 hover:bg-surface', on && 'text-text')}>
-                          {c.label}{on && (sort!.asc ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
-                        </button>
-                      </th>
+                      <Td key={c.key} numeric={NUMERIC.includes(c.type || '')} title={editing ? undefined : tip} className={cx("whitespace-nowrap", i === 0 ? "min-w-[220px] max-w-[360px]" : "max-w-[240px]", editing && '!px-2', i === 0 ? 'font-semibold' : 'text-text2')}>
+                        {editing ? inlineEditor(r, f!) : f ? hover(i === 0 && !!cfg.person?.(r), r,
+                          <button type="button" title={(tip ? tip + ' · ' : '') + 'click to change'} aria-label={`${f.label}: ${plain(c, r) || 'empty'}. Change`} onClick={(e) => { e.stopPropagation(); setCellEdit({ id: r.id, key: c.key }); }}
+                            className="-mx-1.5 block max-w-full truncate rounded-chip px-1.5 py-0.5 text-left transition-colors hover:bg-surface2 hover:text-text">{cell(c, r)}</button>
+                        ) : hover(i === 0 && !!cfg.person?.(r), r, <span className="block truncate">{cell(c, r)}</span>)}
+                      </Td>
                     );
                   })}
-                  {cfg.person && cfg.fields && <th className="w-10" />}
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((r) => (
-                  <tr key={r.id ?? r.key ?? JSON.stringify(r)} onClick={() => openRow(r)} className={cx('cursor-pointer border-t border-line', (r.id && picked.has(r.id)) || (selId === r.id && cfg.person) ? 'bg-accentSoft' : 'hover:bg-surface2')}>
-                    <td className="w-11 pl-1">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</td>
-                    {cols.map((c, i) => {
-                      const f0 = canWrite && (!cfg.readFrom || cfg.sameRows) && r.id ? fieldFor(cfg, c) : null;
-                      const f = f0 && !lockedFor(r, f0.key) ? f0 : null;
-                      const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
-                      return (
-                        <td key={c.key} className={cx('align-middle', editing ? 'px-2 py-1' : 'px-4 py-3', i === 0 ? 'font-semibold' : 'text-text2')}>
-                          {editing ? inlineEditor(r, f!) : f ? hover(i === 0 && !!cfg.person?.(r), r,
-                            <button type="button" title={'Click to change ' + f.label} aria-label={`${f.label}: ${plain(c, r) || 'empty'}. Change`} onClick={(e) => { e.stopPropagation(); setCellEdit({ id: r.id, key: c.key }); }}
-                              className="-mx-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-left hover:border-line2 hover:bg-surface">{cell(c, r)}</button>
-                          ) : hover(i === 0 && !!cfg.person?.(r), r, cell(c, r))}
-                        </td>
-                      );
-                    })}
-                    {cfg.person && cfg.fields && (
-                      <td className="pr-3">
-                        <button type="button" aria-label={(canWrite ? 'Edit ' : 'View ') + cfg.rowTitle(r)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  {cfg.person && cfg.fields && (
+                    <Td className="w-12 !pl-0 !pr-2">
+                      <RowActions><IconButton size="icon-sm" aria-label={(canWrite ? 'Edit ' : 'View ') + cfg.rowTitle(r)} onClick={(e) => { e.stopPropagation(); setEditing(r); }} icon={<Pencil size={14} />} /></RowActions>
+                    </Td>
+                  )}
+                </Tr>
+              ))}
+            </TBody>
+          </Table>
         )}
         {rows && (
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
             <span>{layout === 'table' && pages > 1 ? `${page * PAGE + 1}–${Math.min(shown.length, page * PAGE + PAGE)} of ${shown.length}` : shown.length + ' shown'}{rows.length >= MAX_ROWS ? ` (first ${MAX_ROWS.toLocaleString('en-IN')} loaded)` : ''}</span>
             {layout === 'table' && pages > 1 && (
               <nav aria-label="Pages" className="flex items-center gap-1">
-                <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} aria-label="Previous page" className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium text-text2 hover:bg-surface2 disabled:opacity-40"><ChevronLeft size={15} /><span className="max-sm:sr-only">Previous</span></button>
+                <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} aria-label="Previous page" className="flex h-9 items-center gap-1 rounded-row px-2 text-[12.5px] font-medium text-text2 transition-colors hover:bg-surface2 disabled:opacity-40"><ChevronLeft size={15} /><span className="max-sm:sr-only">Previous</span></button>
                 <span className="px-1 text-[12.5px] sm:hidden">Page {page + 1} of {pages}</span>
                 <span className="flex items-center gap-1 max-sm:hidden">
                   {pageItems(page + 1, pages).map((it, i) => it === 'gap' ? <span key={'g' + i} aria-hidden className="w-6 text-center">…</span> : (
                     <button key={it} type="button" onClick={() => setPage(it - 1)} aria-current={it === page + 1 ? 'page' : undefined} aria-label={'Page ' + it}
-                      className={cx('h-9 min-w-9 rounded-lg px-2 text-[12.5px] font-medium tabular-nums', it === page + 1 ? 'bg-accent text-white' : 'text-text2 hover:bg-surface2')}>{it}</button>
+                      className={cx('h-9 min-w-9 rounded-row px-2 text-[12.5px] font-medium tabular-nums transition-colors', it === page + 1 ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>{it}</button>
                   ))}
                 </span>
-                <button type="button" disabled={page >= pages - 1} onClick={() => setPage(page + 1)} aria-label="Next page" className="flex h-9 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium text-text2 hover:bg-surface2 disabled:opacity-40"><span className="max-sm:sr-only">Next</span><ChevronRight size={15} /></button>
+                <button type="button" disabled={page >= pages - 1} onClick={() => setPage(page + 1)} aria-label="Next page" className="flex h-9 items-center gap-1 rounded-row px-2 text-[12.5px] font-medium text-text2 transition-colors hover:bg-surface2 disabled:opacity-40"><span className="max-sm:sr-only">Next</span><ChevronRight size={15} /></button>
               </nav>
             )}
           </div>

@@ -92,13 +92,15 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
         const closed = shut.has(st);
         return (
           <section key={st} aria-label={st} ref={(el) => { cols.current[st] = el; }} data-stage={st}
-            className={cx('flex shrink-0 flex-col gap-2 rounded-xl p-2.5 transition-colors', closed ? 'w-[56px]' : 'w-[240px]', target === st ? 'bg-accentSoft ring-2 ring-accent' : 'bg-surface2')}>
+            className={cx('ui-col flex shrink-0 flex-col gap-2 transition-[background-color,box-shadow] duration-150', closed ? 'w-[56px]' : 'w-[264px]', target === st && '!bg-accentSoft ring-2 ring-inset ring-accent')}>
             <button type="button" onClick={() => toggle(st)} aria-expanded={!closed} aria-label={(closed ? 'Open ' : 'Fold ') + st + ' column'}
-              className={cx('flex min-h-[44px] items-center gap-1 rounded-lg px-1 text-left text-[13px] font-semibold hover:bg-surface', closed ? 'flex-col' : 'justify-between')}>
-              {closed ? <ChevronRight size={14} /> : null}
-              <span className={cx(closed && '[writing-mode:vertical-rl]')}>{st}</span>
-              <span className="flex items-center gap-1"><span className="num rounded-full bg-surface px-2 py-0.5 text-xs" data-testid="col-count">{cards.length}</span>{!closed && <ChevronLeft size={14} className="text-muted" />}</span>
+              className={cx('ui-col-head group min-h-[44px] rounded-lg text-left transition-colors hover:bg-surface hover:text-text', closed && 'flex-col !px-0 py-2')}>
+              {closed && <ChevronRight size={14} aria-hidden />}
+              <span className={cx('truncate', closed ? '[writing-mode:vertical-rl]' : 'flex-1')}>{st}</span>
+              <span className="ui-count" data-testid="col-count">{cards.length}</span>
+              {!closed && <ChevronLeft size={14} aria-hidden className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />}
             </button>
+            {!closed && cards.length === 0 && <p className="px-2 pb-2 text-[12px] text-muted">No cards</p>}
             {!closed && cards.map((r) => {
               const movable = canMove(r);
               return (
@@ -109,8 +111,8 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
                   onKeyDown={(e) => key(e, r)} onBlur={() => { if (kb?.id === r.id) { setKb(null); setSay('Move cancelled.'); } }}
                   onClick={() => { if (!justDragged.current) onOpen(r); }}
                   style={movable ? { touchAction: 'none' } : undefined}
-                  className={cx('anim-fade cursor-pointer select-none rounded-[10px] border bg-surface p-2.5 outline-none focus-visible:ring-2 focus-visible:ring-accent', movable && 'cursor-grab',
-                    drag?.on && drag.id === r.id && 'opacity-40', kb?.id === r.id && 'ring-2 ring-coral', selectedId === r.id ? 'border-accent ring-1 ring-accent' : 'border-line')}>
+                  className={cx('ui-card anim-fade cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-accent', movable && 'cursor-grab active:cursor-grabbing',
+                    drag?.on && drag.id === r.id && 'opacity-40', kb?.id === r.id && 'ring-2 ring-coral', selectedId === r.id && 'ring-2 ring-accent')}>
                   {renderCard(r, next)}
                 </div>
               );
@@ -119,7 +121,7 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
         );
       })}
       {dragged && drag && (
-        <div aria-hidden className="pointer-events-none fixed z-50 rotate-2 rounded-[10px] border border-accent bg-surface p-2.5 shadow-xl"
+        <div aria-hidden className="pointer-events-none fixed z-50 ui-card rotate-2 !shadow-3 ring-1 ring-accent"
           style={{ left: drag.x - drag.dx, top: drag.y - drag.dy, width: drag.w }}>
           {renderCard(dragged, undefined)}
         </div>

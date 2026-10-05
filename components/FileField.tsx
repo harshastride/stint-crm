@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Download, Paperclip, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { DropZone } from './DropZone';
+import { Button, IconButton } from './ui';
 
 const BUCKET = 'candidate-files';
 const fileName = (path: string) => path.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '');
@@ -35,16 +36,16 @@ export function FileField({ page, candidateId, value, onChange, disabled }: { pa
   return (
     <div className="flex flex-col gap-1 font-normal">
       {path ? (
-        <div className="flex min-h-[44px] items-center gap-2 rounded-[10px] bg-surface2 px-3 text-sm text-text">
+        <div className="flex min-h-10 items-center gap-2 rounded-[10px] bg-surface2 py-1 pl-3 pr-1 text-[13.5px] text-text">
           <Paperclip size={14} className="shrink-0 text-muted" />
           <span className="min-w-0 flex-1 truncate">{fileName(path)}</span>
-          <button type="button" onClick={download} className="flex h-9 items-center gap-1 rounded-md border border-line2 bg-surface px-2 text-xs font-medium"><Download size={13} /> Download</button>
-          {!disabled && <button type="button" aria-label="Remove file" onClick={() => onChange(null)} className="flex h-9 w-9 items-center justify-center rounded-md border border-line2 bg-surface"><X size={13} /></button>}
+          <Button variant="quiet" size="sm" onClick={download} leftIcon={<Download size={14} />}>Download</Button>
+          {!disabled && <IconButton aria-label="Remove file" size="icon-sm" onClick={() => onChange(null)} icon={<X size={14} />} />}
         </div>
       ) : disabled ? (
-        <div className="flex min-h-[42px] items-center rounded-[10px] bg-surface2 px-3 text-sm text-muted">No file</div>
+        <div className="flex min-h-10 items-center rounded-[10px] bg-surface2 px-3 text-[13.5px] text-muted">No file</div>
       ) : !candidateId ? (
-        <div className="flex min-h-[42px] items-center rounded-[10px] border border-dashed border-line2 px-3 text-sm text-muted">Pick the candidate first</div>
+        <div className="flex min-h-10 items-center rounded-[10px] border border-dashed border-line2 px-3 text-[13.5px] text-muted">Pick the candidate first</div>
       ) : (
         <DropZone accept=".pdf,.doc,.docx,image/*" hint="PDF, Word or photo · up to 20 MB" busy={busy} onFile={upload} />
       )}

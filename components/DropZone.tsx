@@ -23,8 +23,8 @@ export function DropZone({ onFile, accept, hint, busy, disabled, label = 'Drop a
       <button type="button" disabled={disabled || busy} onClick={() => input.current?.click()}
         onDragOver={(e) => { e.preventDefault(); if (!disabled) setOver(true); }} onDragLeave={() => setOver(false)}
         onDrop={(e) => { e.preventDefault(); setOver(false); if (!disabled && !busy) take(e.dataTransfer.files?.[0]); }}
-        className={cx('flex min-h-[92px] w-full flex-col items-center justify-center gap-1.5 rounded-[12px] border-2 border-dashed px-4 py-4 text-center transition-colors disabled:opacity-60',
-          over ? 'border-accent bg-accentSoft' : 'border-line2 bg-surface hover:border-accent/60')}>
+        className={cx('flex min-h-[92px] w-full flex-col items-center justify-center gap-1.5 rounded-card border border-dashed px-4 py-4 text-center transition-colors duration-150 disabled:opacity-60',
+          over ? 'border-accent bg-accentSoft' : 'border-line2 bg-surface2/60 hover:bg-surface2')}>
         <UploadCloud size={22} className={over ? 'text-accentText' : 'text-muted'} aria-hidden />
         <span className="text-[13px] font-semibold text-text">{busy ? 'Uploading…' : over ? 'Drop to upload' : label}</span>
         {hint && <span className="text-[11.5px] text-muted">{hint}</span>}

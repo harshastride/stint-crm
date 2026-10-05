@@ -46,15 +46,15 @@ export function JobPapers({ job, canWrite }: { job: Row; canWrite: boolean }) {
   const got = papers.filter((p) => ['Received', 'Verified'].includes(saved[key(p.paper)] || p.def)).length;
 
   return (
-    <div className="flex flex-col gap-2 rounded-[12px] border border-line p-3">
+    <div className="flex flex-col gap-1 rounded-control bg-surface2 p-3">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold">Papers</div>
         <div className="num text-xs font-semibold text-text2">{got} of {papers.length} received</div>
       </div>
       {papers.map((p) => (
-        <label key={p.paper} className="flex items-center justify-between gap-2 text-[13px]">
-          <span>{p.paper}</span>
-          <select className="h-9 w-[150px] px-2 text-[13px]" disabled={!canWrite} value={saved[key(p.paper)] || p.def} onChange={(e) => setStatus(key(p.paper), e.target.value)}>
+        <label key={p.paper} className="flex min-h-[44px] items-center justify-between gap-2 text-[13px]">
+          <span className="min-w-0 truncate" title={p.paper}>{p.paper}</span>
+          <select className="h-9 w-[150px] shrink-0 px-2 text-[13px]" disabled={!canWrite} value={saved[key(p.paper)] || p.def} onChange={(e) => setStatus(key(p.paper), e.target.value)}>
             {(s.lists.paper_status || []).map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </label>

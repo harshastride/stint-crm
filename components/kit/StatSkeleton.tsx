@@ -5,7 +5,7 @@ export function StatSkeleton({ count = 4 }: { count?: number }) {
   return (
     <section aria-label="Loading headline numbers" aria-busy="true" data-testid="stat-skeleton" className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="flex flex-col rounded-2xl border border-line bg-surface">
+        <div key={i} className="flex flex-col rounded-card bg-surface shadow-1">
           <div className="px-5 pb-3 pt-4">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-2"><Bone className="h-7 w-7 rounded-lg" /><Bone className="h-3.5 w-24" /></span>

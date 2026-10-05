@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Notice, cx } from '../ui';
-import { PageHeader } from '../ListPage';
+import { PageHeader } from '../kit/PageHeader';
+import { Table, THead, TBody, Th, Td, Tr } from '../kit/Table';
 
 const NEXT: Record<string, string | null> = { '': 'P', P: 'A', A: 'L', L: null };
 const TONE: Record<string, string> = { P: 'bg-goodBg text-goodText', A: 'bg-badBg text-badText', L: 'bg-warnBg text-warnText', '': 'bg-surface2 text-muted' };
@@ -52,44 +53,39 @@ export function Attendance() {
   const pct = (cid: string) => { const m = days.map((d) => marks[cid + '|' + iso(d)]).filter(Boolean); return m.length ? Math.round((100 * m.filter((x) => x === 'P').length) / m.length) + '%' : '—'; };
 
   return (
-    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
-      <PageHeader group="Training" title="Attendance" purpose="Daily register per batch. Tap a cell to mark Present, Absent or Late." scope={s.staff.role + (canWrite ? ' · can edit' : ' · view only')}>
-        <label className="flex items-center gap-2 text-[13px] font-medium text-text2">Batch
-          <select className="h-11 px-3 text-sm" value={batch} onChange={(e) => setBatch(e.target.value)}>{s.refs.batch.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}</select>
-        </label>
-      </PageHeader>
+    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+      <PageHeader title="Attendance" description={'Daily register per batch. Tap a cell to mark Present, Absent or Late.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
+        actions={<label className="flex items-center gap-2 text-[13px] font-medium text-text2">Batch
+          <select className="h-11 max-w-[240px] rounded-[10px] px-3 text-[13.5px]" value={batch} onChange={(e) => setBatch(e.target.value)}>{s.refs.batch.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}</select>
+        </label>} />
       {error && <Notice tone="bad">{error}</Notice>}
       {people.length === 0 ? (
-        <div className="rounded-xl border border-line bg-surface p-8 text-center text-text2">No candidates are in this batch yet. Assign a batch from Candidates.</div>
+        <div className="rounded-[14px] bg-surface2 p-8 text-center text-[13.5px] text-text2">No candidates are in this batch yet. Assign a batch from Candidates.</div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-line bg-surface">
-          <table className="w-full border-collapse text-[13px]">
-            <thead>
-              <tr className="bg-surface2 text-xs text-text2">
-                <th className="px-4 py-3 text-left font-semibold">Student</th>
-                {days.map((d) => <th key={iso(d)} className="px-2 py-3 text-center font-semibold">{d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })}</th>)}
-                <th className="px-4 py-3 text-right font-semibold">Present</th>
-              </tr>
-            </thead>
-            <tbody>
+        <Table label="Attendance register">
+            <THead>
+                <Th>Student</Th>
+                {days.map((d) => <Th key={iso(d)} className="whitespace-nowrap !text-center">{d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })}</Th>)}
+                <Th numeric>Present</Th>
+            </THead>
+            <TBody>
               {people.map((p) => (
-                <tr key={p.id} className="border-t border-line">
-                  <td className="px-4 py-2.5 font-medium">{p.full_name}</td>
+                <Tr key={p.id}>
+                  <Td className="max-w-[220px] truncate font-medium" title={p.full_name}>{p.full_name}</Td>
                   {days.map((d) => {
                     const m = marks[p.id + '|' + iso(d)] || '';
                     return (
-                      <td key={iso(d)} className="px-2 py-2 text-center">
+                      <Td key={iso(d)} className="!px-1 text-center">
                         <button type="button" disabled={!canWrite} aria-label={`${p.full_name}, ${d.toDateString()}: ${m || 'not marked'}`} onClick={() => tap(p.id, iso(d))}
-                          className={cx('inline-flex h-9 w-9 items-center justify-center rounded-lg text-[13px] font-semibold', TONE[m])}>{m || '·'}</button>
-                      </td>
+                          className={cx('inline-flex h-11 w-11 items-center justify-center rounded-lg text-[13px] font-semibold transition-transform duration-100 active:scale-[0.97] disabled:cursor-default', TONE[m])}>{m || '·'}</button>
+                      </Td>
                     );
                   })}
-                  <td className="num px-4 py-2.5 text-right font-medium">{pct(p.id)}</td>
-                </tr>
+                  <Td numeric className="font-medium">{pct(p.id)}</Td>
+                </Tr>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TBody>
+        </Table>
       )}
       <p className="text-xs text-muted">P present · A absent · L late. Each tap saves on its own. Tapping L again clears the cell.</p>
     </main>

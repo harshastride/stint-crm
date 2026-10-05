@@ -84,7 +84,7 @@ export default function Portal() {
   return (
     <div className="min-h-[100dvh] bg-bg">
       <IdleGuard />
-      <header className="border-b border-line bg-surface">
+      <header className="sticky top-0 z-20 bg-surface/90 backdrop-blur">
         <div className="mx-auto flex max-w-[960px] items-center justify-between gap-3 px-4 py-3">
           <span className="flex items-end gap-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -93,17 +93,17 @@ export default function Portal() {
             <img src="/brand/stint-logo-dark.svg" alt="" className="logo-dark h-[30px] w-auto" />
             <span className="mb-[11px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">Student</span>
           </span>
-          <button type="button" onClick={signOut} className="flex h-10 items-center gap-1.5 rounded-[10px] border border-line2 px-3 text-[13px] font-medium"><LogOut size={15} /> Sign out</button>
+          <Button variant="quiet" size="sm" onClick={signOut} leftIcon={<LogOut size={15} />}>Sign out</Button>
         </div>
       </header>
-      <main className="mx-auto flex max-w-[960px] flex-col gap-4 p-4">
+      <main className="mx-auto flex max-w-[960px] flex-col gap-5 px-4 pb-10 pt-6">
         <div>
           <h1 className="text-[26px] font-semibold leading-tight">Hi {String(c.full_name).split(' ')[0]}</h1>
           <p className="text-text2">{[c.program, c.batch, c.code].filter(Boolean).join(' · ')}</p>
         </div>
-        <nav className="-mx-4 flex gap-1 overflow-x-auto border-b border-line px-4 pb-2 [scrollbar-width:none]" role="tablist">
+        <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="tablist">
           {TABS.map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => go(t)} className={cx('flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3.5 text-[13.5px] font-medium', tab === t ? 'bg-ink text-white' : 'text-text2')}>
+            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => go(t)} className={cx('flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3.5 text-[13.5px] font-medium', tab === t ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>
               {t}{t === 'Alerts' && unread > 0 && <span data-testid="unread-badge" aria-label={unread + ' unread'} className="num rounded-full bg-[#FF6B35] px-1.5 text-[11px] font-semibold leading-[18px] text-white">{unread}</span>}
             </button>
           ))}
@@ -132,8 +132,8 @@ export default function Portal() {
 
 function Card({ icon: I, title, children }: { icon: React.ComponentType<{ size?: number }>; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4">
-      <h2 className="mb-2 flex items-center gap-2 font-semibold"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accentSoft text-accentText"><I size={16} /></span>{title}</h2>
+    <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]">
+      <h2 className="mb-2 flex items-center gap-2 font-semibold"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accentSoft text-accentText"><I size={16} /></span>{title}</h2>
       {children}
     </section>
   );
@@ -145,7 +145,7 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
   const upcoming = (me.mocks || []).filter((m: Me) => m.scheduled_at && new Date(m.scheduled_at) > new Date());
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      <section className="rounded-2xl border border-line bg-surface p-4 md:col-span-2" aria-label="Your journey">
+      <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)] md:col-span-2" aria-label="Your journey">
         <h2 className="mb-3 font-semibold">Your journey</h2>
         <Journey student steps={journey(me.journey || [], c.stage, c.joined_on)} />
       </section>
@@ -161,13 +161,13 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
           <div className="num text-2xl font-semibold">{inr(f.balance)} <span className="text-[13px] font-normal text-muted">still due of {inr(f.total)}</span></div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface2"><div className="h-full bg-accent" style={{ width: Math.min(100, Math.round((100 * f.paid) / (f.total || 1))) + '%' }} /></div>
           <p className={cx('mt-2 text-[13px]', f.overdue ? 'font-semibold text-badText' : 'text-text2')}>{f.overdue ? 'A payment is overdue.' : f.next_due ? 'Next instalment due ' + day(f.next_due) + '.' : 'Nothing due right now.'}</p>
-          <button type="button" onClick={() => go('Fees')} className="mt-2 text-[13px] font-medium text-accentText">See payments and receipts →</button>
+          <button type="button" onClick={() => go('Fees')} className="mt-2 inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText">See payments and receipts →</button>
         </> : <p className="text-[13px] text-text2">Your fee plan will appear here.</p>}
       </Card>
       <Card icon={FileStack} title="Documents">
         <p className="text-[13.5px]">{missing ? <><b>{missing}</b> document{missing > 1 ? 's' : ''} still to upload.</> : 'Nothing pending. Thank you.'}</p>
-        {missing > 0 && <button type="button" onClick={() => go('Documents')} className="mt-2 text-[13px] font-medium text-accentText">Upload now →</button>}
-        {me.editable && <button type="button" onClick={() => go('My details')} className="mt-2 block text-[13px] font-medium text-accentText">Check my details →</button>}
+        {missing > 0 && <button type="button" onClick={() => go('Documents')} className="mt-2 inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText">Upload now →</button>}
+        {me.editable && <button type="button" onClick={() => go('My details')} className="flex min-h-[44px] items-center text-[13px] font-medium text-accentText">Check my details →</button>}
       </Card>
       <Card icon={CalendarCheck} title="Schedule">
         <p className="text-[13.5px]">Attendance: <b>{a.total ? Math.round((100 * (a.present + a.late)) / a.total) + '%' : '—'}</b>{a.total ? ` (${a.present} present, ${a.absent} absent, ${a.late} late)` : ''}</p>
@@ -177,7 +177,7 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
         <p className="text-[13.5px] text-text2">Practise answering interview questions and get a score.</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <CoachLink />
-          {unread > 0 && <button type="button" onClick={() => go('Alerts')} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] border border-line2 px-3 text-[13px] font-semibold"><Bell size={15} /> {unread} unread alert{unread > 1 ? 's' : ''}</button>}
+          {unread > 0 && <button type="button" onClick={() => go('Alerts')} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><Bell size={15} /> {unread} unread alert{unread > 1 ? 's' : ''}</button>}
         </div>
       </Card>
     </div>
@@ -215,14 +215,14 @@ function Progress() {
         <p className="mb-3 text-[13.5px] text-text2">Opens the Interview Coach in a new tab. Answer out loud and your score shows up here.</p>
         <div className="flex"><CoachLink /></div>
       </Card>
-      <section className="rounded-2xl border border-line bg-surface p-4" aria-label="Mock interview feedback">
+      <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]" aria-label="Mock interview feedback">
         <h2 className="mb-2 font-semibold">Mock interview feedback</h2>
         {fb.data === undefined ? <Loading err={fb.err} retry={fb.retry} />
           : !fb.data?.reviews?.length ? <p className="text-[13px] text-text2">No mock feedback yet</p>
           : <RatingSummary reviews={fb.data.reviews} mocks={fb.data.mocks} />}
       </section>
       {pr.data === undefined ? <Loading err={pr.err} retry={pr.retry} />
-        : !pr.data.length ? <section className="rounded-2xl border border-line bg-surface p-4"><h2 className="mb-2 font-semibold">Interview practice</h2><p className="text-[13px] text-text2">No practice yet — tap Practise interview to start</p></section>
+        : !pr.data.length ? <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]"><h2 className="mb-2 font-semibold">Interview practice</h2><p className="text-[13px] text-text2">No practice yet — tap Practise interview to start</p></section>
         : <PracticeCard attempts={pr.data} />}
     </div>
   );
@@ -253,7 +253,7 @@ function Resumes() {
                 <div className="text-[12.5px] text-text2">{[v.reviewer ? 'Reviewer: ' + v.reviewer : '', day(v.created_at)].filter(Boolean).join(' · ')}</div>
                 {v.reason && /reject|change/i.test(v.status) && <div className="text-[12.5px] text-badText">Reason: {v.reason}</div>}
               </div>
-              {v.file_path && <button type="button" onClick={async () => { setErr(null); if (!(await openSigned(v.file_path!))) setErr('Could not open ' + v.version + '.'); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-semibold"><ExternalLink size={15} /> Open</button>}
+              {v.file_path && <button type="button" onClick={async () => { setErr(null); if (!(await openSigned(v.file_path!))) setErr('Could not open ' + v.version + '.'); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><ExternalLink size={15} /> Open</button>}
             </li>
           ))}
         </ul>
@@ -385,7 +385,7 @@ function Documents({ me, onDone }: { me: Me; onDone: (t: string, bad?: boolean) 
         <div key={d.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-3 first:border-0">
           <div><div className="font-medium">{d.doc_type}</div><div className={cx('text-[12.5px]', d.status === 'Missing' ? 'text-badText' : d.status === 'Verified' ? 'text-goodText' : 'text-text2')}>{d.status === 'Missing' ? 'Not uploaded yet' : d.status === 'Received' ? 'Uploaded · waiting for verification' : 'Verified'}</div></div>
           {d.status !== 'Verified' && (
-            <button type="button" disabled={busy === d.id} onClick={() => { setTarget(d); pick.current?.click(); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-semibold">
+            <button type="button" disabled={busy === d.id} onClick={() => { setTarget(d); pick.current?.click(); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText">
               <Upload size={15} />{busy === d.id ? 'Uploading…' : d.status === 'Missing' ? 'Upload' : 'Replace'}
             </button>
           )}
@@ -425,7 +425,7 @@ function Fees({ me, onSigned }: { me: Me; onSigned: (text: string, bad?: boolean
         <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-3 first:border-0">
           <div><div className="num font-semibold">{inr(p.amount)} <span className="font-normal text-text2">· {p.label || 'Course fee'}</span></div>
             <div className={cx('text-[12.5px]', p.status === 'Overdue' ? 'font-semibold text-badText' : 'text-text2')}>{p.status === 'Received' ? 'Paid ' + day(p.paid_on) + (p.receipt_no ? ' · ' + p.receipt_no : '') : (p.status === 'Overdue' ? 'Overdue · was due ' : 'Due ') + day(p.due_on)}</div></div>
-          {p.status === 'Received' && <a href={'/api/portal/receipt/' + p.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-semibold"><FileDown size={15} /> Receipt</a>}
+          {p.status === 'Received' && <a href={'/api/portal/receipt/' + p.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><FileDown size={15} /> Receipt</a>}
         </div>
       ))}
     </Card>

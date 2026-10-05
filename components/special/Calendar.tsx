@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { PageHeader } from '../ListPage';
-import { cx } from '../ui';
+import { Button, ButtonGroup, IconButton, cx } from '../ui';
 import { TableSkeleton } from '../Skeletons';
 
 // Month and week calendar of counselling sessions, mock interviews, follow-ups and batch starts.
@@ -82,20 +82,20 @@ export function Calendar() {
     <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
       <PageHeader group="Home" title="Calendar" purpose="Counselling, mock interviews, follow-ups and batch starts. Tap an item to open it." scope={s.staff.role + ' · what your role can see'} />
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1">
-          <button type="button" aria-label={mode === 'month' ? 'Previous month' : 'Previous week'} onClick={() => step(-1)} className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-line2 bg-surface"><ChevronLeft size={17} /></button>
-          <button type="button" onClick={() => { setAnchor(today); setPicked(today); }} className="h-10 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium">Today</button>
-          <button type="button" aria-label={mode === 'month' ? 'Next month' : 'Next week'} onClick={() => step(1)} className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-line2 bg-surface"><ChevronRight size={17} /></button>
-        </div>
-        <h2 className="min-w-[180px] text-lg font-semibold" aria-live="polite">{title}</h2>
-        <div className="ml-auto flex rounded-[10px] bg-surface2 p-1">
-          {(['month', 'week'] as const).map((m) => <button key={m} type="button" aria-pressed={mode === m} onClick={() => setMode(m)} className={cx('min-h-[32px] rounded-lg px-3 text-xs font-semibold capitalize', mode === m ? 'bg-surface shadow-sm' : 'text-text2')}>{m}</button>)}
-        </div>
+        <ButtonGroup label={mode === 'month' ? 'Month' : 'Week'}>
+          <IconButton aria-label={mode === 'month' ? 'Previous month' : 'Previous week'} icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
+          <Button variant="quiet" onClick={() => { setAnchor(today); setPicked(today); }}>Today</Button>
+          <IconButton aria-label={mode === 'month' ? 'Next month' : 'Next week'} icon={<ChevronRight size={16} />} onClick={() => step(1)} />
+        </ButtonGroup>
+        <h2 className="min-w-[180px] text-[17px] font-semibold tracking-tight" aria-live="polite">{title}</h2>
+        <ButtonGroup label="View" className="ml-auto">
+          {(['month', 'week'] as const).map((m) => <Button key={m} variant="quiet" size="sm" active={mode === m} onClick={() => setMode(m)} className="capitalize">{m}</Button>)}
+        </ButtonGroup>
       </div>
       <div className="flex flex-wrap gap-2">
         {kinds.map((k) => (
           <button key={k} type="button" aria-pressed={show[k]} onClick={() => setShow({ ...show, [k]: !show[k] })}
-            className={cx('flex min-h-[34px] items-center gap-2 rounded-full border px-3 text-xs font-semibold', show[k] ? 'border-line2 bg-surface text-text' : 'border-line bg-transparent text-muted line-through')}>
+            className={cx('flex min-h-[44px] items-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-surface2', show[k] ? 'text-text' : 'text-muted line-through opacity-70')}>
             <span className={cx('h-2 w-2 rounded-full', KIND[k].dot)} />{KIND[k].label}
           </button>
         ))}
@@ -103,8 +103,8 @@ export function Calendar() {
 
       {events === null ? <TableSkeleton rows={6} /> : mode === 'month' ? (
         <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
-          <div className="overflow-hidden rounded-xl border border-line bg-surface">
-            <div className="grid grid-cols-7 border-b border-line bg-surface2 text-center text-[11px] font-semibold text-text2">
+          <div className="overflow-hidden rounded-card bg-surface shadow-1">
+            <div className="grid grid-cols-7 border-b border-line text-center text-[12px] font-medium text-muted">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d} className="py-2">{d}</div>)}
             </div>
             <div className="grid grid-cols-7">
@@ -112,7 +112,7 @@ export function Calendar() {
                 const list = onDay(d), out = d.getMonth() !== anchor.getMonth(), isToday = sameDay(d, today), sel = sameDay(d, picked);
                 return (
                   <div key={d.toISOString()} role="button" tabIndex={0} aria-label={d.toDateString() + ', ' + list.length + ' items'} onClick={() => setPicked(d)} onKeyDown={(e) => e.key === 'Enter' && setPicked(d)}
-                    className={cx('min-h-[96px] cursor-pointer border-b border-r border-line p-1.5 text-left max-md:min-h-[64px]', out && 'bg-surface2/50', sel && 'ring-2 ring-inset ring-accent')}>
+                    className={cx('min-h-[96px] cursor-pointer border-b border-r border-line p-1.5 text-left transition-colors hover:bg-surface2/60 max-md:min-h-[64px] [&:nth-child(7n)]:border-r-0', out && 'bg-surface2/50', sel && 'ring-2 ring-inset ring-accent')}>
                     <div className={cx('num mb-1 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold', isToday ? 'bg-accent text-white' : out ? 'text-muted' : 'text-text')}>{d.getDate()}</div>
                     <div className="flex flex-col gap-0.5 max-md:hidden">
                       {list.slice(0, 3).map((e) => chip(e, true))}
@@ -124,7 +124,7 @@ export function Calendar() {
               })}
             </div>
           </div>
-          <aside aria-label="Selected day" className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4">
+          <aside aria-label="Selected day" className="ui-col flex flex-col gap-2 !p-4">
             <h3 className="font-semibold">{picked.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
             {onDay(picked).length === 0 ? <p className="text-[13px] text-text2">Nothing on this day.</p> : onDay(picked).map((e) => (
               <div key={e.id}>{chip(e)}{e.who && <div className="mt-0.5 px-1.5 text-[11.5px] text-muted">{e.who}</div>}</div>
@@ -134,10 +134,10 @@ export function Calendar() {
       ) : (
         <div className="grid gap-2 md:grid-cols-7">
           {days.map((d) => (
-            <section key={d.toISOString()} aria-label={d.toDateString()} className={cx('flex min-h-[120px] flex-col gap-1.5 rounded-xl border bg-surface p-2', sameDay(d, today) ? 'border-accent' : 'border-line')}>
-              <div className="flex items-baseline justify-between px-1">
-                <span className="text-[11px] font-semibold uppercase text-text2">{d.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
-                <span className={cx('num text-[15px] font-semibold', sameDay(d, today) && 'text-accentText')}>{d.getDate()}</span>
+            <section key={d.toISOString()} aria-label={d.toDateString()} className={cx('ui-col flex min-h-[120px] flex-col gap-1.5', sameDay(d, today) && 'ring-1 ring-inset ring-accent')}>
+              <div className="flex items-center justify-between px-1 pb-1">
+                <span className="text-[12px] font-medium text-muted">{d.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
+                <span className={cx('num flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold', sameDay(d, today) && 'bg-accent text-white')}>{d.getDate()}</span>
               </div>
               {onDay(d).length === 0 ? <span className="px-1 text-[11.5px] text-muted">—</span> : onDay(d).map((e) => chip(e))}
             </section>

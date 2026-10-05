@@ -207,6 +207,7 @@ private fun InkPanel(modifier: Modifier = Modifier, shape: RoundedCornerShape = 
 private fun LoginScreen(api: Api, onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     var server by remember { mutableStateOf(api.store.server) }
+    var otherServer by remember { mutableStateOf(api.store.server != BuildConfig.DEFAULT_SERVER) }
     var email by remember { mutableStateOf(api.store.email ?: "") }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -239,7 +240,8 @@ private fun LoginScreen(api: Api, onDone: () -> Unit) {
             Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("Sign in", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 Text("Use your CRM email and password.", color = T.muted, modifier = Modifier.offset(y = (-12).dp))
-                Field(server, { server = it }, "CRM address", KeyboardType.Uri, "https://crm.example.com")
+                // The CRM address is fixed; testers can still point the app at a computer running the CRM.
+                if (otherServer) Field(server, { server = it }, "CRM address", KeyboardType.Uri, "https://crm.skillxen.com")
                 Field(email, { email = it }, "Email", KeyboardType.Email, "you@stint.academy")
                 Field(password, { password = it }, "Password", KeyboardType.Password, password = true)
                 error?.let { Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(T.badBg).padding(12.dp)) {
@@ -256,6 +258,10 @@ private fun LoginScreen(api: Api, onDone: () -> Unit) {
                         }
                     },
                     enabled = !busy && server.isNotBlank() && email.isNotBlank() && password.isNotBlank(),
+                )
+                if (!otherServer) Text(
+                    "Use a different CRM address", color = T.muted, fontSize = 13.sp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally).clip(RoundedCornerShape(8.dp)).clickable { otherServer = true }.padding(12.dp),
                 )
             }
         }

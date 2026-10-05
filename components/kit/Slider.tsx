@@ -21,7 +21,7 @@ export function Slider({ label, value, max, limitSetting, onChange, disabled, hi
             style={{ '--fill': pct + '%', '--bar': over ? '#FF6B35' : '#4474B9' } as React.CSSProperties} />
           {limit != null && limit < max && <span aria-hidden title={'Approval needed above ' + limit + '%'} className="pointer-events-none absolute top-[12px] h-5 w-0.5 rounded bg-[#FF6B35]" style={{ left: `calc(${(100 * limit) / max}% - 1px)` }} />}
         </div>
-        <span className={cx('num w-16 rounded-lg border px-2 py-1.5 text-center text-[15px] font-semibold', over ? 'border-coral text-[#C2410C]' : 'border-line2')}>{value}%</span>
+        <span className={cx('num w-16 rounded-lg px-2 py-1.5 text-center text-[14px] font-semibold', over ? 'bg-badBg text-badText' : 'bg-surface2 text-text')}>{value}%</span>
       </div>
       <div className="flex justify-between text-[11.5px] text-muted"><span>0%</span>{limit != null && <span className={over ? 'font-semibold text-[#C2410C]' : ''}>{over ? `Above ${limit}%: needs Sales head approval` : `Up to ${limit}% without approval`}</span>}<span>{max}%</span></div>
       {hint && <div className="text-[13px] font-medium text-text">{hint(value)}</div>}

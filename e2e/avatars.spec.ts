@@ -7,7 +7,7 @@ test('batch rows show the trainer and student count as faces with a tooltip', as
   const stack = page.getByTestId('avatar-stack').first();
   await expect(stack).toBeVisible({ timeout: 15_000 });
   await stack.locator('[tabindex="0"]').first().focus();
-  await expect(page.getByRole('tooltip')).toBeVisible();
+  await expect(stack.getByRole('tooltip')).toBeVisible();
 });
 
 test('Candidate 360 shows who worked with the candidate', async ({ page }) => {

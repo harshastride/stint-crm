@@ -64,29 +64,29 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
   const tabs = ['Profile', 'Education', 'Work experience', s.can('attendance') || s.can('note') ? 'Training' : '', s.can('mock') ? 'Mocks' : '', s.can('resume') ? 'Resume' : '', s.can('doc') ? 'Documents' : '', s.can('plan') ? 'Fees' : ''].filter(Boolean);
   const present = data.att?.length ? Math.round((100 * data.att.filter((a) => a.mark === 'P').length) / data.att.length) + '%' : '—';
   const plan = data.plan?.[0];
-  const card = 'rounded-2xl border border-line bg-surface p-5';
+  const card = 'rounded-card bg-surface p-card shadow-1';
   const Lines = ({ rows, empty }: { rows: [string, React.ReactNode, React.ReactNode?][]; empty: string }) => (
     rows.length === 0 ? <p className="text-text2">{empty}</p> : <>{rows.map(([a, b, cc], i) => (
-      <div key={i} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0"><div className="min-w-0"><div className="text-[13px] font-medium">{a}</div>{cc && <div className="text-xs text-muted">{cc}</div>}</div><div className="shrink-0 text-[13px]">{b}</div></div>
+      <div key={i} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0"><div className="min-w-0"><div className="truncate text-[13.5px] font-medium" title={typeof a === 'string' ? a : undefined}>{a}</div>{cc && <div className="truncate text-xs text-muted" title={typeof cc === 'string' ? cc : undefined}>{cc}</div>}</div><div className="shrink-0 text-[13px]">{b}</div></div>
     ))}</>
   );
 
   return (
-    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-8">
+    <main className="flex flex-1 flex-col gap-section overflow-y-auto p-page-sm md:p-page">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Link href={'/p/candidate?person=candidate:' + id} className="flex min-h-[40px] items-center rounded-[10px] border border-line2 bg-surface px-3.5 text-sm font-medium">← Back to candidates</Link>
-        <span className="rounded-full bg-warnBg px-3 py-1.5 text-xs font-semibold text-warnText">Viewing as {s.staff.role}{s.staff.role === 'Admin' ? ' · sees everything' : ' · some parts are masked or hidden'}</span>
+        <Link href={'/p/candidate?person=candidate:' + id} className="flex min-h-[44px] items-center gap-1.5 rounded-row px-2.5 text-[13.5px] font-medium text-text2 transition-colors duration-150 hover:bg-surface2 hover:text-text">← Back to candidates</Link>
+        <span className="rounded-full bg-warnBg px-3 py-1 text-[12px] font-medium text-warnText">Viewing as {s.staff.role}{s.staff.role === 'Admin' ? ' · sees everything' : ' · some parts are masked or hidden'}</span>
       </div>
-      <section className={cx(card, 'flex flex-wrap items-center gap-4')}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-ink text-xl font-semibold text-white">{initials(c.full_name)}</div>
+      <section className={cx(card, 'flex flex-wrap items-center gap-4 p-5')}>
+        <div className="flex h-16 w-16 items-center justify-center rounded-card bg-accentSoft text-xl font-semibold text-accentText">{initials(c.full_name)}</div>
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium text-muted">Candidate 360 · {c.code}</div>
-          <h1 className="text-[26px] font-semibold leading-tight">{c.full_name}</h1>
+          <h1 className="truncate text-[22px] font-semibold leading-tight">{c.full_name}</h1>
           <div className="mt-1.5 flex flex-wrap gap-1.5"><Pill>{(c.program?.name || 'No program') + (c.batch?.code ? ' · ' + c.batch.code : '')}</Pill><Pill>{'Stage: ' + c.stage}</Pill><TagChips tags={c.tags} max={6} /></div>
         </div>
         <CandidateTeam c={c} />
         {[['Owner', c.poc?.full_name || '—'], ['Attendance', present], ['Fee due', plan ? money(plan.balance) : '—']].map(([l, v]) => (
-          <div key={l} className="rounded-xl bg-surface2 px-3.5 py-2.5"><div className="text-[11px] font-medium text-muted">{l}</div><div className="num text-base font-semibold">{v}</div></div>
+          <div key={l} className="rounded-control bg-surface2 px-3.5 py-2.5"><div className="text-[12px] font-medium text-muted">{l}</div><div className="num text-base font-semibold">{v}</div></div>
         ))}
       </section>
       {(plan || (data.docs || []).length > 0) && (
@@ -114,18 +114,18 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         <h2 className="mb-4 text-base font-semibold">Journey</h2>
         <Journey steps={journey((data.hist || []) as StageChange[], c.stage, c.created_at)} />
       </section>
-      <div className="flex flex-wrap gap-1 border-b border-line pb-2">
-        {tabs.map((t) => <button key={t} type="button" onClick={() => setTab(t)} className={cx('min-h-[38px] rounded-[10px] px-3.5 text-[13px] font-medium', tab === t ? 'bg-ink text-white' : 'text-text2')}>{t}</button>)}
+      <div className="flex flex-wrap gap-1" role="group" aria-label="Candidate sections">
+        {tabs.map((t) => <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} className={cx('min-h-[44px] rounded-row px-3.5 text-[13.5px] transition-colors duration-150 active:scale-[0.97]', tab === t ? 'bg-accentSoft font-semibold text-accentText' : 'font-medium text-text2 hover:bg-surface2 hover:text-text')}>{t}</button>)}
       </div>
 
       {tab === 'Profile' && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
+        <div className="grid gap-section" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
           {(s.can('sme') || s.can('mock')) && ((data.fb || []).length > 0 || (data.mocks || []).some((m) => m.status === 'Passed' || m.status === 'Failed')) && <RatingSummary reviews={s.can('sme') ? data.fb || [] : []} mocks={data.mocks || []} />}
           {s.can('practice') && <PracticeCard attempts={(data.prac || []) as unknown as PracticeAttempt[]} />}
           <section className={card}><h2 className="mb-2 text-base font-semibold">Personal</h2>
             <Lines empty="Not filled in yet." rows={[['Full name', c.full_name], ...Object.entries(c.profile || {}).filter(([, v]) => v).map(([k, v]) => [k.replace(/_/g, ' ').replace(/^./, (x) => x.toUpperCase()), String(v)] as [string, string]), ['Joined', fmtDate(c.joined_on)]]} />
           </section>
-          {priv?.locked && <section className={'flex items-center gap-2 rounded-2xl bg-warnBg p-4 text-[13px] font-medium text-warnText'} role="note"><Lock size={16} aria-hidden />{String(priv.locked)} — ask Admin</section>}
+          {priv?.locked && <section className={'flex items-center gap-2 rounded-card bg-warnBg p-card text-[13px] font-medium text-warnText'} role="note"><Lock size={16} aria-hidden />{String(priv.locked)} — ask Admin</section>}
           {priv && GROUPS.filter(([g]) => priv.modes[g] !== 'h').map(([g, label]) => (
             <section key={g} className={card}>
               <div className="mb-2 flex items-center justify-between"><h2 className="text-base font-semibold">{label}</h2>
@@ -140,13 +140,13 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
       {tab === 'Education' && <section className={card}><Lines empty="No education added. Fill it from the Enrolment form." rows={(c.education || []).map((e: Row) => [e.level || 'Education', [e.years, e.marks && e.marks + '%'].filter(Boolean).join(' · ') || '—', [e.institution, e.board, e.course].filter(Boolean).join(' · ')])} /></section>}
       {tab === 'Work experience' && <section className={card}><Lines empty="No work experience on record." rows={(c.experience || []).map((e: Row) => [e.company || 'Company', [e.joined, e.last_day].filter(Boolean).join(' → ') || '—', [e.role, e.ctc].filter(Boolean).join(' · ')])} /></section>}
       {tab === 'Training' && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
+        <div className="grid gap-section" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
           <section className={card}><h2 className="mb-2 text-base font-semibold">Attendance · {present} present</h2><Lines empty="Not marked yet." rows={(data.att || []).slice(0, 12).map((a) => [fmtDate(a.day), <Pill key={a.day}>{a.mark === 'P' ? 'Present' : a.mark === 'A' ? 'Absent · missed' : 'Late · pending'}</Pill>])} /></section>
           <section className={card}><h2 className="mb-2 text-base font-semibold">Trainer notes</h2><Lines empty="No notes yet." rows={(data.notes || []).map((n) => [n.note, n.flag ? <Pill key={n.id}>{n.flag}</Pill> : '', (n.trainer?.full_name || '') + ' · ' + fmtDate(n.created_at)])} /></section>
         </div>
       )}
       {tab === 'Mocks' && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
+        <div className="grid gap-section" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
           <section className={card}><h2 className="mb-2 text-base font-semibold">Mock sessions</h2><Lines empty="No mocks booked." rows={(data.mocks || []).map((m) => [m.level + ' · ' + (m.trainer?.full_name || ''), <Pill key={m.id}>{m.status}</Pill>, fmtDateTime(m.scheduled_at)])} /></section>
           {s.can('sme') && <section className={card}><h2 className="mb-2 text-base font-semibold">SME feedback</h2><Lines empty="No feedback yet." rows={(data.fb || []).map((f) => [(f.rating || '—') + ' / 5 · ' + (f.comments || ''), <Pill key={f.id}>{f.verdict}</Pill>, (f.sme?.full_name || '') + ' · ' + fmtDate(f.created_at)])} /></section>}
         </div>
@@ -157,7 +157,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         ...(s.can('resume') ? [{ id: 'f-res', name: 'Resumes', files: (data.res || []).filter((r) => r.file_path).map((r) => ({ id: 'r-' + r.id, name: r.version, path: r.file_path, status: r.status })) }] : []),
       ]} /></section>}
       {tab === 'Fees' && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
+        <div className="grid gap-section" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))' }}>
           <section className={card}><h2 className="mb-2 text-base font-semibold">Fee plan</h2><Lines empty="No fee plan yet." rows={plan ? [['Total', <span key="t" className="num">{money(plan.total)}</span>], ['Paid', <span key="p" className="num">{money(plan.paid)}</span>], ['Balance', <span key="b" className="num">{money(plan.balance)}</span>], ['Plan', plan.plan]] : []} /></section>
           <section className={card}><h2 className="mb-2 text-base font-semibold">Fee agreement signature</h2>
             {(data.sig || [])[0] ? <>
@@ -187,5 +187,5 @@ function CandidateTeam({ c }: { c: Row }) {
   if (c.batch?.trainer) people.push({ id: c.batch.trainer.id, name: c.batch.trainer.full_name, role: 'Trainer' });
   if (counsellor) people.push(counsellor);
   if (!people.length) return null;
-  return <div className="rounded-xl bg-surface2 px-3.5 py-2"><div className="mb-1 text-[11px] font-medium text-muted">Worked with</div><AvatarStack people={people} label="Staff who worked with this candidate" /></div>;
+  return <div className="rounded-control bg-surface2 px-3.5 py-2"><div className="mb-1 text-[12px] font-medium text-muted">Worked with</div><AvatarStack people={people} label="Staff who worked with this candidate" /></div>;
 }

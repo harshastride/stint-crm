@@ -179,30 +179,30 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
         )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2.5 md:gap-3 md:px-5">
-          <button type="button" aria-label="Open menu" onClick={() => setNavOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] border border-line2 md:hidden"><Menu size={18} /></button>
-          <div className="flex min-w-0 w-full max-w-[520px] items-center gap-2">
+        <div className="flex h-[60px] items-center gap-2 border-b border-line/70 bg-surface px-3 md:gap-3 md:px-5">
+          <button type="button" aria-label="Open menu" onClick={() => setNavOpen(true)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-text2 hover:bg-surface2 md:hidden"><Menu size={18} /></button>
+          <div className="min-w-0 w-full max-w-[480px]">
             {(canSearch.lead || canSearch.candidate) ? (
-              <>
-                <Search size={16} className="hidden shrink-0 text-muted md:block" />
-                <div className="flex-1">
+              <div className="flex min-h-[44px] items-center gap-1.5 rounded-[12px] bg-surface2 pl-3 pr-1 focus-within:ring-2 focus-within:ring-accent/30 [&_input]:border-0 [&_input]:bg-transparent [&_input]:shadow-none">
+                <Search size={16} className="shrink-0 text-muted" />
+                <div className="min-w-0 flex-1">
                   <PersonSearch key={searchKind + path} kind={searchKind} value={null} label="Search people"
                     onChange={(id) => { if (id) router.push('/p/' + searchKind + '?person=' + searchKind + ':' + id); }} />
                 </div>
                 {canSearch.lead && canSearch.candidate && (
-                  <select aria-label="Search in" className="h-[42px] px-2 text-[13px]" value={searchKind} onChange={(e) => setSearchKind(e.target.value as 'lead' | 'candidate')}>
+                  <select aria-label="Search in" className="h-9 w-auto min-w-0 max-w-[118px] shrink-0 cursor-pointer rounded-lg border-0 bg-surface px-2 text-[12.5px] font-medium text-text2 shadow-sm" value={searchKind} onChange={(e) => setSearchKind(e.target.value as 'lead' | 'candidate')}>
                     <option value="lead">Leads</option><option value="candidate">Candidates</option>
                   </select>
                 )}
-              </>
+              </div>
             ) : <span />}
           </div>
-          <div className="ml-auto flex shrink-0 items-center gap-2">
-          <button data-tour="jump" type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-medium text-text2">
-            <span className="max-md:hidden">Jump to…</span><kbd className="rounded-md bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
-          </button>
-          <span data-tour="bell"><NotificationBell /></span>
-          <span data-tour="account"><UserMenu onTour={() => setTourOpen(true)} staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} /></span>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <button data-tour="jump" type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] px-2.5 text-[13px] font-medium text-text2 transition-colors hover:bg-surface2 hover:text-text active:scale-[0.97]">
+              <span className="max-md:hidden">Jump to</span><kbd className="rounded-md border border-line px-1.5 py-0.5 text-[11px] font-medium text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
+            </button>
+            <span data-tour="bell"><NotificationBell /></span>
+            <span data-tour="account"><UserMenu onTour={() => setTourOpen(true)} staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} /></span>
           </div>
         </div>
         <AnnouncementBar />
