@@ -141,7 +141,7 @@ test('phone layout: menu folds away and the quick panel opens as a sheet', async
   await page.getByRole('button', { name: 'Open menu' }).click();
   await expect(page.getByRole('link', { name: 'Payments' })).toBeVisible();
   await page.getByRole('button', { name: 'Close menu' }).click();
-  await page.locator('tbody tr').first().click();
+  await page.locator('tbody tr').first().locator('td').nth(1).click({ position: { x: 3, y: 3 } }); // the row, not a cell's inline-edit button (Admin can edit every cell)
   await expect(page.getByRole('complementary', { name: 'Quick panel' })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });

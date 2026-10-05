@@ -440,3 +440,10 @@ insert into public.page (id, grp, title, sort) values ('reports_builder', 'Repor
 insert into public.page (id, grp, title, sort) values ('templates', 'Admin settings', 'Message templates', 44) on conflict (id) do nothing;
 -- Rejected document status (migration 071): staff must enter a reason
 insert into public.dropdown_value (list_id, value, sort, locked) values ('document_status', 'Rejected', 3, false) on conflict (list_id, value) do nothing;
+-- Report access (owner's decision 5 Oct 2026): Finance gets the cash report, Sales the lead reports; both can build and save their own reports
+insert into public.role_page_access (role, page_id, mode) values
+  ('Finance', 'rep_cash', 'r'), ('Finance', 'reports_builder', 'w'),
+  ('Sales', 'rep_funnel', 'r'), ('Sales', 'rep_roi', 'r'), ('Sales', 'reports_builder', 'w')
+on conflict do nothing;
+-- Stage rules (migration 073): Admin-only settings page (Admin sees every page; grant more roles in Roles & permissions)
+insert into public.page (id, grp, title, sort) values ('stage_rules', 'Admin settings', 'Stage rules', 41) on conflict (id) do nothing;

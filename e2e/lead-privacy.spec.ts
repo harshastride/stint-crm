@@ -11,9 +11,10 @@ let leadId = '';
 test.beforeAll(async () => {
   const db = service();
   const { data: teja } = await db.from('staff').select('id').ilike('email', 'teja@%').single();
-  const { data, error } = await db.from('lead').insert({ full_name: name, mobile, stage: 'New', owner_id: teja!.id }).select('id').single();
+  const { data, error } = await db.from('lead').insert({ full_name: name, mobile, stage: 'New', owner_id: teja!.id, next_call_at: new Date(Date.now() + 864e5).toISOString() }).select('id').single();
   if (error) throw error;
   leadId = data!.id;
+  await db.from('call_log').insert({ lead_id: leadId, outcome: 'Callback' }); // stage rules: New → Callback needs a call and a next call time
 });
 
 test.afterAll(async () => {

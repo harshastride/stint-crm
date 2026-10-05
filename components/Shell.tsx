@@ -25,7 +25,7 @@ import { Watermark } from './kit/Watermark';
 const ADMIN_SUBGROUPS: [string, string[]][] = [
   ['People & access', ['users', 'roles', 'accesslog', 'audit']],
   ['Data', ['fields', 'dropdowns', 'duplicates', 'imports']],
-  ['Automation', ['assign', 'followrules', 'automations', 'builder', 'deliveries', 'connections']],
+  ['Automation', ['assign', 'stage_rules', 'followrules', 'automations', 'builder', 'deliveries', 'connections']],
   ['Messaging', ['reminders', 'templates', 'announcement']],
   ['Branding', ['branding']],
   ['Other', []],

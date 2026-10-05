@@ -6,8 +6,9 @@ import { cx } from '../ui';
 
 // Board view: columns of cards. Drag with mouse, finger or trackpad (pointer events),
 // or with the keyboard: focus a card, Space to pick up, Left/Right to choose a column,
-// Space to drop, Esc to cancel. The database decides if a move is allowed.
-export function Board<T extends Record<string, any>>({ stages, items, stageOf, canMove, onMove, onOpen, renderCard, selectedId, storageKey, totals }: {
+// Space to drop, Esc to cancel. The database decides if a move is allowed; `allowedFrom` (stage rules)
+// dims the columns a card cannot go to and refuses those drops up front with the reason.
+export function Board<T extends Record<string, any>>({ stages, items, stageOf, canMove, onMove, onOpen, renderCard, selectedId, storageKey, totals, allowedFrom, onRefused }: {
   stages: string[];
   items: T[];
   stageOf: (r: T) => string;
@@ -19,6 +20,10 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
   storageKey?: string;
   /** true number of records per column when `items` is only the first part (big lists) */
   totals?: Record<string, number>;
+  /** stages a card in `from` may move to; null = rules not loaded (no dimming) */
+  allowedFrom?: (from: string) => string[] | null;
+  /** a drop on a column the rules do not allow */
+  onRefused?: (r: T, to: string, allowed: string[]) => void;
 }) {
   const [drag, setDrag] = useState<{ id: string; x: number; y: number; dx: number; dy: number; w: number; on: boolean } | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -63,7 +68,7 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
     const to = drag.on ? colAt(e.clientX, e.clientY) : null;
     if (drag.on) { justDragged.current = true; setTimeout(() => { justDragged.current = false; }, 0); }
     setDrag(null); setOver(null);
-    if (r && to && to !== stageOf(r)) { setShut((p) => { const n = new Set(p); n.delete(to); return n; }); onMove(r, to); }
+    if (r && to && to !== stageOf(r)) { setShut((p) => { const n = new Set(p); n.delete(to); return n; }); tryMove(r, to); }
   };
   const cancelP = () => { setDrag(null); setOver(null); };
 
@@ -74,16 +79,24 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
     if (e.key === ' ') {
       e.preventDefault();
       if (!kb) { setKb({ id: r.id, col: from }); setSay(`Picked up. In ${stages[from]}. Use Left and Right to choose a column, Space to drop, Esc to cancel.`); }
-      else { const to = stages[kb.col]; setKb(null); if (to !== stageOf(r)) { setSay('Dropped in ' + to + '.'); onMove(r, to); } else setSay('Dropped. No change.'); }
+      else { const to = stages[kb.col]; setKb(null); if (to !== stageOf(r)) { if (okTo(r, to)) setSay('Dropped in ' + to + '.'); tryMove(r, to); } else setSay('Dropped. No change.'); }
     } else if (kb && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
       e.preventDefault();
       const col = Math.max(0, Math.min(stages.length - 1, kb.col + (e.key === 'ArrowRight' ? 1 : -1)));
-      setKb({ ...kb, col }); setSay(stages[col] + (col === from ? ' (where it is now)' : ''));
+      setKb({ ...kb, col }); setSay(stages[col] + (col === from ? ' (where it is now)' : okTo(r, stages[col]) ? '' : ' (not an allowed move)'));
     } else if (kb && e.key === 'Escape') { e.preventDefault(); setKb(null); setSay('Move cancelled.'); }
   };
 
+  const okTo = (r: T, to: string) => { const a = allowedFrom?.(stageOf(r)); return !a || a.includes(to); };
+  const tryMove = (r: T, to: string) => {
+    const a = allowedFrom?.(stageOf(r));
+    if (a && !a.includes(to)) { setSay(`Can't move to ${to}.`); onRefused?.(r, to, a); return; }
+    onMove(r, to);
+  };
   const dragged = drag?.on ? items.find((x) => x.id === drag.id) : null;
   const target = kb ? stages[kb.col] : over;
+  const moving = kb ? items.find((x) => x.id === kb.id) : drag?.on ? items.find((x) => x.id === drag.id) : null;
+  const shutOut = (st: string) => !!moving && st !== stageOf(moving) && !okTo(moving, st);
 
   return (
     <div className="flex min-w-0 gap-3 overflow-x-auto pb-2" data-testid="board">
@@ -94,7 +107,8 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
         const closed = shut.has(st);
         return (
           <section key={st} aria-label={st} ref={(el) => { cols.current[st] = el; }} data-stage={st}
-            className={cx('ui-col flex shrink-0 flex-col gap-2 transition-[background-color,box-shadow] duration-150', closed ? 'w-[56px]' : 'w-[264px]', target === st && '!bg-accentSoft ring-2 ring-inset ring-accent')}>
+            className={cx('ui-col flex shrink-0 flex-col gap-2 transition-[background-color,box-shadow] duration-150', closed ? 'w-[56px]' : 'w-[264px]', target === st && !shutOut(st) && '!bg-accentSoft ring-2 ring-inset ring-accent', shutOut(st) && 'opacity-45', target === st && shutOut(st) && 'ring-2 ring-inset ring-badText')}
+            data-blocked={shutOut(st) ? '' : undefined}>
             <button type="button" onClick={() => toggle(st)} aria-expanded={!closed} aria-label={(closed ? 'Open ' : 'Fold ') + st + ' column'}
               className={cx('ui-col-head group min-h-[44px] rounded-lg text-left transition-colors hover:bg-surface hover:text-text', closed && 'flex-col !px-0 py-2')}>
               {closed && <ChevronRight size={14} aria-hidden />}

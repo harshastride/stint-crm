@@ -38,8 +38,12 @@ test('report builder starts from a common question', async ({ page }) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/pe-reports-builder-desk.png`, fullPage: true });
 });
 
-test('a role without the report page cannot open it', async ({ page }) => {
+test('Finance opens the cash report; a role without it cannot', async ({ page }) => {
   await login(page, 'suresh');
+  await page.goto('/p/rep_cash');
+  await expect(page.getByText('This page isn’t open to your role')).toHaveCount(0);
+  await expect(page.locator('table').first()).toBeVisible({ timeout: 20000 });
+  await login(page, 'kiran');
   await page.goto('/p/rep_cash');
   await expect(page.getByText('This page isn’t open to your role')).toBeVisible({ timeout: 20000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/pe-reports-cash-finance.png`, fullPage: true });

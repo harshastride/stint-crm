@@ -18,7 +18,7 @@ export const PAGE_ICON: Record<string, LucideIcon> = {
   plan: Wallet, payment: HandCoins, alert: Bell, history: History, company: Building2,
   rep_funnel: Route, rep_roi: TrendingUp, rep_batch: BarChart3, rep_place: PieChart, rep_cash: BadgeIndianRupee, reports_builder: FileSpreadsheet,
   users: Users, duplicates: Copy, audit: ScrollText, roles: Shield, assign: Shuffle, followrules: AlarmClock, dropdowns: SlidersHorizontal, fields: ListPlus, imports: Upload,
-  automations: Zap, builder: Workflow, connections: Cable, deliveries: ScrollText, branding: Palette, reminders: AlarmClock,
+  automations: Zap, builder: Workflow, connections: Cable, deliveries: ScrollText, branding: Palette, reminders: AlarmClock, stage_rules: Route,
 };
 export const pageIcon = (id: string): LucideIcon => PAGE_ICON[id] || LayoutGrid;
 

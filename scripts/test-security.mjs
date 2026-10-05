@@ -60,6 +60,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const prog = (await admin.from('program').select('id,fee').eq('name', 'Python').single()).data;
   const before = await sales.from('lead').select('id').eq('id', r.data.id);
   check('Sales cannot see a new lead still with telecalling', (before.data || []).length === 0, 'visible');
+  await admin.from('call_log').insert({ lead_id: r.data.id, outcome: 'Interested' }); // stage rules: a call before Interested
   await admin.from('lead').update({ stage: 'Interested' }).eq('id', r.data.id);
   const handed = await sales.from('lead').select('id').eq('id', r.data.id);
   check('Sales sees the lead once it is Interested', (handed.data || []).length === 1, handed.error?.message);
@@ -87,6 +88,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const ap = (await admin.from('fee_quote').select('needs_approval, approved_by').eq('id', q.data.id).single()).data;
   check('Admin approves the quote', !ok.error && ap.needs_approval === false && !!ap.approved_by, ok.error?.message);
   await sales.from('fee_quote').update({ status: 'Accepted' }).eq('id', q.data.id);
+  await sales.from('counselling_session').update({ status: 'Done' }).eq('lead_id', r.data.id); // stage rules: counselling done before Converted
   const mv = await sales.from('lead').update({ stage: 'Converted' }).eq('id', r.data.id).select('id');
   check('Sales can convert the lead', (mv.data || []).length === 1, mv.error?.message);
   const c = (await admin.from('candidate').select('id, code, stage, lead_id').eq('lead_id', r.data.id)).data;
@@ -184,10 +186,11 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const nl = (await desk.from('lead').insert({ full_name: 'Rule Test', mobile: m }).select('id, owner_id').single()).data;
   const ow = (await admin.from('staff').select('role').eq('id', nl.owner_id).single()).data;
   check('New lead goes to the role in the "New lead" rule', ow?.role === 'Telecaller', ow?.role);
+  await admin.from('call_log').insert({ lead_id: nl.id, outcome: 'Interested' });
   await admin.from('lead').update({ stage: 'Interested' }).eq('id', nl.id);
   const after = (await admin.from('lead').select('owner:owner_id(role)').eq('id', nl.id).single()).data;
   check('Lead marked Interested is handed to Sales by the rule', after?.owner?.role === 'Sales', JSON.stringify(after));
-  await admin.from('lead').update({ stage: 'Converted' }).eq('id', nl.id);
+  await admin.rpc('force_stage', { p_kind: 'lead', p_id: nl.id, p_to: 'Converted', p_reason: 'Security test setup' }); // Interested → Converted skips counselling
   const nc = (await admin.from('candidate').select('id, poc:poc_id(role)').eq('lead_id', nl.id).single()).data;
   check('Converted candidate gets an HR owner by the rule', nc?.poc?.role === 'HR / Counsellor', JSON.stringify(nc));
   await admin.from('mock_session').insert({ candidate_id: nc.id, status: 'Failed' });
@@ -287,13 +290,16 @@ const mobile = '9' + String(Date.now()).slice(-9);
     check('The block can confirm a real event and spots a fake one', real.json.event === 'lead.created' && fake.status === 404);
     const note = await api('POST', 'note', { mobile: m3, text: 'hello' });
     const fu = await api('POST', 'follow-up', { lead_id: nl.id, title: 'Call them', due_in_hours: 2 });
+    const stEarly = await api('POST', 'stage', { mobile: m3, stage: 'Interested' });
+    check('Stage rules: the block cannot move a lead to Interested before any call', stEarly.status === 409 && /no call/.test(stEarly.json.error || ''), JSON.stringify(stEarly.json));
+    await svc.from('call_log').insert({ lead_id: nl.id, outcome: 'Interested' });
     const st = await api('POST', 'stage', { mobile: m3, stage: 'Interested' });
     const stBad = await api('POST', 'stage', { mobile: m3, stage: 'Nonsense' });
     const found = await api('GET', 'find?mobile=' + m3);
     const lr = (await admin.from('lead').select('stage').eq('id', nl.id).single()).data;
     check('Block actions: note, follow-up, stage, find', note.status === 201 && fu.status === 201 && st.status === 200 && stBad.status === 400 && lr.stage === 'Interested' && found.json.kind === 'lead', JSON.stringify([note.json, fu.json, st.json, found.json]).slice(0, 300));
     const det = await api('GET', 'lead-details?lead_id=' + nl.id);
-    check('Get lead details: calls, stage and the owner’s head', det.status === 200 && det.json.called === false && det.json.calls_count === 0 && det.json.owner_role === 'Sales' && 'owner_head_email' in det.json, JSON.stringify(det.json).slice(0, 200));
+    check('Get lead details: calls, stage and the owner’s head', det.status === 200 && det.json.called === true && det.json.calls_count === 1 && det.json.owner_role === 'Sales' && 'owner_head_email' in det.json, JSON.stringify(det.json).slice(0, 200));
     const un = await api('DELETE', 'hooks?id=' + sub.json.id);
     const left = (await svc.from('integration_subscription').select('id').eq('id', sub.json.id)).data || [];
     check('Turning the flow off removes its subscription', un.status === 200 && left.length === 0);
@@ -981,9 +987,11 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   check('report builder: injection in filter values is treated as plain text', !v.error && v.data.rows.length === 0, v.error?.message || JSON.stringify(v.data));
   const lim = await run(admin, { source: 'leads', columns: ['stage'], limit: 999999 });
   check('report builder: limit capped at 5000', !lim.error && lim.data.rows.length <= 5000);
-  const sv = await admin.from('saved_report').insert({ name: 'sec test', def: { source: 'leads', columns: ['stage'] }, shared_with_roles: ['Finance'] }).select('id').single();
+  const sv = await admin.from('saved_report').insert({ name: 'sec test', def: { source: 'leads', columns: ['stage'] }, shared_with_roles: ['Finance', 'Trainer'] }).select('id').single();
   const fr = await fin.from('saved_report').select('id').eq('id', sv.data?.id);
-  check('report builder: Finance (no builder page) cannot read a shared report', (fr.data || []).length === 0);
+  check('report builder: Finance (has the builder page) can read a report shared with Finance', (fr.data || []).length === 1);
+  const tr = await trainer.from('saved_report').select('id').eq('id', sv.data?.id);
+  check('report builder: Trainer (no builder page) cannot read a report shared with Trainer', (tr.data || []).length === 0);
   const ti = await tele.from('saved_report').insert({ name: 'x', def: {} });
   check('report builder: Telecaller cannot save reports', !!ti.error);
   const sx = await tele.from('report_source').select('key');
@@ -1066,5 +1074,44 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   check('cohort funnel: Telecaller gets no enrolment/placement steps', !ft2.error && (ft2.data || []).filter((r) => r.step >= 4).every((r) => r.n === null), JSON.stringify(ft2.data));
   const fz = await anon.rpc('funnel_cohort', { p_from: null, p_to: null });
   check('cohort funnel: anonymous blocked', !!fz.error || (fz.data || []).every((r) => r.n === null)); }
+// ---- Stage rules: allowed moves, requirements, Admin override (migration 073) ----
+{ const sm = '6' + String(Date.now()).slice(-9);
+  const sl = (await desk.from('lead').insert({ full_name: 'Stage Rules Test', mobile: sm }).select('id').single()).data;
+  const jump = await admin.from('lead').update({ stage: 'Converted' }).eq('id', sl.id).select('id');
+  check('Stage rules: a jump that is not an allowed move is refused (even for Admin)', jump.error?.code === '23514' && /isn.t allowed/.test(jump.error.message) && /Allowed next: Callback, Interested, Not interested/.test(jump.error.message), jump.error?.message || 'moved');
+  const early = await admin.from('lead').update({ stage: 'Interested' }).eq('id', sl.id).select('id');
+  check('Stage rules: an unmet requirement is refused with a plain message', early.error?.code === '23514' && /Can't move to Interested yet: no call has been logged yet/.test(early.error.message), early.error?.message || 'moved');
+  const cb = await admin.from('lead').update({ stage: 'Callback' }).eq('id', sl.id).select('id');
+  check('Stage rules: Callback needs a call and the next call time', /no call has been logged yet; the next call date and time is not set/.test(cb.error?.message || ''), cb.error?.message || 'moved');
+  const chk = await admin.rpc('stage_check', { p_kind: 'lead', p_id: sl.id });
+  const ci = (chk.data || []).find((o) => o.to_stage === 'Interested');
+  check('Stage rules: stage_check lists allowed next stages with what is missing', !chk.error && (chk.data || []).map((o) => o.to_stage).join() === 'Callback,Interested,Not interested' && ci?.ok === false && ci.missing[0]?.code === 'call_logged', JSON.stringify(chk));
+  await admin.from('call_log').insert({ lead_id: sl.id, outcome: 'Interested' });
+  const ok = await admin.from('lead').update({ stage: 'Interested' }).eq('id', sl.id).select('stage').single();
+  check('Stage rules: once the requirement is met the move goes through', !ok.error && ok.data?.stage === 'Interested', ok.error?.message);
+  const noWhy = await sales.from('lead').update({ stage: 'Not interested' }).eq('id', sl.id).select('id');
+  const why = await sales.from('lead').update({ stage: 'Not interested', lost_reason: 'Fee too high' }).eq('id', sl.id).select('stage').single();
+  check('Stage rules: Not interested needs a reason, given in the same save', /no reason is recorded/.test(noWhy.error?.message || '') && why.data?.stage === 'Not interested', (noWhy.error?.message || 'moved') + ' / ' + why.error?.message);
+  const sf = await sales.rpc('force_stage', { p_kind: 'lead', p_id: sl.id, p_to: 'Converted', p_reason: 'Please let me' });
+  check('Stage rules: a non-admin cannot override', sf.error?.code === '42501', sf.error?.message || 'forced');
+  const short = await admin.rpc('force_stage', { p_kind: 'lead', p_id: sl.id, p_to: 'Counselling', p_reason: 'ok' });
+  check('Stage rules: an override needs a reason of 5+ characters', !!short.error && /at least 5/.test(short.error.message), short.error?.message || 'forced');
+  const fo = await admin.rpc('force_stage', { p_kind: 'lead', p_id: sl.id, p_to: 'Counselling', p_reason: 'Walk-in counselled at desk' });
+  const after = (await admin.from('lead').select('stage').eq('id', sl.id).single()).data;
+  const hist = (await admin.from('status_history').select('what, from_value, to_value').eq('entity_id', sl.id)).data || [];
+  check('Stage rules: Admin override moves it and keeps the reason in status history', !fo.error && after?.stage === 'Counselling' && hist.some((h) => h.what === 'Stage override by Admin: Walk-in counselled at desk' && h.from_value === 'Not interested' && h.to_value === 'Counselling'), fo.error?.message || JSON.stringify(hist));
+  const cand = (await admin.from('candidate').select('id').eq('stage', 'Enrolled').is('batch_id', null).limit(1).maybeSingle()).data
+    || (await service.from('candidate').insert({ code: 'STA-SR-' + String(Date.now()).slice(-5), full_name: 'Stage Rules Cand', stage: 'Enrolled' }).select('id').single()).data;
+  const ct = await admin.from('candidate').update({ stage: 'Training' }).eq('id', cand.id).select('id');
+  check('Stage rules: Enrolled → Training needs a batch (candidate side)', ct.error?.code === '23514' && /no batch is assigned/.test(ct.error.message), ct.error?.message || 'moved');
+  const att = (await admin.from('stage_requirement').select('active').eq('code', 'attendance_min').single()).data;
+  check('Stage rules: the attendance requirement exists but is off by default', att?.active === false, JSON.stringify(att));
+  const tr = await tele.from('stage_requirement').update({ active: false }).eq('code', 'call_logged').select('id');
+  const ti = await tele.from('stage_transition').insert({ kind: 'lead', from_stage: 'New', to_stage: 'Converted' });
+  const tread = await tele.from('stage_transition').select('to_stage').eq('kind', 'lead').eq('from_stage', 'New');
+  check('Stage rules: Telecaller can read the rules but not change them', (tr.data || []).length === 0 && !!ti.error && (tread.data || []).length === 3, JSON.stringify([tr.error, ti.error?.message, tread.data]));
+  await admin.from('lead').delete().eq('id', sl.id); await admin.from('status_history').delete().eq('entity_id', sl.id);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -14,11 +14,12 @@ import { BuilderPage } from '@/components/special/BuilderPage';
 import { redirect } from 'next/navigation';
 import { Duplicates } from '@/components/special/Duplicates';
 import { ReportBuilder } from '@/components/special/ReportBuilder';
+import { StageRules } from '@/components/special/StageRules';
 import { Reminders } from '@/components/special/Reminders';
 import { AuditLog } from '@/components/special/AuditLog';
 import { PageSkeleton } from '@/components/Skeletons';
 
-const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, audit: AuditLog, reports_builder: ReportBuilder };
+const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, stage_rules: StageRules, audit: AuditLog, reports_builder: ReportBuilder };
 
 export default function Page({ params }: { params: Promise<{ page: string }> }) {
   const { page } = use(params);

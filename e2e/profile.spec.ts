@@ -10,6 +10,7 @@ const NAME = 'Venkata Sai Lakshmi Narasimha Bhavani Prasad Profile Test';
 test.beforeAll(async () => {
   const { data } = await db.from('candidate').insert({ code: 'STA-PF-' + String(Date.now()).slice(-6), full_name: NAME, stage: 'Mocks' }).select('id').single();
   id = data!.id;
+  await db.from('mock_session').insert({ candidate_id: id, status: 'Passed' }); // stage rules: Mocks → Resume needs a passed mock
 });
 test.afterAll(async () => { if (id) { await db.from('status_history').delete().eq('entity_id', id); await db.from('candidate').delete().eq('id', id); } });
 

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
+import { stageMoves, useStageRules } from '@/lib/stageMoves';
 import { dayStart, getPath, mayReassign, statusLockedBy, type Bulk, type Col, type Field, type Kpi, type PageCfg, type PersonRef, type Q, type Row } from '@/lib/pages';
 import { ilikeHas, likeTerm, pgQuote } from '@/lib/pgrst';
 import { Button, ButtonGroup, IconButton, Notice, Pill, cx, fmtDate, fmtDateTime, fmtDuration, money } from './ui';
@@ -175,6 +176,9 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const canWrite = s.can(cfg.id, 'w') && !cfg.readOnly;
   const server = !!cfg.server;
   const src = cfg.readFrom || cfg.table;
+  // lead and candidate stages follow the Stage rules page (migration 073): only allowed moves are offered
+  const ruleKind = cfg.board?.field === 'stage' && (cfg.table === 'lead' || cfg.table === 'candidate') ? cfg.table : null;
+  const stageRules = useStageRules(ruleKind || 'lead', cfg.board ? s.lists[cfg.board.list] || [] : []);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [total, setTotal] = useState<number | null>(null);          // server lists: rows matching everything picked
   const [boardTotals, setBoardTotals] = useState<Record<string, number> | undefined>(undefined);
@@ -464,7 +468,9 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const inlineEditor = (r: Row, f: Field) => {
     const common = { autoFocus: true, 'aria-label': f.label, onClick: (e: React.MouseEvent) => e.stopPropagation(), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Escape') setCellEdit(null); }, className: 'h-9 w-full min-w-[120px] px-2 text-[13px]' };
     if (f.type === 'select' || f.type === 'ref') {
-      const opts: [string, string][] = f.type === 'ref' ? (s.refs[f.ref || ''] || []).map((x) => [x.id, x.label]) : (f.options || (f.list === '__roles' ? s.roles : s.lists[f.list || ''] || [])).map((v) => [v, v]);
+      let opts: [string, string][] = f.type === 'ref' ? (s.refs[f.ref || ''] || []).map((x) => [x.id, x.label]) : (f.options || (f.list === '__roles' ? s.roles : s.lists[f.list || ''] || [])).map((v) => [v, v]);
+      const ok = ruleKind && f.key === 'stage' ? stageRules(r.stage) : null; // only the current stage and the allowed next ones
+      if (ok) opts = opts.filter(([v]) => v === r.stage || ok.includes(v));
       return <select {...common} defaultValue={r[f.key] ?? ''} onBlur={() => setCellEdit(null)} onChange={(e) => saveCell(r, f, e.target.value || null)}><option value="">—</option>{opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>;
     }
     const v = r[f.key] == null ? '' : f.type === 'datetime' ? new Date(new Date(r[f.key]).getTime() - new Date(r[f.key]).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : f.type === 'date' ? String(r[f.key]).slice(0, 10) : String(r[f.key]);
@@ -594,10 +600,10 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const move = async (r: Row, to: string) => {
     const field = cfg.board!.field, from = r[field];
     const { error } = await supabase().from(cfg.table).update({ [field]: to }).eq('id', r.id);
-    if (error) { toast('Can’t move ' + cfg.rowTitle(r) + ': ' + friendlyError(error), { tone: 'bad' }); return; }
+    if (error) { toast('Can’t move ' + cfg.rowTitle(r) + ': ' + friendlyError(error) + (error.code === '23514' && cfg.person ? ' Open the record to see what’s needed.' : ''), { tone: 'bad' }); return; }
     const converted = cfg.id === 'lead' && to === 'Converted';
     toast(cfg.rowTitle(r) + ' moved to ' + to + (converted ? '. A candidate record was created.' : '.'), converted ? {} : {
-      undo: async () => { const u = await supabase().from(cfg.table).update({ [field]: from }).eq('id', r.id); if (u.error) toast('Could not undo: ' + friendlyError(u.error), { tone: 'bad' }); else toast('Moved back to ' + from + '.'); load(); },
+      undo: ruleKind && !stageRules(to)?.includes(from) ? undefined : async () => { const u = await supabase().from(cfg.table).update({ [field]: from }).eq('id', r.id); if (u.error) toast('Could not undo: ' + friendlyError(u.error), { tone: 'bad' }); else toast('Moved back to ' + from + '.'); load(); },
     });
     load();
   };
@@ -893,7 +899,9 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           <div className={cx('transition-opacity', busy && 'opacity-60')} aria-busy={busy}>
           <Board stages={stages} items={shown} stageOf={(r) => r[cfg.board!.field]} selectedId={selId} storageKey={cfg.id} totals={server ? boardTotals : undefined}
             canMove={(r) => canWrite && !lockedFor(r, cfg.board!.field)} onMove={move} onOpen={openRow}
-            renderCard={(r, next) => (<>
+            allowedFrom={ruleKind ? stageRules : undefined}
+            onRefused={(r, to, a) => toast(`Can’t move ${cfg.rowTitle(r)} from ${r.stage} to ${to}: that move isn’t allowed.` + (a.length ? ' Allowed next: ' + a.join(', ') + '.' : ''), { tone: 'bad' })}
+            renderCard={(r, colNext) => { const next = ruleKind ? stageMoves(ruleKind, r.stage, stages, stageRules(r.stage) || []).next : colNext; return (<>
               <div className="text-[13px] font-semibold">{plain(columns[0], r) || cfg.rowTitle(r)}</div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-text2">
                 {columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field && c.type !== 'tags' && c.type !== 'progress' && (c.type === 'due' ? !c.doneWhen?.(r) : short(c, r))).map((c, i) => (
@@ -906,7 +914,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 {canWrite && next && !lockedFor(r, cfg.board!.field) && <button type="button" className="min-h-[32px] flex-1 rounded-lg border border-line2 bg-surface text-xs font-medium text-accentText" onClick={(e) => { e.stopPropagation(); move(r, next); }}>Move to {next} →</button>}
                 {canWrite && cfg.fields && cfg.person && <button type="button" aria-label="Edit" className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>}
               </div>
-            </>)} />
+            </>); }} />
           </div>
         ) : (
           <Table label={(meta?.title || cfg.kind) + ' list'} density={density} className={cx('overflow-x-auto transition-opacity', busy && 'opacity-60')}>
