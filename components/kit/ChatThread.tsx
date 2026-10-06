@@ -75,7 +75,7 @@ export function ChatThread({ kind, id, channel: initial, composer = true }: { ki
   if (!items) return <p className="py-6 text-center text-[13px] text-text2">Loading…</p>;
   let lastDay = '';
   const thread = (
-    <div data-testid="chat" className="flex min-h-[240px] max-h-[60vh] shrink-0 flex-col gap-2 overflow-y-auto rounded-[10px] bg-surface2 p-3" role="log" aria-label="Chat">
+    <div data-testid="chat" className="flex min-h-[240px] max-h-[60vh] shrink-0 flex-col gap-1.5 overflow-y-auto rounded-[10px] bg-surface2 p-2" role="log" aria-label="Chat">
       {items.length === 0 && <p className="py-6 text-center text-[13px] text-text2">No calls or notes yet.</p>}
       {items.map((it) => {
         const d = new Date(it.at); const day = dayLabel(d); const sep = day !== lastDay; lastDay = day;

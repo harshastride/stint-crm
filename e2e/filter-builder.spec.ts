@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
-import { login } from './helpers';
+import { login, service } from './helpers';
+
+// always remove views this test saved, even if it stops half way
+test.afterAll(async () => { await service().from('saved_view').delete().like('name', 'Adv test %'); });
 
 // Advanced filter: field / operator / values, AND-OR groups, live count from the database, saved with a view.
 test('admin builds an advanced filter on leads, sees a live count, and saves it in a view', async ({ page }) => {

@@ -732,14 +732,15 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           </div>
         )}
 
-        <div ref={barRef} className="flex flex-wrap items-center gap-2 md:flex-nowrap" data-testid="list-toolbar">
-          <div className="-mx-1 flex min-w-0 max-w-full gap-1 overflow-x-auto px-1 md:mx-0 md:shrink-0 md:px-0 [scrollbar-width:none]" role="tablist">
+        {/* narrow list (quick panel open): tabs get their own scrolling row so they never sit under Filter / View */}
+        <div ref={barRef} className={cx('flex flex-wrap items-center gap-2', roomy && 'md:flex-nowrap')} data-testid="list-toolbar">
+          <div className={cx('-mx-1 flex min-w-0 max-w-full gap-1 overflow-x-auto px-1 [scrollbar-width:none]', roomy ? 'md:mx-0 md:shrink-0 md:px-0' : 'w-full')} role="tablist">
             {views.map((v, i) => (
               <button key={v.label} type="button" role="tab" aria-selected={view === i && !activeSaved} onClick={() => { setView(i); setActiveSaved(null); }}
                 className={cx('min-h-[36px] shrink-0 whitespace-nowrap rounded-row px-3 text-[13px] font-medium transition-colors duration-150', view === i && !activeSaved ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>{v.label}</button>
             ))}
           </div>
-          <div className="flex w-full min-w-0 items-center justify-end gap-1.5 md:w-auto md:flex-1">
+          <div className={cx('flex w-full min-w-0 items-center justify-end gap-1.5', roomy && 'md:w-auto md:flex-1')}>
             <label className="relative min-w-0 flex-1 md:max-w-[240px]">
               <span className="sr-only">Search this list</span>
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />

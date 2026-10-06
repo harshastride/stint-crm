@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { CalendarClock, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, X } from 'lucide-react';
+import { CalendarClock, CalendarPlus, NotebookPen, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, X } from 'lucide-react';
 import { Avatar } from './kit/Avatar';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -44,8 +44,11 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const [msgReady, setMsgReady] = useState<{ whatsapp: boolean; email: boolean } | null>(null);
   useEffect(() => { fetch('/api/messages/send').then((r) => (r.ok ? r.json() : null)).then((j) => j && setMsgReady({ whatsapp: !!j.whatsapp, email: !!j.email })).catch(() => {}); }, []);
   const setTab = (t: 'Log' | 'Timeline' | 'Chat' | 'Details') => { setTabRaw(t); try { localStorage.setItem('stint-panel-tab', t); } catch {} };
+  // slim rail (avatar + 3 actions), like the sidebar's collapse; remembered. Desktop only.
+  const [rail, setRailRaw] = useState(() => { try { return localStorage.getItem('stint-panel-rail') === '1'; } catch { return false; } });
+  const setRail = (v: boolean) => { setRailRaw(v); try { localStorage.setItem('stint-panel-rail', v ? '1' : '0'); } catch {} };
   // width you dragged it to, remembered
-  const [width, setWidth] = useState(() => { try { return Number(localStorage.getItem('stint-panel-w')) || 380; } catch { return 380; } });
+  const [width, setWidth] = useState(() => { try { return Number(localStorage.getItem('stint-panel-w')) || 360; } catch { return 360; } });
   const at = list.findIndex((x) => x.kind === person.kind && x.id === person.id);
   const prev = at > 0 ? list[at - 1] : null, next = at >= 0 && at < list.length - 1 ? list[at + 1] : null;
   const fullHref = person.kind === 'candidate' ? '/candidate/' + person.id : '/p/lead?edit=lead:' + person.id;
@@ -209,46 +212,60 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   const pick = (a: 'note' | 'call' | 'task' | 'record') => { setAction(a); setForm(a === 'note' ? { kind: 'Note' } : {}); setMsg(null); };
   const mode = action;
   const save = () => (mode === 'note' ? saveNote() : mode === 'call' ? saveCall() : mode === 'task' ? saveTask() : undefined);
-  const iconBtn = 'flex h-11 w-11 items-center justify-center rounded-[10px] text-text2 transition-[background-color,transform] duration-150 ease-out hover:bg-surface2 hover:text-text active:scale-[0.97] motion-reduce:transform-none disabled:opacity-40';
+  const iconBtn = 'btn flex h-8 w-8 items-center justify-center rounded-lg text-text2 hover:bg-surface2 hover:text-text disabled:opacity-40';
+  // sidebar-style row button: 32px tall (44px hit area from .btn), quiet tint on hover
+  const rowBtn = 'btn inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-[12.5px] font-medium text-text2 hover:bg-surface2 hover:text-text disabled:opacity-40';
   const tabs = [['Log', null], ['Timeline', timeline.length], ['Chat', null], ['Details', null]] as const;
+
+  if (rail && typeof window !== 'undefined' && window.matchMedia('(min-width: 768px)').matches) return (
+    <aside aria-label="Quick panel" data-rail className="flex w-14 shrink-0 flex-col items-center gap-1 self-stretch border-l border-line bg-surface py-2 md:flex">
+      <button type="button" aria-label={'Expand panel for ' + (p.full_name || '')} title={'Expand: ' + (p.full_name || '')} onClick={() => setRail(false)} className="btn rounded-full"><Avatar name={p.full_name || '?'} id={person.id} /></button>
+      <div className="my-1 h-px w-6 bg-line" aria-hidden />
+      {contact.mobile && <button type="button" aria-label="Call" title={lockReason || 'Call ' + (p.full_name || '')} disabled={!!lockReason} onClick={() => openContact('mobile', 'tel')} className={iconBtn}><Phone size={16} strokeWidth={1.8} /></button>}
+      {canCall && <button type="button" aria-label="Log call" title="Log call" onClick={() => { setRail(false); pick('call'); }} className={iconBtn}><NotebookPen size={16} strokeWidth={1.8} /></button>}
+      <button type="button" aria-label="Add follow-up" title="Add follow-up" onClick={() => { setRail(false); pick('task'); }} className={iconBtn}><CalendarPlus size={16} strokeWidth={1.8} /></button>
+      <button type="button" aria-label="Expand panel" title="Expand panel" onClick={() => setRail(false)} className={cx(iconBtn, 'mt-auto')}><PanelRightOpen size={16} strokeWidth={1.8} /></button>
+    </aside>
+  );
 
   return (
     <aside aria-label="Quick panel" style={{ '--pw': width + 'px' } as React.CSSProperties} className="anim-slide fixed inset-x-0 bottom-0 z-40 flex h-[85dvh] w-full shrink-0 flex-col overflow-hidden rounded-t-2xl border-t border-line bg-surface shadow-2xl md:relative md:z-auto md:h-auto md:max-h-none md:w-[var(--pw)] md:self-stretch md:rounded-none md:border-l md:border-t-0 md:shadow-none">
-      <div role="separator" aria-orientation="vertical" aria-label="Drag to resize the panel" onPointerDown={startResize} onDoubleClick={() => { setWidth(380); try { localStorage.setItem('stint-panel-w', '380'); } catch {} }}
+      <div role="separator" aria-orientation="vertical" aria-label="Drag to resize the panel" onPointerDown={startResize} onDoubleClick={() => { setWidth(360); try { localStorage.setItem('stint-panel-w', '360'); } catch {} }}
         className="absolute inset-y-0 left-0 z-20 hidden w-1.5 cursor-col-resize transition-colors duration-150 hover:bg-accent/40 md:block" />
       <div className="mx-auto mt-2 h-1.5 w-10 shrink-0 rounded-full bg-line2 md:hidden" aria-hidden />
 
       {/* 1. header */}
-      <header className="shrink-0 border-b border-line px-4 pb-3 pt-3">
-        <div className="flex items-center gap-3">
+      <header className="shrink-0 border-b border-line px-3 py-2">
+        <div className="flex items-center gap-2.5">
           <span title={`Showing what ${s.staff.role} can see`}><Avatar name={p.full_name || '?'} id={person.id} /></span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-base font-semibold leading-tight">{p.full_name}</div>
-            <div className="truncate text-xs text-text2">{isLead ? 'Lead' : 'Candidate'} · {p.program?.name || 'No course'}{p.batch?.code ? ' · ' + p.batch.code : ''} · {p.owner?.full_name || 'No owner'}</div>
+            <div data-testid="qp-name" className="truncate text-[14px] font-semibold leading-tight">{p.full_name}</div>
+            <div className="truncate text-[12px] text-muted" title={`${s.staff.role} view`}>{isLead ? 'Lead' : 'Candidate'} · {p.program?.name || 'No course'}{p.batch?.code ? ' · ' + p.batch.code : ''} · {p.owner?.full_name || 'No owner'}</div>
           </div>
-          <div className="-mr-2 flex shrink-0 items-center">
+          <div className="-mr-1 flex shrink-0 items-center gap-0.5">
             {onNavigate && list.length > 1 && <>
-              <button type="button" aria-label="Previous person (K)" title="Previous (K)" disabled={!prev} onClick={() => prev && onNavigate(prev)} className={iconBtn}><ChevronUp size={17} /></button>
-              <button type="button" aria-label="Next person (J)" title="Next (J)" disabled={!next} onClick={() => next && onNavigate(next)} className={iconBtn}><ChevronDown size={17} /></button>
+              {at >= 0 && <span className="num px-0.5 text-[11.5px] text-muted" title={`${s.staff.role} view`}>{at + 1}/{list.length}</span>}
+              <button type="button" aria-label="Previous person (K)" title="Previous (K)" disabled={!prev} onClick={() => prev && onNavigate(prev)} className={iconBtn}><ChevronUp size={16} strokeWidth={1.8} /></button>
+              <button type="button" aria-label="Next person (J)" title="Next (J)" disabled={!next} onClick={() => next && onNavigate(next)} className={iconBtn}><ChevronDown size={16} strokeWidth={1.8} /></button>
             </>}
-            <Link href={fullHref} title={person.kind === 'candidate' ? 'Open full profile' : 'Open the full lead form'} aria-label={person.kind === 'candidate' ? 'Open full profile' : 'Open the full lead form'} className={iconBtn}><Maximize2 size={15} /></Link>
-            <button type="button" aria-label="Hide panel (Esc)" title="Hide (Esc)" onClick={onClose} className={iconBtn}><X size={17} /></button>
+            <button type="button" aria-label="Collapse panel" title="Collapse to a slim bar" onClick={() => setRail(true)} className={cx(iconBtn, 'max-md:hidden')}><PanelRightClose size={16} strokeWidth={1.8} /></button>
+            <Link href={fullHref} title={person.kind === 'candidate' ? 'Open full profile' : 'Open the full lead form'} aria-label={person.kind === 'candidate' ? 'Open full profile' : 'Open the full lead form'} className={iconBtn}><Maximize2 size={15} strokeWidth={1.8} /></Link>
+            <button type="button" aria-label="Hide panel (Esc)" title="Hide (Esc)" onClick={onClose} className={iconBtn}><X size={16} strokeWidth={1.8} /></button>
           </div>
         </div>
-        <div className="mt-1 text-right text-[11.5px] text-muted">{s.staff.role} view{list.length > 1 && at >= 0 ? ` · ${at + 1} of ${list.length}` : ''}</div>
       </header>
 
       {/* 2. contact */}
       {(contact.mobile || contact.email || lockReason) && (
-        <div className="shrink-0 border-b border-line px-4 py-2">
-          {contact.mobile && <div className="flex min-h-[32px] items-center justify-between gap-2 text-[13px]"><span className="text-muted">Mobile</span><Reveal kind={kind} id={person.id} field="mobile" label="mobile" masked={contact.mobile} /></div>}
-          {contact.email && <div className="flex min-h-[32px] items-center justify-between gap-2 text-[13px]"><span className="text-muted">Email</span><Reveal kind={kind} id={person.id} field="email" label="email" masked={contact.email} /></div>}
+        <div className="shrink-0 border-b border-line px-3 py-1.5">
+          {contact.mobile && <div className="flex min-h-[28px] items-center justify-between gap-2 text-[13px]"><span className="text-[12.5px] text-muted">Mobile</span><Reveal kind={kind} id={person.id} field="mobile" label="mobile" masked={contact.mobile} /></div>}
+          {contact.email && <div className="flex min-h-[28px] items-center justify-between gap-2 text-[13px]"><span className="text-[12.5px] text-muted">Email</span><Reveal kind={kind} id={person.id} field="email" label="email" masked={contact.email} /></div>}
           {(contact.mobile || contact.email) && (
-            <div className="-mx-1.5 mt-1 flex flex-wrap items-center gap-0.5">
-              {contact.mobile && <Button variant="quiet" size="sm" aria-label="Call" disabled={!!lockReason} title={lockReason || 'Call'} onClick={() => openContact('mobile', 'tel')} leftIcon={<Phone size={14} />}>Call</Button>}
-              {contact.mobile && <Button variant="quiet" size="sm" aria-label="WhatsApp" disabled={!!lockReason} title={lockReason || 'WhatsApp'} onClick={() => openContact('mobile', 'wa')} leftIcon={<MessageCircle size={14} />}>WhatsApp</Button>}
-              {contact.email && <Button variant="quiet" size="sm" aria-label="Email" disabled={!!lockReason} title={lockReason || 'Email'} onClick={() => openContact('email', 'mail')} leftIcon={<Mail size={14} />}>Email</Button>}
-              {contact.mobile && isAdmin && <Button variant="quiet" size="sm" aria-label="Copy" disabled={!!lockReason} title={lockReason || 'Copy number'} onClick={() => openContact('mobile', 'copy')} leftIcon={<Copy size={13} />}>Copy</Button>}
+            <div className="-mx-2 mt-0.5 flex flex-wrap items-center gap-0.5">
+              {contact.mobile && <button type="button" aria-label="Call" disabled={!!lockReason} title={lockReason || 'Call'} onClick={() => openContact('mobile', 'tel')} className={rowBtn}><Phone size={15} strokeWidth={1.8} aria-hidden />Call</button>}
+              {contact.mobile && <button type="button" aria-label="WhatsApp" disabled={!!lockReason} title={lockReason || 'WhatsApp'} onClick={() => openContact('mobile', 'wa')} className={rowBtn}><MessageCircle size={15} strokeWidth={1.8} aria-hidden />WhatsApp</button>}
+              {contact.email && <button type="button" aria-label="Email" disabled={!!lockReason} title={lockReason || 'Email'} onClick={() => openContact('email', 'mail')} className={rowBtn}><Mail size={15} strokeWidth={1.8} aria-hidden />Email</button>}
+              {contact.mobile && isAdmin && <button type="button" aria-label="Copy" disabled={!!lockReason} title={lockReason || 'Copy number'} onClick={() => openContact('mobile', 'copy')} className={rowBtn}><Copy size={14} strokeWidth={1.8} aria-hidden />Copy</button>}
             </div>
           )}
           {lockReason && <div role="note" className="my-1 rounded-[10px] bg-warnBg px-3 py-1.5 text-[12px] font-medium text-warnText">{lockReason.startsWith('Details locked') ? lockReason : 'Details locked: ' + lockReason} — ask Admin</div>}
@@ -257,10 +274,10 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
 
       {/* scroll area: only this part scrolls */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="panel-scroll">
-        <div className="flex flex-col gap-2 px-4 pb-2 pt-3">
+        <div className="flex flex-col gap-2.5 px-3 pb-2.5 pt-2.5">
           <Viewers kind={person.kind} id={person.id} />
           {(prog.fees || prog.docs) && (
-            <div className="flex flex-col gap-2 rounded-[10px] border border-line p-2.5">
+            <div className="flex flex-col gap-1.5">
               {prog.fees && <Meter label="Fees paid" value={prog.fees[0]} max={prog.fees[1]} text={`${money(prog.fees[0])} of ${money(prog.fees[1])}`} />}
               {prog.docs && <Meter label="Documents in" value={prog.docs[0]} max={prog.docs[1]} />}
             </div>
@@ -270,24 +287,24 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           <StageControl compact kind={kind} id={person.id} stage={p.stage} changedAt={p.stage_changed_at} onMoved={moved} request={stageAsk} onRequestSeen={() => setStageAsk(null)} />
           {(nextSteps.length > 0 || tasks.length > 0) && (
             <div className="flex flex-col gap-1.5">
-              <NextSteps stage={p.stage} steps={nextSteps} onRun={runStep}>
+              <NextSteps inline stage={p.stage} steps={nextSteps} onRun={runStep}>
                 {tasks.length > 0 && (
-                  <button type="button" aria-expanded={tasksOpen} onClick={() => setTasksOpen((o) => !o)} className={cx('flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-[10px] px-3 text-[12.5px] font-semibold', overdue ? 'bg-badBg text-badText' : 'bg-surface2 text-text2', !nextSteps.length && 'flex-1 justify-between')}>
-                    <CalendarClock size={15} aria-hidden />{tasks.length} follow-up{tasks.length > 1 ? 's' : ''}{overdue ? ` · ${overdue} late` : ''}
+                  <button type="button" aria-expanded={tasksOpen} onClick={() => setTasksOpen((o) => !o)} className={cx('btn inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-medium', overdue ? 'bg-badBg text-badText' : 'text-text2 hover:bg-surface2 hover:text-text')}>
+                    <CalendarClock size={15} strokeWidth={1.8} aria-hidden />{tasks.length} follow-up{tasks.length > 1 ? 's' : ''}{overdue ? ` · ${overdue} late` : ''}
                     <ChevronDown size={14} aria-hidden className={cx('transition-transform duration-200 ease-out', tasksOpen && 'rotate-180')} />
                   </button>
                 )}
               </NextSteps>
               {tasksOpen && tasks.length > 0 && (
-                <div className="anim-fade flex flex-col divide-y divide-line rounded-[10px] border border-line">
+                <div className="anim-fade flex flex-col divide-y divide-line border-y border-line">
                   {tasks.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[13px]">
+                    <div key={t.id} className="flex items-center justify-between gap-2 py-1.5 text-[13px]">
                       <span className="min-w-0"><span className="font-medium">{t.title}</span> <span className={cx('text-[12px]', new Date(t.due_at).getTime() < Date.now() - 86400000 ? 'text-badText' : 'text-muted')}>· {t.owner_role} · {fmtDateTime(t.due_at)}</span></span>
                       <span className="flex shrink-0 gap-1">
                         {(() => { const st = stepForFollowUp(t.title, person.kind); return st && allowed(st) ? (
-                          <button type="button" className="flex min-h-[36px] items-center gap-1 rounded-md bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}><StepIcon k={st.key} size={13} />{st.label}</button>) : null; })()}
+                          <button type="button" className="btn flex h-8 items-center gap-1 rounded-lg bg-accent px-2.5 text-xs font-semibold text-white" onClick={() => runStep(st)}><StepIcon k={st.key} size={13} />{st.label}</button>) : null; })()}
                         {!t.owner_id || mayActFor(t.owner_id, s.staff, s.refs.staff || [])
-                          ? <button type="button" className="min-h-[36px] rounded-md border border-line2 bg-surface px-2.5 text-xs font-medium" onClick={() => finishTask(t)}>Done</button>
+                          ? <button type="button" className="btn h-8 rounded-lg px-2.5 text-xs font-medium text-text2 hover:bg-surface2 hover:text-text" onClick={() => finishTask(t)}>Done</button>
                           : <span className="max-w-[7rem] text-right text-[11.5px] leading-tight text-muted">Only {(s.refs.staff || []).find((x) => x.id === t.owner_id)?.label.split(' ')[0] || 'the owner'} can close</span>}
                       </span>
                     </div>
@@ -299,25 +316,24 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         </div>
 
         {/* 4. tab bar, sticks to the top of the scroll area */}
-        <div role="tablist" className="sticky top-0 z-10 flex shrink-0 gap-4 border-b border-line bg-surface px-4">
+        <div role="tablist" className="sticky top-0 z-10 flex shrink-0 gap-0.5 border-b border-line bg-surface px-2 py-1.5">
           {tabs.map(([t, n]) => (
             <button key={t} type="button" role="tab" aria-label={t} aria-selected={tab === t} onClick={() => setTab(t)}
-              className={cx('relative flex min-h-[44px] items-center gap-1.5 text-[13px] font-semibold transition-colors duration-150', tab === t ? 'text-text' : 'text-muted hover:text-text2')}>
-              {t}{n ? <span aria-hidden className="num rounded-full bg-surface2 px-1.5 text-[11px] text-text2">{n}</span> : null}
-              <span aria-hidden className={cx('absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-accent transition-opacity duration-150', tab === t ? 'opacity-100' : 'opacity-0')} />
+              className={cx('btn flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px]', tab === t ? 'bg-accentSoft font-semibold text-accentText' : 'font-medium text-text2 hover:bg-surface2 hover:text-text')}>
+              {t}{n ? <span aria-hidden className={cx('num rounded-full px-1.5 text-[11px] font-semibold', tab === t ? 'bg-surface text-accentText' : 'bg-surface2 text-text2')}>{n}</span> : null}
             </button>
           ))}
         </div>
 
         {/* 5. content */}
-        <div className="flex flex-1 flex-col gap-2.5 px-4 py-3">
+        <div className="flex flex-1 flex-col gap-2 px-3 py-2.5">
           {tab === 'Log' && (
-            <div className="anim-fade flex flex-col gap-2.5">
-              <div className="text-[11.5px] font-semibold text-muted">Latest</div>
+            <div className="anim-fade flex flex-col gap-1">
+              <div className="text-[12px] font-medium text-muted">Latest</div>
               {timeline.length === 0 && <div className="text-[13px] text-muted">Nothing logged yet. Use the box below.</div>}
-              <ul className="flex flex-col gap-1.5">
+              <ul className="flex flex-col divide-y divide-line">
                 {[...timeline].sort((a, b) => +new Date(b.at) - +new Date(a.at)).slice(0, 5).map((t, i) => (
-                  <li key={i} className={cx('rounded-[10px] bg-surface2 px-3 py-2 text-[13px] transition-opacity duration-200', t._pending && 'opacity-60')}>
+                  <li key={i} className={cx('py-1.5 text-[13px] transition-opacity duration-200', t._pending && 'opacity-60')}>
                     <div className="flex justify-between gap-2 text-[11.5px] text-muted"><span className="font-semibold text-text2">{t.kind}</span><span>{t._pending ? 'Saving…' : `${t.by_name || ''} · ${fmtDateTime(t.at)}`}</span></div>
                     <div className="line-clamp-3 whitespace-pre-wrap">{String(t.body || '')}</div>
                   </li>
@@ -328,16 +344,16 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           {tab === 'Timeline' && <Timeline items={timeline} />}
           {tab === 'Chat' && <div className="flex min-h-[320px] flex-1 flex-col [&>[data-testid=chat]]:max-h-none [&>[data-testid=chat]]:flex-1"><ChatThread kind={isLead ? 'lead' : 'candidate'} id={person.id} channel={chatChannel} /></div>}
           {tab === 'Details' && (
-            <div className="anim-fade flex flex-col gap-2.5">
+            <div className="anim-fade flex flex-col gap-3">
               {isLead ? (
-                <DetailGroup title="Enquiry" rows={[['Mobile', p.mobile_masked], ['Email', p.email_masked], ['City', p.city], ['Source', p.source?.name], ['Preferred mode', p.preferred_mode], ['Currently', p.currently], ['Notes', p.notes]]} />
+                <DetailGroup flat title="Enquiry" rows={[['Mobile', p.mobile_masked], ['Email', p.email_masked], ['City', p.city], ['Source', p.source?.name], ['Preferred mode', p.preferred_mode], ['Currently', p.currently], ['Notes', p.notes]]} />
               ) : (
                 <>
-                  <DetailGroup title="Candidate" rows={[['ID', p.code], ['Program', p.program?.name], ['Batch', p.batch?.code], ['Joined', p.joined_on ? fmtDate(p.joined_on) : '']]} />
-                  <PrivateDetails id={person.id} priv={priv} />
-                  <Link href={'/candidate/' + person.id} className="flex min-h-[44px] items-center justify-center rounded-[10px] border border-ink bg-surface text-sm font-semibold">Open full profile</Link>
+                  <DetailGroup flat title="Candidate" rows={[['ID', p.code], ['Program', p.program?.name], ['Batch', p.batch?.code], ['Joined', p.joined_on ? fmtDate(p.joined_on) : '']]} />
+                  <PrivateDetails flat id={person.id} priv={priv} />
+                  <Link href={'/candidate/' + person.id} className={cx(rowBtn, 'self-start')}><Maximize2 size={14} strokeWidth={1.8} aria-hidden />Open full profile</Link>
                   {(s.can('candidate', 'w') || s.can('enrolform', 'w')) && (
-                    <Button disabled={busy} onClick={async () => {
+                    <Button size="sm" variant="outline" className="self-start" disabled={busy} onClick={async () => {
                       setBusy(true);
                       const res = await fetch('/api/portal/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate_id: person.id }) });
                       const out = await res.json(); setBusy(false);
@@ -353,7 +369,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
       </div>
 
       {/* 6. composer, always at the bottom */}
-      <div className="max-h-[60%] shrink-0 overflow-y-auto border-t border-line bg-surface px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2" data-testid="composer"
+      <div className="max-h-[60%] shrink-0 overflow-y-auto border-t border-line bg-surface px-3 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5" data-testid="composer"
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !busy) { e.preventDefault(); save(); } }}>
         {msg && <div className="mb-2"><Notice tone={msg.tone}>{msg.text}</Notice></div>}
         {invite && <InviteCard invite={invite} name={p?.full_name || ''} onClose={() => setInvite(null)} />}
@@ -362,15 +378,15 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           <div className="flex flex-1 gap-0.5">
             {([['note', 'Note', 'Add note'], ...(canCall ? [['call', 'Call', 'Log call']] : []), ['task', 'Follow-up', 'Add follow-up']] as ['note' | 'call' | 'task', string, string][]).map(([k, label, aria]) => (
               <button key={k} type="button" aria-label={aria} aria-pressed={mode === k} onClick={() => pick(k)}
-                className={cx('btn h-8 rounded-full px-3 text-[12.5px] font-medium transition-[background-color,color] duration-150 ease-out', mode === k ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>{label}</button>
+                className={cx('btn h-8 rounded-lg px-2.5 text-[13px] font-medium', mode === k ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>{label}</button>
             ))}
           </div>
-          {mode && <button type="button" aria-label="Close the box" title="Close (keeps nothing)" onClick={() => { setAction(null); setForm({}); }} className={iconBtn}><X size={16} /></button>}
-          {canRecord && <button type="button" aria-label="Record" title="Record a talk" aria-pressed={mode === 'record'} onClick={() => pick('record')} className={cx(iconBtn, mode === 'record' && 'bg-accentSoft text-accentText')}><Mic size={17} /></button>}
+          {mode && <button type="button" aria-label="Close the box" title="Close (keeps nothing)" onClick={() => { setAction(null); setForm({}); }} className={iconBtn}><X size={16} strokeWidth={1.8} /></button>}
+          {canRecord && <button type="button" aria-label="Record" title="Record a talk" aria-pressed={mode === 'record'} onClick={() => pick('record')} className={cx(iconBtn, mode === 'record' && 'bg-accentSoft text-accentText')}><Mic size={16} strokeWidth={1.8} /></button>}
         </div>
         {mode === 'record' && <Recorder person={person} onSaved={(t) => { setMsg({ tone: 'good', text: t }); setAction(null); }} />}
         {mode === 'note' && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-line2 bg-surface2 p-2 transition-[border-color,box-shadow] duration-150 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(68_116_185/0.15)] [&_textarea]:border-0 [&_textarea]:bg-transparent [&_textarea]:shadow-none [&_textarea]:outline-none">
+          <div className="flex flex-col gap-2 rounded-xl border border-line2 bg-surface2 p-1.5 transition-[border-color,box-shadow] duration-150 focus-within:border-accent focus-within:shadow-[0_0_0_3px_rgb(68_116_185/0.15)] [&_textarea]:border-0 [&_textarea]:bg-transparent [&_textarea]:shadow-none [&_textarea]:outline-none">
             <MentionInput label="Note" placeholder="What happened? Type @ to notify a colleague" value={form.body || ''} onChange={(v) => setForm((f) => ({ ...f, body: v }))} mentions={form.mentioned || []} onMentionsChange={(ids) => setForm((f) => ({ ...f, mentioned: ids }))} />
             <div className="flex items-center gap-2">
               <select aria-label="Kind of note" className="h-9 rounded-lg border-transparent bg-surface px-2 text-[13px]" value={form.kind || 'Note'} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
@@ -381,7 +397,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           </div>
         )}
         {mode === 'call' && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-line2 bg-surface2 p-2">
+          <div className="flex flex-col gap-2 rounded-xl border border-line2 bg-surface2 p-1.5">
             <div className="flex flex-wrap gap-1.5">
               {(s.lists.call_outcome || []).map((o) => (
                 <button key={o} type="button" aria-pressed={form.outcome === o} onClick={() => setForm({ ...form, outcome: o })} className={cx('btn h-8 rounded-full border px-3 text-xs font-medium transition-colors duration-150', form.outcome === o ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>{o}</button>
@@ -396,7 +412,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           </div>
         )}
         {mode === 'task' && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-line2 bg-surface2 p-2">
+          <div className="flex flex-col gap-2 rounded-xl border border-line2 bg-surface2 p-1.5">
             {form.suggested && <div className="text-[12px] text-text2">{form.suggested} Change it if needed.</div>}
             <input aria-label="What needs doing" placeholder="What needs doing" className="h-11 px-3 text-sm" value={form.title || ''} onChange={(e) => setForm({ ...form, title: e.target.value })} />
             <QuickDate label="Due" value={form.due ? new Date(form.due).toISOString() : null} onChange={(iso) => setForm({ ...form, due: iso || '' })} />

@@ -9,7 +9,7 @@ test('quick panel: header, sticky tabs, composer at the bottom, Chat has height,
   await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.locator('tbody tr').first().click();
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
-  const name = panel.locator('.truncate.text-base').first();
+  const name = panel.getByTestId('qp-name');
   await expect(name).not.toBeEmpty();
   const first = await name.innerText();
 

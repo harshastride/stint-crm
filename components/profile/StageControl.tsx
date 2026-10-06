@@ -93,7 +93,7 @@ export function StageControl({ kind, id, stage, changedAt, onMoved, compact, req
   const left = blockers(t);
 
   return (
-    <div className="flex flex-col gap-2" data-testid="stage-control">
+    <div className={cx('flex flex-col', compact ? 'gap-1.5' : 'gap-2')} data-testid="stage-control">
       <div>
         <div className="flex gap-0.5" role="img" aria-label={`Journey step ${pos.index + 1} of ${pos.total}: ${pos.step}`}>
           {STAGES.map((n, i) => <span key={n} className={cx('h-1.5 flex-1 rounded-full transition-colors duration-200', i < pos.index ? 'bg-accent' : i === pos.index ? 'bg-coral' : 'bg-line2')} />)}
@@ -109,11 +109,11 @@ export function StageControl({ kind, id, stage, changedAt, onMoved, compact, req
         : moves.blocked && !isAdmin ? <p className="text-[12.5px] text-text2" role="note">{moves.blocked}</p>
         : !target && (
           <>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               {moves.next && <Button size="sm" variant="outline" disabled={busy} loading={busy} onClick={() => ask(moves.next!)} rightIcon={<ArrowRight size={14} />} aria-label={'Move to ' + moves.next}>Move to {moves.next}</Button>}
               {(moves.others.length > 0 || isAdmin) && (
                 <select aria-label="Move to another stage" disabled={busy} value="" onChange={(e) => e.target.value && ask(e.target.value)}
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-line2 bg-surface px-2.5 text-[13px] font-medium text-text2 sm:max-w-[220px]">
+                  className="h-8 min-w-0 flex-1 rounded-lg border border-line2 bg-surface px-2 text-[12.5px] font-medium text-text2 sm:max-w-[200px]">
                   <option value="">Other stage…</option>
                   {moves.others.map((st) => <option key={st} value={st}>{st}{opt(st)?.ok ? '' : ' (steps missing)'}</option>)}
                   {isAdmin && list.filter((st) => st !== stage && !allowed.includes(st)).length > 0 && (
@@ -132,7 +132,7 @@ export function StageControl({ kind, id, stage, changedAt, onMoved, compact, req
         )}
 
       {target && (
-        <div role="alertdialog" aria-label={c?.title || 'Move to ' + target} className="anim-fade rounded-[10px] border border-line2 bg-surface2 p-3" data-testid="stage-move-panel">
+        <div role="alertdialog" aria-label={c?.title || 'Move to ' + target} className={cx('anim-fade rounded-[10px] border border-line2 bg-surface2', compact ? 'p-2.5' : 'p-3')} data-testid="stage-move-panel">
           <div className="text-[13.5px] font-semibold">{c?.title || 'Move to ' + target + '?'}</div>
           {c && <p className="mt-0.5 text-[12.5px] text-text2">{c.body}</p>}
           {t ? <Checklist title="Needed first" opt={t} compact={compact} extra={extra} /> : <p className="mt-1 text-[12.5px] text-text2">{stage} → {target} is not an allowed move. Only an Admin override can make it.</p>}

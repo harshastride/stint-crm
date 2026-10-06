@@ -61,14 +61,18 @@ test('lead list pages on the server: Showing 1–50 of N, next page, search by o
   await expect(page.getByTestId('list-count')).toContainText(`of ${all}`);
 });
 
-test('toolbar is one row at 1440 with the quick panel open; phone puts layout in the View menu', async ({ page }) => {
+test('toolbar tabs never overlap Filter/View at 1440 with the quick panel open; phone puts layout in the View menu', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await login(page, 'harsha');
   await page.goto('/p/candidate');
   await expect(page.getByRole('complementary', { name: 'Quick panel' })).toBeVisible();
   const bar = page.getByTestId('list-toolbar');
   await expect(bar.getByRole('button', { name: 'board', exact: true })).toBeVisible();
-  expect((await bar.boundingBox())!.height).toBeLessThan(50);
+  // with the panel open the tabs sit on their own row above Filter / View, never under them
+  expect((await bar.boundingBox())!.height).toBeLessThan(100);
+  const tabsBox = (await bar.getByRole('tablist').boundingBox())!;
+  const filterBox = (await bar.getByRole('button', { name: /^Filter/ }).boundingBox())!;
+  expect(tabsBox.y + tabsBox.height).toBeLessThanOrEqual(filterBox.y + 1);
   // candidate stage shows its place in the stage order
   await page.getByRole('button', { name: 'table', exact: true }).click();
   await expect(page.locator('tbody tr').first()).toContainText(/Step \d+ of \d+/);

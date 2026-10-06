@@ -62,7 +62,7 @@ export function MentionInput({ value, onChange, mentions, onMentionsChange, plac
           ))}
         </div>
       )}
-      <textarea ref={ref} aria-label={label} placeholder={placeholder} value={value} className="min-h-[84px] w-full px-3 py-2 text-sm"
+      <textarea ref={ref} aria-label={label} placeholder={placeholder} value={value} className={cx('w-full px-3 py-2 text-sm transition-[min-height] duration-150 ease-out focus:min-h-[84px] motion-reduce:transition-none', value ? 'min-h-[84px]' : 'min-h-[40px]')}
         role="combobox" aria-expanded={people.length > 0} aria-autocomplete="list"
         onChange={(e) => update(e.target.value)} onBlur={() => setTimeout(() => setQuery(null), 120)}
         onKeyDown={(e) => {
@@ -84,7 +84,7 @@ export function MentionInput({ value, onChange, mentions, onMentionsChange, plac
         </div>
       )}
       <div className="mt-1.5"><VoiceInput context="note" onText={(t) => onChange(appendText(value, t))} /></div>
-      <p className="mt-1 text-[11.5px] text-muted">Type @ to notify a colleague. Only people who can open this record are told.</p>
+      <p className="mt-1 text-[11px] text-muted">Type @ to notify a colleague. Only people who can open this record are told.</p>
     </div>
   );
 }

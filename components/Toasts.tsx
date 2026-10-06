@@ -45,9 +45,9 @@ function ToastItem({ t, onDone }: { t: Toast; onDone: () => void }) {
       <span className="min-w-0 flex-1 leading-snug">{t.text}</span>
       {t.undo && (
         <button type="button" disabled={busy} onClick={async () => { setBusy(true); try { await t.undo!(); } finally { onDone(); } }}
-          className="flex min-h-[34px] shrink-0 items-center gap-1 rounded-lg bg-white/15 px-2.5 font-semibold hover:bg-white/25"><Undo2 size={14} />{busy ? 'Undoing…' : 'Undo'}</button>
+          className="flex min-h-[34px] shrink-0 items-center gap-1 rounded-lg bg-white px-3 font-semibold text-ink hover:bg-white/90"><Undo2 size={14} />{busy ? 'Undoing…' : 'Undo'}</button>
       )}
-      <button type="button" aria-label="Dismiss" onClick={onDone} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/70 hover:bg-white/10"><X size={14} /></button>
+      <button type="button" aria-label="Dismiss" onClick={onDone} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"><X size={14} /></button>
       {t.undo && <span aria-hidden className="absolute bottom-0 left-0 h-0.5 bg-coral" style={{ width: Math.max(0, (100 * left) / t.ms) + '%', transition: 'width .1s linear' }} />}
     </div>
   );

@@ -682,11 +682,11 @@ test('quick panel: full view, contact buttons, next/previous, Esc', async ({ pag
   // Call / WhatsApp first reveal the number (logged), then dial — they are buttons, not plain links
   await expect(panel.getByRole('button', { name: 'Call', exact: true })).toBeEnabled();
   await expect(panel.getByRole('button', { name: 'WhatsApp', exact: true })).toBeEnabled();
-  const first = await panel.locator('.truncate.text-base').first().innerText();
+  const first = await panel.getByTestId('qp-name').innerText();
   await panel.getByRole('button', { name: /Next person/ }).click();
-  await expect(panel.locator('.truncate.text-base').first()).not.toHaveText(first);
+  await expect(panel.getByTestId('qp-name')).not.toHaveText(first);
   await page.keyboard.press('k');
-  await expect(panel.locator('.truncate.text-base').first()).toHaveText(first);
+  await expect(panel.getByTestId('qp-name')).toHaveText(first);
   await expect(panel.getByRole('link', { name: 'Open the full lead form' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
@@ -707,7 +707,7 @@ test('sidebar: counts, favourites, folding groups, collapse to icons, recently v
   await page.goto('/p/lead');
   await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.locator('tbody tr').first().click();
-  const name = await page.getByRole('complementary', { name: 'Quick panel' }).locator('.truncate.text-base').first().innerText();
+  const name = await page.getByRole('complementary', { name: 'Quick panel' }).getByTestId('qp-name').innerText();
   await expect(nav.getByText('Recently viewed')).toBeVisible();
   await expect(nav.getByRole('link', { name })).toBeVisible();
   // collapse with Ctrl+B
