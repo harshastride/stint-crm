@@ -88,7 +88,7 @@ export function RecordingExtras({ row, values, setValue, onDone }: { row: Row; v
       {canWrite && (
         <div className="flex flex-col gap-2">
           {row.status !== 'Confirmed' && <Button variant="primary" disabled={busy} onClick={confirm}>Confirm summary</Button>}
-          {row.audio_path && <Button disabled={busy} onClick={rerun}>{segs.length ? 'Transcribe again' : 'Transcribe now'}</Button>}
+          {row.audio_path && <Button variant="outline" size="sm" disabled={busy} onClick={rerun}>{segs.length ? 'Transcribe again' : 'Transcribe now'}</Button>}
           {!values.lead_id && !values.candidate_id && (
             <div className="flex flex-col gap-2 rounded-[10px] border border-line p-2.5">
               {lead && <>
@@ -98,7 +98,7 @@ export function RecordingExtras({ row, values, setValue, onDone }: { row: Row; v
               <Button disabled={busy} onClick={makeLead}>{lead ? 'Create the lead' : 'Make a new lead from this'}</Button>
             </div>
           )}
-          <Button variant="danger" disabled={busy} onClick={remove}>{sure ? 'Tap again to delete the recording and audio' : 'Delete recording'}</Button>
+          <Button variant="danger" size="sm" disabled={busy} onClick={remove}>{sure ? 'Tap again to delete the recording and audio' : 'Delete recording'}</Button>
         </div>
       )}
     </div>

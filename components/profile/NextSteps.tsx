@@ -15,7 +15,7 @@ export function NextSteps({ stage, steps, onRun, children, inline }: { stage: st
   const run = (st: Step) => { setOpen(false); onRun(st); };
   return (
     <div className="flex flex-col gap-1.5" aria-label="Next steps" role="group">
-      {steps.length > 0 && <div className="text-[12px] font-medium text-muted">Next steps · {stage}</div>}
+      {steps.length > 0 && <div className="text-[12px] font-medium text-muted">Next step</div>}
       <div className={cx('flex gap-1.5', inline ? 'flex-wrap items-center' : 'flex-col')}>
         {steps[0] && <button type="button" onClick={() => run(steps[0])} className={cx('btn flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-semibold text-white hover:bg-accent/90', !inline && 'w-full')}><StepIcon k={steps[0].key} /><span className="truncate">{steps[0].label}</span></button>}
         <div className={cx('flex items-center gap-1.5', !inline && 'w-full')}>

@@ -76,7 +76,7 @@ export function CommandMenu({ open, onClose }: { open: boolean; onClose: () => v
         <div className="flex items-center gap-2.5 border-b border-line px-4">
           <Search size={17} className="shrink-0 text-muted" aria-hidden />
           <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-activedescendant={items[active]?.id}
-            placeholder="Search people, pages, or what to do…" className="h-14 w-full border-0 bg-transparent px-0 text-[15px] outline-none focus:ring-0"
+            placeholder="Search people, pages, or what to do…" className="h-14 w-full border-0 bg-transparent px-0 text-[15px] outline-none focus:ring-0 focus-visible:outline-none"
             onKeyDown={(e) => {
               if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(items.length - 1, a + 1)); }
               else if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(0, a - 1)); }

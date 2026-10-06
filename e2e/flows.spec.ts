@@ -189,7 +189,7 @@ test('next-step buttons: by stage, on follow-ups, and forms open with the person
   await login(page, 'harsha');
   await page.goto('/p/candidate?person=candidate:' + c!.id);
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
-  await expect(panel.getByText(/Next steps ·/)).toBeVisible();
+  await expect(panel.getByText('Next step', { exact: true })).toBeVisible();
   await page.goto('/p/payment?new=candidate:' + c!.id);
   const editor = page.getByRole('complementary', { name: 'New payment' });
   await expect(editor.getByText(c!.full_name)).toBeVisible();
@@ -234,6 +234,7 @@ test('tables: tick rows, bulk reassign, export ticked, hide a column', async ({ 
   await page.goto('/p/followups');
   await page.getByRole('tab', { name: 'Open' }).click();
   const boxes = page.getByRole('checkbox', { name: /^Select (?!all)/ });
+  await page.locator('tbody tr[data-clickable]').first().hover(); // checkboxes show on row hover
   await boxes.nth(0).click();
   await boxes.nth(1).click();
   await expect(page.getByText('2 selected')).toBeVisible();
@@ -262,10 +263,11 @@ test('tables: a role without edit rights gets no bulk actions', async ({ page })
   await login(page, 'anita');
   await page.goto('/p/lead');
   await page.getByRole('button', { name: 'table', exact: true }).click();
-  await page.getByRole('checkbox', { name: /^Select (?!all)/ }).first().click();
-  await expect(page.getByText('1 selected')).toBeVisible();
+  await expect(page.locator('tbody tr').first()).toBeVisible();
+  // no bulk actions for this role, so no row checkboxes at all
+  await expect(page.getByRole('checkbox', { name: /^Select / })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Reassign to/ })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Export 1' })).toHaveCount(0);   // export is Admin-only
+  await expect(page.getByRole('button', { name: /^Export \d/ })).toHaveCount(0);   // export is Admin-only
 });
 
 test('dashboard: trends, target and tiles follow the role', async ({ page }) => {

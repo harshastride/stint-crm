@@ -1,9 +1,10 @@
 'use client';
-import { BarChart3, Download, LineChart, Plus, Save, Trash2, X } from 'lucide-react';
+import { BarChart3, Check, Download, LineChart, Plus, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { PageHeader } from '../kit/PageHeader';
+import { Confirm } from '../kit/Confirm';
 import { Table, THead, TBody, Th, Td, Tr } from '../kit/Table';
 import { Button, ButtonGroup, IconButton, Notice, fmtDate, money } from '../ui';
 
@@ -50,14 +51,15 @@ export function ReportBuilder() {
   const [share, setShare] = useState<string[]>([]);
   const [savedId, setSavedId] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [ready, setReady] = useState(false);
 
   const loadSaved = useCallback(() => db.from('saved_report').select('id,name,def,owner,shared_with_roles').order('name').then(({ data }: { data: unknown }) => setSaved((data as Saved[]) || [])), [db]);
   useEffect(() => {
-    db.from('report_source').select('*').order('sort').then(({ data }: { data: unknown }) => setSources((data as Source[]) || []));
+    db.from('report_source').select('*').order('sort').then(({ data }: { data: unknown }) => { setSources((data as Source[]) || []); setReady(true); });
     db.from('report_field').select('*').order('sort').then(({ data }: { data: unknown }) => setFields((data as Field[]) || []));
     db.from('app_role').select('name').order('sort').then(({ data }: { data: unknown }) => setRoles(((data as { name: string }[]) || []).map((r) => r.name).filter((r) => r !== 'Admin')));
     loadSaved();
-  }, [db, loadSaved]);
+  }, [db, loadSaved, s.staff.id]);
 
   const fs = useMemo(() => fields.filter((f) => f.source_key === def.source), [fields, def.source]);
   const fieldOf = (col: string) => fs.find((f) => f.col === col);
@@ -71,7 +73,12 @@ export function ReportBuilder() {
   // The definition actually sent: summary uses group_by/measures, list uses columns.
   const sent: Def | null = useMemo(() => {
     if (!def.source) return null;
-    const base = { source: def.source, filters: def.filters || [], sort: def.sort, limit: def.limit || 500 };
+    // Drop a sort whose column is no longer in the report (e.g. after changing the split), instead of failing.
+    const keys = mode === 'summary'
+      ? [...(def.group_by || []).map((g) => g.field), ...(def.measures || []).map((m) => (m.agg === 'count' ? 'count' : `${m.agg}_${m.field}`))]
+      : def.columns || [];
+    const sort = def.sort && keys.includes(def.sort.key) ? def.sort : undefined;
+    const base = { source: def.source, filters: def.filters || [], sort, limit: def.limit || 500 };
     return mode === 'summary' ? { ...base, group_by: def.group_by || [], measures: def.measures || [] } : { ...base, columns: def.columns || [] };
   }, [def, mode]);
 
@@ -162,20 +169,23 @@ export function ReportBuilder() {
   const firstNum = res?.columns.find((c) => isNum(c) && !(def.group_by || []).some((g) => g.field === c));
   // A chart only helps for one split with a handful to a few dozen groups; otherwise the table says it better.
   const showChart = mode === 'summary' && !!firstNum && (def.group_by || []).length === 1 && !!res && res.rows.length > 1 && res.rows.length <= 40;
+  // A line only makes sense over time; for categories (source, owner...) always draw bars.
+  const overTime = fieldOf((def.group_by || [])[0]?.field || '')?.type === 'date';
+  const kind = overTime ? chart : 'bar';
   const starters = STARTERS.filter((x) => sources.some((src) => src.key === x.def.source));
 
   return (
-    <main className="flex flex-col gap-3 p-page-sm md:p-page">
+    <main className="flex min-w-0 flex-col gap-3 p-page-sm md:p-page">
       <PageHeader title="Report builder" description="Pick what to count, how to split it and which rows to keep. You only see rows your role can see."
         actions={<>
-          <select aria-label="Open a saved report" className={sel} value={savedId || ''} onChange={(e) => e.target.value && open(e.target.value)}>
-            <option value="">Saved reports ({saved.length})</option>
+          <select aria-label="Open a saved report" className={sel + ' w-[170px] sm:w-auto'} disabled={!saved.length} value={savedId || ''} onChange={(e) => e.target.value && open(e.target.value)}>
+            <option value="">{saved.length ? `Saved reports (${saved.length})` : 'No saved reports yet'}</option>
             {saved.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
-          <Button variant="outline" leftIcon={<Download size={16} />} onClick={csv} disabled={!res?.rows.length}>Download CSV</Button>
+          <Button variant="outline" aria-label="Download CSV" leftIcon={<Download size={16} />} onClick={csv} disabled={!res?.rows.length}><span className="hidden sm:inline">Download CSV</span></Button>
         </>} />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <aside aria-label="Report settings" className="flex flex-col gap-4 border-line lg:sticky lg:top-2 lg:max-h-[calc(100dvh-80px)] lg:overflow-y-auto lg:border-r lg:pr-4">
         <label className="flex flex-col gap-1"><span className={label}>1. Data</span>
           <select aria-label="Data source" className={sel} value={def.source} onChange={(e) => pickSource(e.target.value)}>
@@ -286,9 +296,9 @@ export function ReportBuilder() {
       {res && (
         <section className="flex flex-col gap-3" aria-busy={busy}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[13.5px] text-text2" data-testid="report-count">{res.rows.length.toLocaleString('en-IN')} rows{res.rows.length >= (def.limit || 500) ? ' (limit reached)' : ''}</div>
+            <div className="text-[13.5px] text-text2" data-testid="report-count">{res.rows.length.toLocaleString('en-IN')} {res.rows.length === 1 ? (mode === 'summary' ? 'group' : 'row') : (mode === 'summary' ? 'groups' : 'rows')}{res.rows.length >= (def.limit || 500) ? ' (limit reached)' : ''}</div>
             <div className="flex flex-wrap items-center gap-2">
-              <select aria-label="Sort by" className={sel} value={def.sort ? `${def.sort.key}:${def.sort.dir}` : ''} onChange={(e) => { const [key, dir] = e.target.value.split(':'); upd({ sort: key ? { key, dir: dir as 'asc' | 'desc' } : undefined }); }}>
+              <select aria-label="Sort by" className={sel} value={sent?.sort ? `${sent.sort.key}:${sent.sort.dir}` : ''} onChange={(e) => { const [key, dir] = e.target.value.split(':'); upd({ sort: key ? { key, dir: dir as 'asc' | 'desc' } : undefined }); }}>
                 <option value="">Default order</option>
                 {res.columns.flatMap((c) => [<option key={c + 'a'} value={`${c}:asc`}>{colLabel(c)} (low to high)</option>, <option key={c + 'd'} value={`${c}:desc`}>{colLabel(c)} (high to low)</option>])}
               </select>
@@ -302,12 +312,12 @@ export function ReportBuilder() {
             <div className="border-b border-line pb-2">
               <div className="mb-1 flex items-center justify-between">
                 <span className={label}>{colLabel(firstNum)}</span>
-                <ButtonGroup label="Chart type">
+                {overTime && <ButtonGroup label="Chart type">
                   <IconButton aria-label="Bar chart" icon={<BarChart3 size={16} />} variant={chart === 'bar' ? 'secondary' : 'quiet'} onClick={() => setChart('bar')} />
                   <IconButton aria-label="Line chart" icon={<LineChart size={16} />} variant={chart === 'line' ? 'secondary' : 'quiet'} onClick={() => setChart('line')} />
-                </ButtonGroup>
+                </ButtonGroup>}
               </div>
-              <MiniChart kind={chart} points={res.rows.slice(0, 60).map((r) => ({ label: (def.group_by || []).map((g) => fmt(g.field, r[g.field])).join(' · '), value: Number(r[firstNum]) || 0, text: fmt(firstNum, r[firstNum]) }))} />
+              <MiniChart kind={kind} points={res.rows.slice(0, 60).map((r) => ({ label: (def.group_by || []).map((g) => fmt(g.field, r[g.field])).join(' · '), value: Number(r[firstNum]) || 0, text: fmt(firstNum, r[firstNum]) }))} />
             </div>
           )}
 
@@ -321,17 +331,23 @@ export function ReportBuilder() {
           <div className="flex flex-col gap-2 border-t border-line pt-3">
             <span className={label}>4. Save and share</span>
             <div className="flex flex-wrap items-center gap-2">
-              <input aria-label="Report name" placeholder="Report name" maxLength={120} className={sel + ' min-w-[220px]'} value={name} onChange={(e) => setName(e.target.value)} />
+              <input aria-label="Report name" placeholder="Report name" maxLength={120} className={sel + ' min-w-0 flex-1 sm:max-w-[420px]'} value={name} onChange={(e) => setName(e.target.value)} />
               <Button variant="primary" leftIcon={<Save size={16} />} onClick={save} disabled={!name.trim()}>Save report</Button>
-              {savedId && saved.find((x) => x.id === savedId)?.owner === s.staff.id && <Button variant="danger" leftIcon={<Trash2 size={16} />} onClick={remove}>Delete</Button>}
+              {savedId && saved.find((x) => x.id === savedId)?.owner === s.staff.id && <Confirm title="Delete this saved report?" body="People you shared it with lose it too. The data itself is not touched." yes="Delete report" onYes={remove} className="btn inline-flex min-h-[40px] items-center gap-2 rounded-[10px] border border-line2 px-3 text-[13.5px] font-medium text-[#C2410C] hover:bg-surface2"><Trash2 size={16} /> Delete</Confirm>}
             </div>
             {roles.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Share with roles">
-                <span className="text-[13px] text-text2">Share with:</span>
-                {roles.map((r) => <Button key={r} size="md" variant="quiet" active={share.includes(r)} onClick={() => setShare(share.includes(r) ? share.filter((x) => x !== r) : [...share, r])}>{r}</Button>)}
+              <div className="flex flex-col gap-1" role="group" aria-label="Share with roles">
+                <span className="text-[12px] font-medium text-muted">Share with {share.length ? `(${share.length})` : '(only you for now)'}</span>
+                <div className="flex flex-wrap gap-1">
+                  {roles.map((r) => { const on = share.includes(r); return (
+                    <button key={r} type="button" aria-pressed={on} onClick={() => setShare(on ? share.filter((x) => x !== r) : [...share, r])}
+                      className={'inline-flex min-h-[44px] items-center gap-1 rounded-[8px] border px-2.5 text-[13px] ' + (on ? 'border-accent bg-accentSoft font-semibold text-accentText' : 'border-line2 text-text2 hover:bg-surface2')}>
+                      {on && <Check size={14} aria-hidden />}{r}
+                    </button>); })}
+                </div>
               </div>
             )}
-            <p className="text-xs text-muted">People you share with still only see rows their own role allows.</p>
+            <p className="text-xs text-muted">Sharing takes effect when you press Save. People you share with still only see rows their own role allows.</p>
           </div>
         </section>
       )}
@@ -339,16 +355,16 @@ export function ReportBuilder() {
         <section aria-label="Starter reports" className="flex flex-col gap-2">
           <div>
             <h2 className="text-[14px] font-semibold text-text">Start from a common question</h2>
-            <p className="text-[13px] text-text2">Each one runs on live data you can see. Change anything after it opens, then save it under your own name.</p>
+            <p className="text-[13px] text-text2">Runs on live data. Change anything after it opens, then save it.</p>
           </div>
-          {starters.length ? (
+          {!ready ? <p className="text-[13px] text-muted">Loading…</p> : starters.length ? (
             <div className="grid border-t border-line sm:grid-cols-2 sm:gap-x-6">
               {starters.map((x) => (
                 <button key={x.q} type="button" onClick={() => starter(x)} className="flex min-h-[44px] items-center border-b border-line px-2 py-1.5 text-left text-[13.5px] text-text hover:bg-accentSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">{x.q}</button>
               ))}
             </div>
-          ) : <p className="text-[13px] text-text2">No starter fits the data your role can see. Choose what to report on, on the left.</p>}
-          <p className="text-xs text-muted">Or pick a data source on the left to build your own.</p>
+          ) : <p className="text-[13px] text-text2">No ready-made question fits the data your role can see.</p>}
+          <p className="text-xs text-muted">Or choose what to report on under “1. Data” to build your own.</p>
         </section>
       )}
       </div>
@@ -372,14 +388,19 @@ function MiniChart({ kind, points }: { kind: 'bar' | 'line'; points: { label: st
         aria-label={`Chart of ${points.length} groups, highest ${Math.max(...points.map((p) => p.value)).toLocaleString('en-IN')}`}
         onPointerLeave={() => setHover(null)}>
         {kind === 'bar'
-          ? points.map((p, i) => <rect key={i} x={i * bw + bw * 0.15} width={bw * 0.7} y={y(p.value)} height={H - pad - y(p.value)} rx="3" fill="var(--accent, #4474B9)" opacity={hover == null || hover === i ? 1 : 0.5} onPointerEnter={() => setHover(i)} />)
+          ? points.map((p, i) => <rect key={i} x={i * bw + bw * 0.15} width={bw * 0.7} y={y(p.value)} height={H - pad - y(p.value)} rx="3" fill="var(--accent, #4474B9)" opacity={hover == null || hover === i ? 1 : 0.5} onPointerEnter={() => setHover(i)} onClick={() => setHover(i)} />)
           : <>
               <path d={line} fill="none" stroke="var(--accent, #4474B9)" strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
-              {points.map((p, i) => <rect key={i} x={i * bw} width={bw} y={0} height={H} fill="transparent" onPointerEnter={() => setHover(i)} />)}
+              {points.map((p, i) => <rect key={i} x={i * bw} width={bw} y={0} height={H} fill="transparent" onPointerEnter={() => setHover(i)} onClick={() => setHover(i)} />)}
               {hover != null && <circle cx={hover * bw + bw / 2} cy={y(points[hover].value)} r="4" fill="var(--accent, #4474B9)" vectorEffect="non-scaling-stroke" />}
             </>}
       </svg>
-      <div className="mt-1 min-h-[20px] text-[12px] text-text2" role="status">{h ? `${h.label}: ${h.text}` : 'Point at a bar to see its value'}</div>
+      {points.length <= 12 && (
+        <div className="flex text-[11.5px] text-muted" aria-hidden>
+          {points.map((p, i) => <span key={i} className="min-w-0 flex-1 truncate px-0.5 text-center" title={p.label}>{p.label}</span>)}
+        </div>
+      )}
+      <div className="mt-1 min-h-[20px] text-[12px] text-text2" role="status">{h ? `${h.label}: ${h.text}` : (kind === 'bar' ? 'Tap or point at a bar to see its value' : 'Tap or point at the line to see a value')}</div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
@@ -73,23 +74,23 @@ export function RolesGrid() {
     const isContact = k === 'contact_lead_stages' || k === 'contact_candidate_stages';
     if (isContact) return (
       <div className="flex flex-wrap gap-1">
-        <button type="button" disabled={!canWrite} aria-pressed={cur.length === 0} onClick={() => saveRule(role, k, null, 'can see ' + what + ' contact details in any stage')} className={chip(cur.length === 0)}>Any stage</button>
+        <button type="button" disabled={!canWrite} aria-pressed={cur.length === 0} onClick={() => saveRule(role, k, null, 'can see ' + what + ' contact details in any stage')} className={chip(cur.length === 0)}>{cur.length === 0 && <Check size={12} aria-hidden className="mr-1 inline" />}Any stage</button>
         {all.map((st) => (
           <button key={st} type="button" disabled={!canWrite} aria-pressed={cur.includes(st)}
             onClick={() => { const next = toggle(cur, st); saveRule(role, k, next.length ? next : null, next.length ? 'can see ' + what + ' contact details only in ' + next.join(', ') : 'can see ' + what + ' contact details in any stage'); }}
-            className={chip(cur.includes(st))}>{st}</button>
+            className={chip(cur.includes(st))}>{cur.includes(st) && <Check size={12} aria-hidden className="mr-1 inline" />}{st}</button>
         ))}
       </div>
     );
     return (
       <div className="flex flex-wrap gap-1">
-        {!isPick && <button type="button" disabled={!canWrite} onClick={() => saveRule(role, k, [], 'sees ' + what + ' in every stage')} className={chip(cur.length === 0)}>All</button>}
+        {!isPick && <button type="button" disabled={!canWrite} onClick={() => saveRule(role, k, [], 'sees ' + what + ' in every stage')} className={chip(cur.length === 0)}>{cur.length === 0 && <Check size={12} aria-hidden className="mr-1 inline" />}All</button>}
         {all.map((st) => (
           <button key={st} type="button" disabled={!canWrite} aria-pressed={cur.includes(st)}
             onClick={() => { const next = toggle(cur, st); saveRule(role, k, next, isPick ? (next.length ? 'picks up leads at ' + next.join(', ') : 'picks up no leads') : next.length ? 'sees ' + what + ' only in ' + next.join(', ') : 'sees ' + what + ' in every stage'); }}
-            className={chip(cur.includes(st))}>{st}</button>
+            className={chip(cur.includes(st))}>{cur.includes(st) && <Check size={12} aria-hidden className="mr-1 inline" />}{st}</button>
         ))}
-        {isPick && cur.length === 0 && <span className="self-center text-xs text-muted">None</span>}
+        {isPick && cur.length === 0 && <span className="self-center text-xs text-muted">(none picked)</span>}
       </div>
     );
   };
@@ -102,7 +103,7 @@ export function RolesGrid() {
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-page-sm md:px-page md:py-4">
       <PageHeader title="Roles & permissions" description="What each role can open and change. Taking access away really blocks it, not just hides it."
-        actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>}
+        scope={canWrite ? 'Can edit' : 'View only'}
         filters={<ButtonGroup label="Permission type">{(['Pages', 'Sensitive details', 'Records'] as const).map((t) => <Button key={t} size="sm" variant="quiet" active={tab === t} onClick={() => setTab(t)}>{t}</Button>)}</ButtonGroup>} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {pendingRemove && (

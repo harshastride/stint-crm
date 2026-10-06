@@ -108,7 +108,7 @@ function Portal() {
         </div>
       </header>
       <main className="mx-auto grid max-w-[1200px] gap-x-8 gap-y-4 px-4 pb-10 pt-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-[72px]" aria-label="You">
+        <aside className={cx('flex-col gap-4 lg:sticky lg:top-[72px] lg:flex', tab === 'Overview' ? 'flex' : 'hidden')} aria-label="You">
           <div className="flex items-center gap-3">
             <PortalPhoto id={String(c.id)} name={String(c.full_name)} />
             <div className="min-w-0">
@@ -136,7 +136,7 @@ function Portal() {
           ))}
         </nav>
         {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-        {tab === 'Overview' && <Overview me={me} go={go} unread={unread} />}
+        {tab === 'Overview' && <Overview me={me} go={go} />}
         {tab === 'My details' && <Details me={me} onSaved={(t) => { setMsg({ tone: 'good', text: t }); load(); }} onError={(t) => setMsg({ tone: 'bad', text: t })} />}
         {tab === 'Documents' && <Documents me={me} onDone={(t, bad) => { setMsg({ tone: bad ? 'bad' : 'good', text: t }); load(); }} />}
         {tab === 'Fees' && <Fees me={me} onSigned={(t, bad) => { setMsg({ tone: bad ? 'bad' : 'good', text: t }); if (!bad) load(); }} />}
@@ -161,7 +161,7 @@ function Card({ icon: I, title, children }: { icon: React.ComponentType<{ size?:
   );
 }
 
-function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: number }) {
+function Overview({ me, go }: { me: Me; go: (t: Tab) => void }) {
   const c = me.candidate, f = me.fees, a = me.attendance || {};
   const missing = (me.documents || []).filter((d: Me) => d.status !== 'Received' && d.status !== 'Verified').length;
   const upcoming = (me.mocks || []).filter((m: Me) => m.scheduled_at && new Date(m.scheduled_at) > new Date());
@@ -175,7 +175,6 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[13.5px]">
           <dt className="text-muted">Program</dt><dd>{c.program || '—'}</dd><dt className="text-muted">Batch</dt><dd>{c.batch || 'Not assigned yet'}{c.starts_on ? ' · starts ' + day(c.starts_on) : ''}</dd>
           <dt className="text-muted">Trainer</dt><dd>{c.trainer || '—'}</dd><dt className="text-muted">Your counsellor</dt><dd>{c.owner || '—'}{c.owner_email ? ' · ' + c.owner_email : ''}</dd>
-          <dt className="text-muted">Stage</dt><dd>{c.stage}</dd>
         </dl>
       </Card>
       <Card icon={IndianRupee} title="Fees">
@@ -186,21 +185,18 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
           <button type="button" onClick={() => go('Fees')} className="mt-2 inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText">See payments and receipts →</button>
         </> : <p className="text-[13px] text-text2">Your fee plan will appear here.</p>}
       </Card>
-      <Card icon={FileStack} title="Documents">
+      {(missing > 0 || me.editable) && <Card icon={FileStack} title="Documents">
         <p className="text-[13.5px]">{missing ? <><b>{missing}</b> document{missing > 1 ? 's' : ''} still to upload or fix.</> : 'Nothing pending. Thank you.'}</p>
         {missing > 0 && <button type="button" onClick={() => go('Documents')} className="mt-2 inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText">Upload now →</button>}
         {me.editable && <button type="button" onClick={() => go('My details')} className="flex min-h-[44px] items-center text-[13px] font-medium text-accentText">Check my details →</button>}
-      </Card>
+      </Card>}
       <Card icon={CalendarCheck} title="Schedule">
         <p className="text-[13.5px]">Attendance: <b>{a.total ? Math.round((100 * (a.present + a.late)) / a.total) + '%' : '—'}</b>{a.total ? ` (${a.present} present, ${a.absent} absent, ${a.late} late)` : ''}</p>
         <div className="mt-2 text-[13.5px]">{upcoming.length ? upcoming.map((m: Me, i: number) => <div key={i}>Mock {m.level} · {new Date(m.scheduled_at).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</div>) : <span className="text-text2">No mock interviews booked yet.</span>}</div>
       </Card>
-      <Card icon={Mic} title="Practise and alerts">
-        <p className="text-[13.5px] text-text2">Practise answering interview questions and get a score.</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          <CoachLink />
-          {unread > 0 && <button type="button" onClick={() => go('Alerts')} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><Bell size={15} /> {unread} unread alert{unread > 1 ? 's' : ''}</button>}
-        </div>
+      <Card icon={Mic} title="Practise">
+        <p className="text-[13.5px] text-text2">Answer interview questions out loud and get a score.</p>
+        <div className="mt-2 flex"><CoachLink /></div>
       </Card>
     </div>
   );
@@ -281,7 +277,7 @@ function Progress() {
         <div className="flex"><CoachLink /></div>
       </Card>
       <section className="border-t border-line pt-4" aria-label="Mock interview feedback">
-        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Mock interview feedback</h2>
+        {!fb.data?.reviews?.length && <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Mock interview feedback</h2>}
         {fb.data === undefined ? <Loading err={fb.err} retry={fb.retry} />
           : !fb.data?.reviews?.length ? <p className="text-[13px] text-text2">No mock feedback yet</p>
           : <RatingSummary reviews={fb.data.reviews} mocks={fb.data.mocks} />}
@@ -358,7 +354,7 @@ function Alerts({ notes, go, reload }: { notes: Note[] | null; go: (t: Tab) => v
   return (
     <Card icon={Bell} title="Alerts">
       {notes === null ? <p className="text-[13px] text-muted">Loading…</p> : notes.length === 0 ? <p className="text-[13px] text-text2">No alerts yet.</p> : <>
-        <div className="mb-1 flex justify-end"><Button disabled={busy || !unread} onClick={readAll}>Mark all as read</Button></div>
+        {unread > 0 && <div className="-mt-9 mb-1 flex justify-end"><Button size="sm" variant="quiet" disabled={busy} onClick={readAll}>Mark all as read</Button></div>}
         <ul aria-label="Alerts list">
           {notes.map((n) => (
             <li key={n.id} className="border-t border-line first:border-0">
@@ -385,7 +381,7 @@ function Details({ me, onSaved, onError }: { me: Me; onSaved: (t: string) => voi
   const [priv, setPriv] = useState<Me>(me.private || {});
   const [busy, setBusy] = useState(false);
   const ro = !me.editable;
-  const input = 'h-11 w-full px-3 text-sm';
+  const input = 'h-11 w-full px-3 text-sm disabled:border-transparent disabled:bg-surface2 disabled:text-text2';
   const save = async () => {
     setBusy(true);
     const { error } = await supabase().rpc('portal_save', { p_profile: profile, p_education: edu.filter((e) => Object.values(e).some(Boolean)), p_experience: c.experience || [], p_private: priv });

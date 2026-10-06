@@ -22,6 +22,7 @@ export function auditSentence(r: Row) {
   const keys = Object.keys(r.changed || {});
   if (!keys.length) return `${who} changed ${on}`;
   const k = keys[0], c = r.changed[k];
+  if (/_path$|_url$/.test(k)) return `${who} ${c.new ? (c.old ? 'replaced' : 'added') : 'removed'} ${nice(k).replace(/ (path|url)$/i, '').toLowerCase()} on ${on}`;
   return `${who} changed ${nice(k)} ${val(c.old)} → ${val(c.new)}${keys.length > 1 ? ` (+${keys.length - 1} more)` : ''} on ${on}`;
 }
 
@@ -66,10 +67,10 @@ export function AuditLog() {
 
   return (
     <main className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 md:px-6 md:py-4">
-      <PageHeader title="Audit log" description="Answers “who changed what, and when” for every add, change and removal, newest first. Read-only: nobody, including Admin, can edit or delete it. Private details show as [changed]; kept for 2 years."
+      <PageHeader title="Audit log" description="Who changed what, and when. Newest first; nobody can edit it. Private details show as [changed]; kept 2 years."
         actions={<Button variant="outline" leftIcon={<Download size={16} />} onClick={csv} disabled={!rows?.length}>Export CSV</Button>}
         filters={
-          <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
+          <div className="flex flex-wrap items-center gap-1.5 ">
             <input aria-label="Person or record" placeholder="Person or record" className={field + ' w-44'} value={f.person} onChange={set('person')} />
             <select aria-label="Kind of change" className={field} value={f.action} onChange={set('action')}>
               <option value="">Any change</option><option value="INSERT">Added</option><option value="UPDATE">Changed</option><option value="DELETE">Removed</option>
@@ -87,7 +88,7 @@ export function AuditLog() {
               const on = f.from === day(d) && f.to === day(0);
               return <Button key={l} size="sm" variant="quiet" active={on} onClick={() => setF((x) => (on ? { ...x, from: '', to: '' } : { ...x, from: day(d), to: day(0) }))}>{l}</Button>;
             })}
-            {Object.values(f).some(Boolean) && <Button size="sm" variant="ghost" onClick={() => setF({ person: '', table: '', actor: '', action: '', from: '', to: '' })}>Clear filters</Button>}
+            {Object.values(f).some(Boolean) && <Button size="sm" variant="quiet" onClick={() => setF({ person: '', table: '', actor: '', action: '', from: '', to: '' })}>Clear filters</Button>}
           </div>
         } />
       {err && <Notice tone="bad">{err}</Notice>}
@@ -102,8 +103,8 @@ export function AuditLog() {
                 <Fragment key={r.id}>
                   <Tr data-testid="audit-row" onOpen={() => setOpen(open === r.id ? null : r.id)}>
                     <Td><IconButton size="icon-sm" aria-label={open === r.id ? 'Hide details' : 'Show details'} icon={open === r.id ? <ChevronDown size={16} /> : <ChevronRight size={16} />} onClick={(e) => { e.stopPropagation(); setOpen(open === r.id ? null : r.id); }} /></Td>
-                    <Td>{auditSentence(r)}</Td>
-                    <Td className="text-text2">{r.actor_role}</Td>
+                    <Td><div className="max-w-[calc(100vw-140px)] whitespace-normal break-words py-2 md:max-w-[56vw]">{auditSentence(r)}</div></Td>
+                    <Td className="capitalize text-text2">{r.actor_role}</Td>
                     <Td className="whitespace-nowrap text-text2">{when(r.at)}</Td>
                   </Tr>
                   {open === r.id && (

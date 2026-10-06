@@ -42,7 +42,7 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
   const colAt = (x: number, y: number) => {
     for (const st of stages) {
       const b = cols.current[st]?.getBoundingClientRect();
-      if (b && x >= b.left && x <= b.right && y >= b.top && y <= b.bottom) return st;
+      if (b && x >= b.left && x <= b.right && y >= b.top) return st;
     }
     return null;
   };
@@ -99,7 +99,7 @@ export function Board<T extends Record<string, any>>({ stages, items, stageOf, c
   const shutOut = (st: string) => !!moving && st !== stageOf(moving) && !okTo(moving, st);
 
   return (
-    <div className="flex min-w-0 gap-3 overflow-x-auto pb-2" data-testid="board">
+    <div className="flex min-w-0 items-start gap-3 overflow-x-auto pb-2" data-testid="board">
       <div aria-live="assertive" className="sr-only">{say}</div>
       {stages.map((st, i) => {
         const cards = items.filter((r) => stageOf(r) === st);

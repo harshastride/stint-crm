@@ -1,7 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import { Button, ButtonGroup, IconButton, cx } from '../ui';
@@ -92,9 +92,9 @@ export function WeekCalendar() {
     return (
       <button key={e.kind + e.id + e.starts_at} type="button" data-kind={e.kind} onClick={() => router.push(href(e))}
         title={hm(e.starts_at) + (e.ends_at ? '–' + hm(e.ends_at) : '') + ' · ' + e.title + (e.detail ? ' · ' + e.detail : '') + (late ? ' · overdue' : '') + (clash ? ' — Clash. ' + clashText : '')} data-clash={clash ? 'yes' : undefined}
-        className={cx('relative flex min-h-[44px] w-full items-center gap-1.5 rounded-md border-l-[3px] py-0 pl-1.5 pr-2 text-left text-[12.5px] transition-colors hover:brightness-95 md:min-h-[32px]', KIND[e.kind].chip, late && 'ring-1 ring-inset ring-badText')}>
-        <span className="num shrink-0 text-[11px] font-semibold opacity-80">{hm(e.starts_at)}</span>
-        <span className="min-w-0 flex-1 truncate font-medium">{e.title}</span>
+        className={cx('relative flex min-h-[44px] w-full items-center gap-1.5 rounded-md border-l-[3px] py-1 pl-1.5 pr-2 text-left text-[12.5px] transition-colors hover:brightness-95 md:min-h-[32px]', KIND[e.kind].chip, late && 'ring-1 ring-inset ring-badText')}>
+        <span className="min-w-0 flex-1 break-words font-medium leading-snug line-clamp-2"><span className="num mr-1.5 whitespace-nowrap text-[11px] font-semibold opacity-80">{hm(e.starts_at)}</span>{e.title}</span>
+        {late && <AlertCircle size={13} className="shrink-0 text-badText" aria-hidden />}
         {late && <span className="sr-only">, overdue</span>}
         {clash && <span className="h-2 w-2 shrink-0 rounded-full bg-warnText" aria-hidden />}
         {clash && <span className="sr-only">. Clash: {clash.length} other at this time. {clashText}</span>}
@@ -123,10 +123,10 @@ export function WeekCalendar() {
           <h2 className="text-[14px] font-semibold tracking-tight" aria-live="polite">{title}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 md:ml-auto">
-          <div className="flex flex-wrap gap-1" aria-label="Show or hide" role="group">
+          <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 max-md:w-full md:flex-wrap" aria-label="Show or hide" role="group">
             {(Object.keys(KIND) as Kind[]).filter((k) => present.has(k) || !show[k]).map((k) => (
               <button key={k} type="button" aria-pressed={show[k]} onClick={() => setShow({ ...show, [k]: !show[k] })}
-                className={cx('flex min-h-[44px] items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium transition-colors hover:bg-surface2 md:min-h-[32px]', show[k] ? 'text-text' : 'text-muted line-through opacity-70')}>
+                className={cx('flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-1.5 text-[12.5px] font-medium transition-colors hover:bg-surface2 md:min-h-[32px]', show[k] ? 'text-text' : 'text-muted line-through opacity-70')}>
                 <span className={cx('h-2 w-2 rounded-full', KIND[k].dot)} />{KIND[k].label}
               </button>
             ))}
@@ -193,7 +193,7 @@ export function WeekCalendar() {
           })}
         </div>
       )}
-      <p className="shrink-0 text-xs text-muted">{shown.length} items this week{mine ? ' (only yours)' : ''}{overlapCount ? ` · ${overlapCount} clash (orange dot)` : ''} · overdue follow-ups have a red outline.</p>
+      <p className="shrink-0 text-xs text-muted">{shown.length} items this week{mine ? ' (only yours)' : ''}{overlapCount ? ` · ${overlapCount} clash (orange dot)` : ''} · overdue follow-ups have a red outline and ! icon.</p>
     </main>
   );
 }

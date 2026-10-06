@@ -1,6 +1,6 @@
 'use client';
 import { Star } from 'lucide-react';
-import { fmtDate } from '../ui';
+import { cx, fmtDate } from '../ui';
 
 type Review = { id?: string; rating?: number | null; verdict?: string | null; comments?: string | null; created_at?: string; sme?: { full_name?: string } | null };
 
@@ -35,8 +35,8 @@ export function RatingSummary({ reviews, mocks = [] }: { reviews: Review[]; mock
         </div>
         {(passed > 0 || failed > 0) && (
           <div className="flex gap-2 text-[12.5px]">
-            <span className="rounded-full bg-goodBg px-2.5 py-1 font-semibold text-goodText">{passed} passed</span>
-            <span className="rounded-full bg-[rgba(220,38,38,0.12)] px-2.5 py-1 font-semibold text-[#DC2626]">{failed} failed</span>
+            <span className={cx('rounded-full px-2.5 py-1 font-semibold', passed > 0 ? 'bg-goodBg text-goodText' : 'bg-surface2 text-muted')}>{passed} passed</span>
+            <span className={cx('rounded-full px-2.5 py-1 font-semibold', failed > 0 ? 'bg-[rgba(220,38,38,0.12)] text-[#DC2626]' : 'bg-surface2 text-muted')}>{failed} failed</span>
           </div>
         )}
       </div>

@@ -29,14 +29,17 @@ export function DetailGroup({ title, tag, rows, className, flat }: { title: stri
 /** Sensitive candidate details from candidate_private_get. Hidden groups are left out; masked contact can be revealed (logged). */
 export function PrivateDetails({ id, priv, className, flat }: { id: string; priv: Row | null; className?: string; flat?: boolean }) {
   if (!priv) return null;
+  const shown = PRIVATE_GROUPS.filter(([g]) => priv.modes?.[g] && priv.modes[g] !== 'h');
+  const empty = shown.filter(([g]) => Object.keys(priv[g] || {}).length === 0);
   return (
     <>
       {priv.locked && <div className="flex items-center gap-2 rounded-[10px] bg-warnBg px-3 py-2 text-[12.5px] font-medium text-warnText" role="note"><Lock size={15} aria-hidden />{String(priv.locked)} — ask Admin</div>}
-      {PRIVATE_GROUPS.filter(([g]) => priv.modes?.[g] && priv.modes[g] !== 'h').map(([g, title]) => (
+      {shown.filter(([g]) => Object.keys(priv[g] || {}).length > 0).map(([g, title]) => (
         <DetailGroup key={g} flat={flat} className={className} title={title} tag={priv.modes[g] === 'm' ? 'Masked' : 'Full'}
           rows={Object.entries(priv[g] || {}).map(([k, v]) => [label(k), g === 'contact' && priv.modes[g] === 'm' && v
             ? <Reveal key={k} kind="candidate" id={id} field={k} label={k.replace(/_/g, ' ')} masked={String(v)} /> : v == null ? '' : String(v)])} />
       ))}
+      {empty.length > 0 && <div className={cx('text-[12.5px] text-muted', !flat && className)} data-testid="private-empty">Not filled in yet: {empty.map(([, t]) => t).join(', ')}</div>}
     </>
   );
 }

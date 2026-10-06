@@ -52,8 +52,8 @@ export function Dropdowns() {
 
   return (
     <main className="flex flex-1 flex-col gap-3 overflow-y-auto p-page-sm md:px-page md:py-4">
-      <PageHeader title="Dropdown values" description="The choices staff see in every dropdown. Hiding a value removes it for new records only; old records keep it. Locked values drive rules and can’t be hidden."
-        actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>} />
+      <PageHeader title="Dropdown values" description="The choices staff see in every dropdown. Pick a list, then add, hide or reorder its values."
+        scope={canWrite ? 'Can edit' : 'View only'} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="grid min-h-0 flex-1 gap-0 md:grid-cols-[minmax(200px,248px)_minmax(0,1fr)]">
         <section aria-label="Lists" className="flex max-h-[40vh] flex-col gap-0.5 overflow-y-auto border-line md:max-h-none md:border-r md:pr-3">

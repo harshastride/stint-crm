@@ -58,7 +58,7 @@ export function StageRules() {
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-4" data-testid="stage-rules">
       <PageHeader title="Stage rules"
-        description={'Which stage moves staff can make, and what must be done first. The database checks these on every move, from every screen and import. An Admin can still override one move with a reason.' + (canEdit ? '' : ' View only.')} />
+        description={'Which stage moves are allowed and what must be done first. Checked on every move; Admin can override one with a reason.' + (canEdit ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-0">
         <div className="lg:border-r lg:border-line lg:pr-3">

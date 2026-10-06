@@ -37,14 +37,14 @@ export default async function VerifyPage({ params }: { params: Promise<{ code: s
   return (
     <main className="flex min-h-screen items-center justify-center bg-bg p-4">
       <div className="w-full max-w-md rounded-2xl border border-line bg-surface p-6 shadow-sm">
-        <img src="/brand/stint-logo.svg" alt="Stint Academy" className="h-8 w-auto" />
+        <img src="/brand/stint-logo.svg" alt="Stint Academy" className="logo-light h-8 w-auto" />
+        <img src="/brand/stint-logo-dark.svg" alt="" className="logo-dark h-8 w-auto" />
         {ok ? (
           <div data-testid="verify-genuine">
             <div className="mt-5 flex items-center gap-3 rounded-xl bg-goodBg p-4 text-goodText">
               <CheckCircle2 size={36} aria-hidden className="shrink-0" />
               <div>
                 <h1 className="text-lg font-semibold">Genuine {doc.institute} {what}</h1>
-                <p className="text-sm">This document was issued by {doc.institute}.</p>
               </div>
             </div>
             <dl className="mt-4 divide-y divide-line text-sm">

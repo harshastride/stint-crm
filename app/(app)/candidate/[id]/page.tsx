@@ -134,7 +134,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
         </aside>
 
         <div className="flex min-w-0 flex-col gap-4">
-          <section aria-label="Student journey" className="overflow-x-auto pb-1"><Journey steps={journey((data.hist || []) as StageChange[], c.stage, c.created_at)} /></section>
+          <section aria-label="Student journey" className="hidden overflow-x-auto pb-1 md:block"><Journey steps={journey((data.hist || []) as StageChange[], c.stage, c.created_at)} /></section>
           <div className="sticky top-0 z-[2] -mx-1 flex gap-0.5 overflow-x-auto border-b border-line bg-bg px-1" role="group" aria-label="Candidate sections">
             {tabs.map(([t, n]) => <button key={t} type="button" aria-pressed={tab === t} onClick={() => setTab(t)} aria-label={t} className={cx('relative flex min-h-[44px] shrink-0 items-center gap-1.5 px-3 text-[13.5px] transition-colors duration-150', tab === t ? 'font-semibold text-accentText after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent' : 'font-medium text-text2 hover:text-text')}>{t}{n !== null && <span className="num rounded-full bg-surface2 px-1.5 text-[11px] text-muted">{n}</span>}</button>)}
           </div>

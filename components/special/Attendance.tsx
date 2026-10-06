@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
-import { Button, Notice, cx } from '../ui';
+import { ChevronLeft, ChevronRight, QrCode } from 'lucide-react';
+import { Button, IconButton, Notice, cx } from '../ui';
 import { PageHeader } from '../kit/PageHeader';
 import { CheckinScreen } from './CheckinScreen';
 
@@ -95,7 +96,7 @@ export function Attendance() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pb-0 md:p-6 md:pb-0">
-      <PageHeader title="Attendance" description={canWrite ? 'Mark all present, then tap the few who are absent or late. Save once.' : 'View only for ' + s.staff.role + '.'}
+      <PageHeader title="Attendance" description={canWrite ? 'Mark all present, fix the few absent or late, save once.' : 'View only for ' + s.staff.role + '.'}
         filters={<>
           <label className="flex min-w-0 flex-1 items-center gap-2 text-[13px] font-medium text-text2 sm:flex-none">Batch
             <select aria-label="Batch" className="h-11 min-w-0 flex-1 rounded-[10px] px-3 text-[13.5px] sm:w-[220px]" value={batch} onChange={(e) => setBatch(e.target.value)}>
@@ -103,22 +104,22 @@ export function Attendance() {
             </select>
           </label>
           <div className="flex items-center gap-1" role="group" aria-label="Choose day">
-            <Button variant="quiet" aria-label="Previous day" onClick={() => setDay(shift(day, -1))}>‹</Button>
+            <IconButton aria-label="Previous day" icon={<ChevronLeft size={16} />} onClick={() => setDay(shift(day, -1))} />
             <input type="date" aria-label="Class day" className="h-11 rounded-[10px] px-2 text-[13.5px]" value={day} max={today} onChange={(e) => e.target.value && setDay(e.target.value)} />
-            <Button variant="quiet" aria-label="Next day" disabled={day >= today} onClick={() => setDay(shift(day, 1))}>›</Button>
+            <IconButton aria-label="Next day" icon={<ChevronRight size={16} />} disabled={day >= today} onClick={() => setDay(shift(day, 1))} />
             {day !== today && <Button variant="link" onClick={() => setDay(today)}>Today</Button>}
           </div>
-          {canWrite && batch && day === today && (s.staff.role === 'Admin' || mineIds.has(batch)) && <Button variant="secondary" onClick={() => setQr(true)}>Show check-in QR</Button>}
+          {canWrite && batch && day === today && (s.staff.role === 'Admin' || mineIds.has(batch)) && <Button variant="outline" leftIcon={<QrCode size={16} />} onClick={() => setQr(true)}>Show check-in QR</Button>}
         </>} />
 
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {qr && <CheckinScreen batchId={batch} batchCode={batchLabel} onClose={() => { setQr(false); load(); }} />}
 
       {behind.length > 0 && (
-        <section aria-label="Falling behind" className="rounded-card bg-badBg/50 p-card">
-          <h2 className="text-[13.5px] font-semibold text-badText">Falling behind in {batchLabel}: {behind.length} below {minPct}%</h2>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {behind.map((p) => <li key={p.id}><a href={`/candidate/${p.id}`} className="inline-flex min-h-[44px] items-center rounded-lg bg-surface px-3 text-[13px] font-medium">{p.full_name} · {pctOf(p.id)}%</a></li>)}
+        <section aria-label="Falling behind" className="flex max-w-[880px] flex-wrap items-center gap-x-3 gap-y-1 rounded-[10px] border border-badText/25 bg-badBg/40 px-3 py-1.5">
+          <h2 className="text-[13px] font-semibold text-badText">{behind.length} below {minPct}%</h2>
+          <ul className="flex flex-wrap gap-x-1">
+            {behind.map((p) => <li key={p.id}><a href={`/candidate/${p.id}`} className="inline-flex min-h-[44px] items-center rounded-lg px-2 text-[13px] font-medium hover:bg-surface">{p.full_name} <span className="num ml-1 text-badText">{pctOf(p.id)}%</span></a></li>)}
           </ul>
         </section>
       )}
@@ -127,32 +128,32 @@ export function Attendance() {
         <div className="rounded-[14px] bg-surface2 p-8 text-center text-[13.5px] text-text2">No students are in this batch yet. Assign a batch from Candidates.</div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex max-w-[880px] flex-wrap items-center justify-between gap-3">
             <p className="text-[13px] text-text2" aria-live="polite"><span className="font-semibold text-goodText">{counts.P} present</span> · <span className="font-semibold text-badText">{counts.A} absent</span> · <span className="font-semibold text-warnText">{counts.L} late</span>{counts.none ? ` · ${counts.none} not marked` : ''}</p>
-            {canWrite && counts.none > 0 && <Button variant="secondary" size="lg" onClick={allPresent} disabled={saving}>Mark all present</Button>}
+            {canWrite && counts.none > 0 && <Button variant="outline" size="sm" onClick={allPresent} disabled={saving}>Mark all present</Button>}
           </div>
-          <ul className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3" aria-label="Register">
+          <ul className="max-w-[880px] divide-y divide-line overflow-hidden rounded-card bg-surface shadow-1" aria-label="Register">
             {people.map((p) => {
               const m = current(p.id), v = pctOf(p.id), st = standing[p.id], low = v !== null && v < minPct, dirty = p.id in draft && (saved[p.id] || '') !== m;
               return (
-                <li key={p.id} className={cx('flex flex-col gap-2 rounded-card bg-surface p-3 shadow-1', dirty && 'ring-1 ring-accent/50')}>
+                <li key={p.id} className={cx('flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4', dirty && 'bg-accentSoft/40')}>
                   <div className="min-w-0 flex-1">
                     <a href={`/candidate/${p.id}`} className="block truncate text-[14.5px] font-medium">{p.full_name}</a>
-                    <div className={cx('text-xs', low ? 'font-semibold text-badText' : 'text-muted')} title="Sessions attended (present or late) ÷ sessions held since joining">
+                    <div className={cx('text-xs', low ? 'font-semibold text-badText' : 'text-muted')}>
                       {v === null ? 'No sessions yet' : `${v}% · ${st.sessions_attended} of ${st.sessions_held} sessions${low ? ' · below ' + minPct + '%' : ''}`}{dirty ? ' · not saved' : ''}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2" role="group" aria-label={`${p.full_name} mark`}>
+                  <div className="grid grid-cols-3 gap-1.5 sm:w-[300px] sm:shrink-0" role="group" aria-label={`${p.full_name} mark`}>
                     {(['P', 'A', 'L'] as Mark[]).map((k) => (
                       <button key={k} type="button" disabled={!canWrite || saving} aria-pressed={m === k} onClick={() => tap(p.id, k)}
-                        className={cx('h-12 rounded-[10px] text-[13.5px] font-semibold transition-transform duration-100 active:scale-[0.97] disabled:cursor-default', m === k ? ON[k] : 'bg-surface2 text-text2')}>{LABEL[k]}</button>
+                        className={cx('h-11 rounded-[10px] text-[13.5px] font-semibold transition-transform duration-100 active:scale-[0.97] disabled:cursor-default', m === k ? ON[k] : 'bg-surface2 text-text2')}>{LABEL[k]}</button>
                     ))}
                   </div>
                 </li>
               );
             })}
           </ul>
-          <p className="text-xs text-muted">Attendance % = sessions attended (present or late) ÷ sessions held since the student joined. A session counts as held when anyone in the batch was marked that day. Below {minPct}% is flagged.</p>
+          <p className="max-w-[880px] text-xs text-muted">% = present or late ÷ classes held since joining. Below {minPct}% is flagged.</p>
         </>
       )}
 

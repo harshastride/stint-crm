@@ -12,7 +12,7 @@ const NA = 'A dash (—) means not enough data: there was nothing to divide by.'
 const REPORTS: Record<string, Def> = {
   rep_funnel: {
     question: 'How much new work came in, and how much did we enrol, place and collect, each month?',
-    period: 'Last 6 calendar months, India time (IST). The current month is still running.',
+    period: 'Monthly table: last 6 calendar months, India time (IST); the current month is still running. The conversion bars have their own period picker.',
     defs: [['Leads', 'Leads created in the month.'], ['Enrolled', 'Candidates whose joining date falls in the month.'], ['Placed', 'Placements recorded in the month, excluding Dropped.'], ['Fees collected', 'Payments marked Received, by paid date.']],
     note: 'Each column counts its own events in that month. These are not the same people moving down, so do not read one column as a conversion rate of another.',
     drill: [['Leads', '/p/lead'], ['Candidates', '/p/candidate'], ['Placements', '/p/placement'], ['Payments', '/p/payment']],

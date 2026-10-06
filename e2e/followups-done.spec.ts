@@ -52,8 +52,8 @@ test('mark done: optimistic, Undo puts it back, blocked when it is someone elseâ
   await page.getByPlaceholder('Search this list').fill(tag);
   await expect(page.locator('tbody tr[data-clickable]')).toHaveCount(3, { timeout: 20_000 });
   const theirs = page.getByRole('button', { name: 'Mark done: ' + tag + ' theirs' });
-  await expect(theirs).toHaveAttribute('aria-disabled', 'true');
-  await expect(theirs).toHaveAttribute('title', /Only Teja/);
+  // someone else's follow-up: no circle at all (no dead control)
+  await expect(theirs).toHaveCount(0);
 
   const mine = page.getByRole('button', { name: 'Mark done: ' + tag + ' mine' });
   await mine.focus();

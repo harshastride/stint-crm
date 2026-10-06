@@ -45,8 +45,8 @@ export function ProgramCompare() {
             ))}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px]" aria-label="Program comparison">
-              <thead><tr><th className="py-2 pr-3 text-left text-[11.5px] font-medium uppercase text-muted"> </th>{cols.map((c) => <th key={c.id} scope="col" className="max-w-[200px] truncate py-2 pr-3 text-left font-semibold" title={c.label}>{c.label}</th>)}</tr></thead>
+            <table className="w-full max-w-[720px] text-[13px]" aria-label="Program comparison">
+              <thead><tr><th className="py-2 pr-3"><span className="sr-only">Measure</span></th>{cols.map((c) => <th key={c.id} scope="col" className="max-w-[200px] truncate py-2 pr-3 text-left font-semibold" title={c.label}>{c.label}</th>)}</tr></thead>
               <tbody>{rows.map(([label, f]) => (
                 <tr key={label} className="border-t border-line"><th scope="row" className="whitespace-nowrap py-2.5 pr-3 text-left font-medium text-text2">{label}</th>{cols.map((c) => <td key={c.id} className="num whitespace-nowrap py-2.5 pr-3">{f(c)}</td>)}</tr>
               ))}</tbody>

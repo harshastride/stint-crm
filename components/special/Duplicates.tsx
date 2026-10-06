@@ -41,12 +41,12 @@ export function Duplicates() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-      <PageHeader title="Duplicates" description={'Records that look like the same person (same phone or email). Merging keeps one record, moves all calls, notes, payments and classes from the other onto it, and deletes the other. It can’t be undone.' + (s.staff.role === 'Admin' ? '' : ' View only.')} />
+      <PageHeader title="Duplicates" description={'Leads or students with the same phone or email. Merge keeps one and moves everything onto it.' + (s.staff.role === 'Admin' ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {pairs === null ? <div className="rounded-[14px] bg-surface p-6 text-muted shadow-[var(--shadow-1)]">Looking for duplicates…</div>
         : pairs.length === 0 ? <EmptyState kind="done" title="No duplicates found" body="Leads and students all look unique right now." />
         : pairs.map((p, i) => (
-          <section key={i} className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
+          <section key={i} className="max-w-[880px] rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
             <div className="mb-3 flex flex-wrap items-center gap-2 text-[13px]">
               <span className="rounded-full bg-accentSoft px-2.5 py-0.5 text-[12px] font-semibold capitalize text-accentText">{p.kind}</span>
               <span className="text-text2">{p.reason}</span>

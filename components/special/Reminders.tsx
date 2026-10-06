@@ -9,14 +9,16 @@ import { Table, THead, TBody, Th, Td, Tr } from '../kit/Table';
 import { Button, Notice, cx, fmtDateTime } from '../ui';
 import { friendlyError } from '../Fields';
 
-const WHEN: Record<string, string> = {
-  fee_due: 'Fee due', follow_up_due: 'Follow-up due', class_tomorrow: 'Class coming up', mock_tomorrow: 'Mock interview coming up',
-  document_missing: 'Documents missing after joining', lead_no_contact: 'New lead not called',
-};
 const OFFSET_LABEL: Record<string, string> = {
   fee_due: 'days before due date', follow_up_due: 'days before due', class_tomorrow: 'days before class', mock_tomorrow: 'days before mock',
   document_missing: 'days after joining', lead_no_contact: 'days after lead added',
 };
+/** "1 day before class", "On the due day", not "1 days" / "0 days". */
+function offsetText(r: Row) {
+  const n = Number(r.offset_days); const label = OFFSET_LABEL[r.trigger] || '';
+  if (n === 0) return 'Same day (' + label.replace(/^days (before|after) /, '') + ')';
+  return `${n} ${n === 1 ? label.replace(/^days/, 'day') : label}`;
+}
 const TIMES = Array.from({ length: 27 }, (_, i) => { const m = 8 * 60 + i * 30; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); });
 const sel = 'h-11 rounded-[10px] border border-line bg-surface px-3 text-[14px]';
 
@@ -74,7 +76,7 @@ export function Reminders() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-4">
-      <PageHeader title="Reminders" description={'Controls the automatic WhatsApp and email reminders. Turning one on messages real students or staff every day at its time. Nothing is sent between 9pm and 8am, and nobody gets the same reminder twice in a day.' + (canEdit ? '' : ' View only.')} />
+      <PageHeader title="Reminders" description={'Automatic WhatsApp and email reminders. On = real messages every day at its time (never 9pm–8am, never twice a day).' + (canEdit ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {turnOn && (
         <div role="alertdialog" aria-label="Confirm turning on" data-testid="reminder-confirm" className="flex flex-wrap items-center gap-3 rounded-[14px] bg-warnBg p-4 text-[13.5px] text-warnText">
@@ -84,37 +86,31 @@ export function Reminders() {
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-0">
+      <div className="grid min-h-0 content-start gap-4 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-0">
       <section className="min-w-0 xl:pr-5" data-testid="reminder-rules">
         {rules === null ? <div className="p-6 text-muted">Loading…</div> : (
-          <Table label="Reminder rules">
-            <THead><Th>On</Th><Th>Reminder</Th><Th>When</Th><Th>Send at</Th><Th>Channel</Th><Th>To</Th><Th /></THead>
-            <TBody>
+          <ul aria-label="Reminder rules" className="flex flex-col rounded-[14px] bg-surface shadow-[var(--shadow-1)]">
               {rules.map((r) => (
-                <Tr key={r.id} data-rule={r.name}>
-                  <Td>
+                <li key={r.id} data-rule={r.name} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-3 py-2 last:border-b-0">
                     <button type="button" role="switch" aria-checked={!!r.active} aria-label={`${r.name} on or off`} disabled={!canEdit} onClick={() => toggle(r)}
-                      className="flex h-11 w-14 items-center disabled:opacity-50">
+                      className="flex h-11 w-12 shrink-0 items-center disabled:opacity-50">
                       <span className={cx('relative block h-6 w-11 rounded-full transition-colors duration-150', r.active ? 'bg-accent' : 'bg-line')}>
                         <span className={cx('absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-150', r.active ? 'translate-x-[22px]' : 'translate-x-0.5')} />
                       </span>
                     </button>
-                  </Td>
-                  <Td><div className="font-semibold">{r.name}</div><div className="text-[12.5px] text-text2">{WHEN[r.trigger]}</div></Td>
-                  <Td>{r.offset_days} {OFFSET_LABEL[r.trigger]}</Td>
-                  <Td>{String(r.send_time).slice(0, 5)}</Td>
-                  <Td className="capitalize">{r.channel === 'whatsapp' ? 'WhatsApp' : 'Email'}</Td>
-                  <Td>{r.audience === 'student' ? 'Student' : 'Staff owner'}</Td>
-                  <Td>
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="outline" leftIcon={<Eye size={15} />} onClick={() => runPreview(r)}>Preview today</Button>
-                      {canEdit && <Button size="sm" variant="ghost" leftIcon={<Pencil size={15} />} onClick={() => setEdit({ ...r, send_time: String(r.send_time).slice(0, 5) })}>Edit</Button>}
+                  <div className="min-w-0 flex-1 basis-[220px] text-[13.5px]">
+                    <div className="font-semibold">{r.name} <span className="ml-1 text-[12px] font-medium text-text2">{r.active ? 'On' : 'Off'}</span></div>
+                    <div className="text-[12.5px] text-text2" data-testid="reminder-when">
+                      {offsetText(r)} · {String(r.send_time).slice(0, 5)} · {r.channel === 'whatsapp' ? 'WhatsApp' : 'Email'} to {r.audience === 'student' ? 'the student' : 'the staff owner'}
                     </div>
-                  </Td>
-                </Tr>
+                  </div>
+                  <div className="ml-auto flex gap-1">
+                    <Button size="sm" variant="quiet" leftIcon={<Eye size={15} />} onClick={() => runPreview(r)}>Preview today</Button>
+                    {canEdit && <Button size="sm" variant="quiet" leftIcon={<Pencil size={15} />} onClick={() => setEdit({ ...r, send_time: String(r.send_time).slice(0, 5) })}>Edit</Button>}
+                  </div>
+                </li>
               ))}
-            </TBody>
-          </Table>
+          </ul>
         )}
       </section>
 
@@ -150,7 +146,7 @@ export function Reminders() {
         <section className="border-b border-line pb-3" data-testid="reminder-preview">
           <div className="mb-3 flex items-center gap-2">
             <h2 className="flex-1 text-[15px] font-semibold">Who would get “{preview.rule.name}” today ({preview.rows.length}) — nothing is sent</h2>
-            <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>Close</Button>
+            <Button size="sm" variant="quiet" onClick={() => setPreview(null)}>Close</Button>
           </div>
           {preview.rows.length === 0 ? <p className="text-text2">Nobody matches today.</p> : (
             <ul className="flex flex-col divide-y divide-line">

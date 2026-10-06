@@ -4,7 +4,7 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean; /** 'person': the team/role shown on hover */ role?: (r: Row) => string | null | undefined };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean; /** 'person': the team/role shown on hover */ role?: (r: Row) => string | null | undefined; /** long text: wraps within a max width instead of one long line (notes, summaries, messages wrap by default) */ wrap?: boolean };
 export type Field = {
   key: string; label: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
@@ -154,7 +154,7 @@ export const PAGES: Record<string, PageCfg> = {
     columns: [leadCol, { key: 'caller.full_name', label: 'Caller' }, { key: 'outcome', label: 'Outcome', type: 'pill' }, { key: 'duration_sec', label: 'Duration', type: 'duration' }, { key: 'notes', label: 'Notes', optional: true }, { key: 'called_at', label: 'When', type: 'datetime' }],
     server: true,
     views: [{ label: 'Today', where: (r) => isToday(r.called_at), filter: today('called_at') }, { label: 'All' }, { label: 'No answer', where: (r) => r.outcome === 'No answer', filter: (q) => q.eq('outcome', 'No answer') }],
-    kpis: [count('Calls today', (r) => isToday(r.called_at), today('called_at')), count('Connected today', (r) => isToday(r.called_at) && r.outcome !== 'No answer', (q) => today('called_at')(q).neq('outcome', 'No answer')),
+    kpis: [{ ...count('Calls today', (r) => isToday(r.called_at), today('called_at')), tab: 'Today' }, count('Connected today', (r) => isToday(r.called_at) && r.outcome !== 'No answer', (q) => today('called_at')(q).neq('outcome', 'No answer')),
       count('No answer today', (r) => isToday(r.called_at) && r.outcome === 'No answer', (q) => today('called_at')(q).eq('outcome', 'No answer'))],
     person: leadPerson,
     fields: [lead, { key: 'outcome', label: 'Outcome', type: 'select', list: 'call_outcome', required: true }, { key: 'duration_sec', label: 'Duration (seconds)', type: 'number' },
@@ -167,7 +167,7 @@ export const PAGES: Record<string, PageCfg> = {
     columns: [{ key: 'who', label: 'Number / person', get: (r) => r.lead?.full_name || r.candidate?.full_name || r.number || 'No number' }, { key: 'by.full_name', label: 'Captured by' }, { key: 'source', label: 'From' },
       { key: 'length_sec', label: 'Length', type: 'duration' }, { key: 'summary', label: 'Summary' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'created_at', label: 'When', type: 'datetime' }],
     views: [{ label: 'To confirm', where: (r) => r.status === 'Waiting to confirm' }, { label: 'Unmatched', where: (r) => r.status === 'Unmatched' }, { label: 'Confirmed', where: (r) => r.status === 'Confirmed' }, { label: 'All' }],
-    kpis: [count('Captured'), count('Unmatched', (r) => r.status === 'Unmatched'), count('Waiting to confirm', (r) => r.status === 'Waiting to confirm')],
+    kpis: [{ ...count('Captured'), tab: 'All' }, count('Unmatched', (r) => r.status === 'Unmatched'), { ...count('Waiting to confirm', (r) => r.status === 'Waiting to confirm'), tab: 'To confirm' }],
     fields: [{ key: 'lead_id', label: 'Lead this belongs to', type: 'person', person: 'lead' }, { key: 'candidate_id', label: 'Or candidate', type: 'person', person: 'candidate' },
       { key: 'summary', label: 'Summary (confirmed)', type: 'textarea' }, { key: 'outcome', label: 'Outcome', type: 'select', list: 'call_outcome' }, { key: 'follow_up', label: 'Next step', type: 'text' }],
     rowTitle: (r) => r.lead?.full_name || r.candidate?.full_name || r.number || 'Recording',
@@ -443,8 +443,8 @@ export const PAGES: Record<string, PageCfg> = {
   automations: {
     id: 'automations', table: 'automation', top: 'builder', kind: 'Automation', purpose: 'Everything the CRM sends or receives on its own. Flows run in Activepieces; this list controls them.', cta: 'New automation', order: { col: 'direction', asc: true },
     columns: [{ key: 'name', label: 'Flow' }, { key: 'direction', label: 'Direction' }, { key: 'trigger', label: 'When' }, { key: 'channel', label: 'Channel' }, { key: 'recipient', label: 'To' }, { key: 'status', label: 'Status', type: 'pill' }],
-    views: [{ label: 'All' }, { label: 'Incoming', where: (r) => r.direction === 'Incoming' }, { label: 'Outgoing', where: (r) => r.direction === 'Outgoing' }, { label: 'Live', where: (r) => r.status === 'Live' }],
-    kpis: [count('Flows'), count('Live', (r) => r.status === 'Live'), count('Paused', (r) => r.status === 'Paused')],
+    views: [{ label: 'All' }, { label: 'Incoming', where: (r) => r.direction === 'Incoming' }, { label: 'Outgoing', where: (r) => r.direction === 'Outgoing' }, { label: 'Live', where: (r) => r.status === 'Live' }, { label: 'Paused', where: (r) => r.status === 'Paused' }],
+    kpis: [{ ...count('Flows'), tab: 'All' }, count('Live', (r) => r.status === 'Live'), count('Paused', (r) => r.status === 'Paused')],
     fields: [{ key: 'name', label: 'Name', type: 'text', required: true }, { key: 'direction', label: 'Direction', type: 'select', options: ['Outgoing', 'Incoming'] }, { key: 'trigger', label: 'When this happens', type: 'text' },
       { key: 'channel', label: 'Channel', type: 'select', options: ['WhatsApp', 'Email', 'WhatsApp + email', 'WhatsApp + in-app', 'In-app only'] }, { key: 'recipient', label: 'To', type: 'text' },
       { key: 'message', label: 'Message ({name}, {course}, {amount}, {date}, {link} are filled in)', type: 'textarea' }, { key: 'status', label: 'Status', type: 'select', options: ['Paused', 'Live'] }],
@@ -496,7 +496,7 @@ export const PAGES: Record<string, PageCfg> = {
     id: 'users', table: 'staff', kind: 'User', purpose: 'Everyone who logs in: their role, level, branch and status.', cta: 'Invite user', select: '*, branch:branch_id(name)', order: { col: 'full_name', asc: true },
     columns: [{ key: 'full_name', label: 'Name' }, { key: 'email', label: 'Email' }, { key: 'role', label: 'Role' }, { key: 'level', label: 'Level' }, { key: 'branch.name', label: 'Branch' }, { key: 'status', label: 'Status', type: 'pill' }],
     views: [{ label: 'Active', where: (r) => r.status === 'Active' }, { label: 'Invited', where: (r) => r.status === 'Invited' }, { label: 'Disabled', where: (r) => r.status === 'Disabled' }],
-    kpis: [count('Active users', (r) => r.status === 'Active'), count('Team heads', (r) => r.level === 'Head')],
+    kpis: [{ ...count('Active users', (r) => r.status === 'Active'), tab: 'Active' }, count('Team heads', (r) => r.level === 'Head')],
     fields: [{ key: 'full_name', label: 'Name', type: 'text', required: true }, { key: 'email', label: 'Email', type: 'text', required: true, createOnly: true }, { key: 'role', label: 'Role', type: 'select', list: '__roles', required: true },
       { key: 'level', label: 'Level', type: 'select', options: ['Junior', 'Head'] }, { key: 'branch_id', label: 'Branch', type: 'ref', ref: 'branch' }, { key: 'status', label: 'Status', type: 'select', options: ['Active', 'Invited', 'Disabled'] }],
     rowTitle: (r) => r.full_name,

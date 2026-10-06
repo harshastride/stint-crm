@@ -92,7 +92,7 @@ export function EnrolmentForm() {
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-4 md:px-6">
       <PageHeader title="Enrolment form" description={'The full data sheet, filled with the student after they enrol.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')} />
-      <div className="mx-auto flex w-full max-w-[1040px] flex-1 flex-col gap-4">
+      <div className="flex w-full max-w-[1040px] flex-1 flex-col gap-4">
       <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[180px_minmax(0,1fr)] xl:gap-8">
         {c && priv && <nav aria-label="Form sections" className="hidden xl:block"><ul className="sticky top-0 flex flex-col gap-0.5 pt-1">{[['personal','Personal'],...Object.entries(GROUPS).map(([g,d])=>[g,d.title]),['education','Education'],['work-experience','Work experience']].map(([k,l])=><li key={k}><a href={'#sec-'+k} className="flex min-h-[36px] items-center rounded-lg px-2.5 text-[13px] text-text2 hover:bg-surface2 hover:text-text">{l}</a></li>)}</ul></nav>}
         <div className={cx('flex min-w-0 flex-col gap-4', !(c && priv) && 'xl:col-span-2')}>

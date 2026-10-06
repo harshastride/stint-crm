@@ -104,7 +104,7 @@ export function ImportPage() {
 
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-      <PageHeader title="Import / export" description={'Bring leads in from a sheet. Imported leads are assigned to telecallers straight away and there is no one-click undo, so check step 3 carefully. Export any list from its own page.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
+      <PageHeader title="Import / export" description={'Bring leads in from a CSV sheet. Export any list from its own page.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
         actions={canWrite && step === 0 ? <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => { setStep(1); setMsg(null); }}>New import</Button> : undefined} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
@@ -142,7 +142,7 @@ export function ImportPage() {
                 <KpiCard label="Already in the CRM" value={check.dupes.length} />
                 <KpiCard label="Rows with a problem" value={check.bad.length} hint={check.bad.length ? 'Download them below' : undefined} tone="bad" />
               </div>
-              <p className="text-[13px] text-text2">Nothing has been added yet. When you press Import, {check.ready.length} new leads are created and handed to telecallers by the assignment rule; rows already in the CRM or with a problem are left out.</p>
+              <p className="rounded-[10px] bg-warnBg px-3 py-2 text-[13px] text-warnText">Nothing has been added yet. There is no one-click undo. When you press Import, {check.ready.length} new leads are created and handed to telecallers by the assignment rule; rows already in the CRM or with a problem are left out.</p>
               <Toolbar sticky={false}
                 start={check.bad.length + check.dupes.length > 0 ? <Button variant="quiet" onClick={() => download([...check.bad, ...check.dupes], 'rows-not-imported.csv')}>Download the rows left out</Button> : undefined}
                 primary={<Button variant="primary" loading={busy} disabled={check.ready.length === 0} onClick={doImport}>{'Import ' + check.ready.length + ' leads'}</Button>}>
@@ -156,7 +156,7 @@ export function ImportPage() {
       <Table label="Past imports">
         <THead><Th>File</Th><Th>Into</Th><Th numeric>Rows</Th><Th>Result</Th><Th>By</Th><Th>When</Th></THead>
         <TBody>
-          {runs.length === 0 && <Tr><Td colSpan={6} className="text-center text-text2">No imports yet.</Td></Tr>}
+          {runs.length === 0 && <Tr><Td colSpan={6} className="text-center text-text2">No imports yet.{canWrite ? ' Use New import to bring in a sheet.' : ''}</Td></Tr>}
           {runs.map((r) => {
             const result = `${r.ok_rows} ok · ${r.duplicate_rows} already there · ${r.failed_rows} failed`;
             return (

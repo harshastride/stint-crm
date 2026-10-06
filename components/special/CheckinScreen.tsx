@@ -45,9 +45,9 @@ export function CheckinScreen({ batchId, batchCode, onClose }: { batchId: string
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-[20px] font-semibold">Check in · {batchCode}</h2>
-          <p className="text-[13px] text-text2">Students: open the Stint student portal, tap Check in to class, scan this or type the code.</p>
+          <p className="text-[13px] text-text2">Students: in the portal tap Check in to class, then scan or type the code.</p>
         </div>
-        <Button variant="primary" size="lg" onClick={stop}>Stop</Button>
+        <Button variant="outline" onClick={stop}>Stop check-in</Button>
       </div>
       {err && <div className="mt-4"><Notice tone="bad">{err}</Notice></div>}
       {live && !live.active && <div className="mt-4"><Notice tone="warn">This check-in has ended (it was stopped, replaced on another screen, or the day changed). Close and open a new one.</Notice></div>}

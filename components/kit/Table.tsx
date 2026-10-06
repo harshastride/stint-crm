@@ -10,10 +10,10 @@ export function useDensity(key = 'table-density'): [Density, (d: Density) => voi
   return [d, (n) => { setD(n); try { localStorage.setItem(key, n); } catch { /* private mode */ } }];
 }
 
-export function Table({ density = 'comfortable', label, children, className }: { density?: Density; label: string; children: ReactNode; className?: string }) {
+export function Table({ density = 'comfortable', label, children, className, picking }: { density?: Density; label: string; children: ReactNode; className?: string; /** selecting rows: every row checkbox shows */ picking?: boolean }) {
   return (
     <div className={cx('min-h-0 overflow-auto rounded-card bg-surface shadow-1', className)}>
-      <table className="ui-table" aria-label={label} data-density={density}>{children}</table>
+      <table className="ui-table" aria-label={label} data-density={density} data-picking={picking ? '' : undefined}>{children}</table>
     </div>
   );
 }

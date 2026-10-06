@@ -90,10 +90,11 @@ export function SidePanel({ kind, title, onClose, children }: { kind: string; ti
       <div className="mx-auto -mb-2 h-1.5 w-10 rounded-full bg-line2 md:hidden" aria-hidden />
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-xs font-medium text-muted">{kind}</div>
-          <h2 className="mt-1 text-[22px] font-semibold leading-tight">{title}</h2>
+          {/* the record type only when the title doesn't already say it ("Fee quote" above "New quote" was repeated) */}
+          {!title.toLowerCase().includes(kind.toLowerCase().split(' ').pop() || kind.toLowerCase()) && <div className="text-xs font-medium text-muted">{kind}</div>}
+          <h2 className="mt-0.5 text-lg font-semibold leading-tight">{title}</h2>
         </div>
-        <button type="button" aria-label="Close" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-line2 bg-surface"><X size={18} /></button>
+        <button type="button" aria-label="Close" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-[10px] text-text2 hover:bg-surface2"><X size={18} /></button>
       </div>
       {children}
     </aside>

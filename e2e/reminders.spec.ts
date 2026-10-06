@@ -6,7 +6,7 @@ test('admin sees reminder rules, previews who would get one today, and edits a r
   await page.goto('/p/reminders');
   const rules = page.getByTestId('reminder-rules');
   await expect(rules).toBeVisible({ timeout: 15_000 });
-  const row = rules.locator('tr[data-rule="Class tomorrow"]');
+  const row = rules.locator('[data-rule="Class tomorrow"]');
   await expect(row).toBeVisible();
   await expect(row.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
   await row.getByRole('button', { name: 'Preview today' }).click();
@@ -26,7 +26,7 @@ test('telecaller cannot open the reminders page', async ({ page }) => {
 test('turning a reminder on first shows how many people it would message', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/reminders');
-  const row = page.getByTestId('reminder-rules').locator('tr[data-rule="Class tomorrow"]');
+  const row = page.getByTestId('reminder-rules').locator('[data-rule="Class tomorrow"]');
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.getByRole('switch').click();
   const confirm = page.getByTestId('reminder-confirm');

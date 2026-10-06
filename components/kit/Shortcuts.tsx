@@ -30,7 +30,7 @@ export function Shortcuts() {
 
   useEffect(() => {
     if (!open) return;
-    requestAnimationFrame(() => box.current?.querySelector<HTMLElement>('button')?.focus());
+    requestAnimationFrame(() => box.current?.focus());
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
       else if (e.key === 'Tab') {
@@ -56,8 +56,8 @@ export function Shortcuts() {
   const kbd = 'inline-flex min-w-[26px] items-center justify-center rounded-chip bg-surface2 px-1.5 py-0.5 font-sans text-[12px] font-semibold';
   return (
     <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 sm:items-center" onClick={close}>
-      <div ref={box} role="dialog" aria-modal="true" aria-labelledby="sc-title" onClick={(e) => e.stopPropagation()}
-        className="anim-rise max-h-[85vh] w-full overflow-auto rounded-t-card bg-surface p-5 shadow-3 sm:w-[460px] sm:rounded-card">
+      <div ref={box} role="dialog" aria-modal="true" aria-labelledby="sc-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}
+        className="anim-rise max-h-[85vh] w-full overflow-auto rounded-t-card bg-surface p-5 shadow-3 sm:w-[460px] sm:rounded-card outline-none">
         <div className="mb-2 flex items-center justify-between">
           <h2 id="sc-title" className="text-[16px] font-semibold">Keyboard shortcuts</h2>
           <IconButton aria-label="Close" onClick={close} icon={<X size={18} />} />

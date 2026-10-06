@@ -117,11 +117,12 @@ const pageItems = (page: number, count: number): (number | 'gap')[] => {
   return [1, 'gap', page - 1, page, page + 1, 'gap', count];
 };
 
+/** Row checkbox: only shown on row hover, keyboard focus, or once selecting (a row ticked, or a long-press on touch). */
 function Tick({ state, label, onChange }: { state: boolean | 'some'; label: string; onChange: () => void }) {
   return (
-    <button type="button" role="checkbox" aria-checked={state === 'some' ? 'mixed' : state} aria-label={label}
+    <button type="button" role="checkbox" aria-checked={state === 'some' ? 'mixed' : state} aria-label={label} data-testid="row-tick"
       onClick={(e) => { e.stopPropagation(); onChange(); }}
-      className="flex h-11 w-11 items-center justify-center">
+      className="flex h-11 w-11 items-center justify-center opacity-0 transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [[data-picking]_&]:opacity-100">
       <span className={cx('flex h-[18px] w-[18px] items-center justify-center rounded-[5px] border', state ? 'border-accent bg-accent text-white' : 'border-line2 bg-surface')}>
         {state === 'some' ? <Minus size={12} strokeWidth={3} /> : state ? <Check size={12} strokeWidth={3} /> : null}
       </span>
@@ -137,6 +138,8 @@ const values = (c: Col, r: Row): string[] => {
 const columns0 = (cfg: PageCfg) => cfg.columns;
 /** The tab a summary number repeats (same label, or `tab`): it is shown as that tab's count, not in the strip. */
 const tabOf = (cfg: PageCfg, k: Kpi) => { const l = k.tab || k.label; return (cfg.views || []).some((v) => v.label === l) ? l : null; };
+/** Long free text (notes, summaries, messages) wraps inside a max width instead of stretching the table. */
+const wraps = (c: Col) => c.wrap ?? ((!c.type || c.type === 'text') && /(^|\.)(notes?|summary|message|body|reason|description|feedback|remarks)$/.test(c.key));
 /** Column types that can collapse into a header chip when every shown row has the same value. */
 const SAME_OK = ['pill', 'progress', 'person', undefined, 'text'];
 /** Hover card on a person's name: the rest of the row at a glance. */
@@ -566,6 +569,11 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     shown.forEach((r) => { const p = cfg.person?.(r); if (p && !seen.has(p.kind + p.id)) { seen.add(p.kind + p.id); out.push(p); } });
     return out;
   }, [shown, cfg]);
+  // tabs + summary row scrolls sideways when it does not fit: fade the right edge so hidden chips are noticed
+  const stripRef = useRef<HTMLDivElement>(null);
+  const [stripMore, setStripMore] = useState(false);
+  const fitStrip = useCallback(() => { const el = stripRef.current; if (el) setStripMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 4); }, []);
+  useEffect(() => { const el = stripRef.current; if (!el) return; fitStrip(); const ro = new ResizeObserver(fitStrip); ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild); return () => ro.disconnect(); });
   const pageRows = useMemo(() => (server ? shown : shown.slice(page * PAGE, page * PAGE + PAGE)), [server, shown, page]);
   // a column whose value is the same on every shown row (e.g. Status on the Open tab) says nothing per row: it becomes a chip by the tabs
   const same = useMemo(() => {
@@ -594,6 +602,18 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
   const pickedRows = useMemo(() => shown.filter((r) => r.id && picked.has(r.id)), [shown, picked]);
   const pageIds = pageRows.map((r) => r.id).filter(Boolean) as string[];
   const pageState: boolean | 'some' = pageIds.length && pageIds.every((id) => picked.has(id)) ? true : pageIds.some((id) => picked.has(id)) ? 'some' : false;
+  // selection mode: shows every checkbox. On touch, a long-press on a row starts it.
+  const [picking, setPicking] = useState(false);
+  useEffect(() => { if (!picked.size) setPicking(false); }, [picked]);
+  const press = useRef<{ t: ReturnType<typeof setTimeout>; fired: boolean } | null>(null);
+  const longPress = (r: Row) => canBulk && r.id ? {
+    onPointerDown: (e: React.PointerEvent) => { if (e.pointerType === 'mouse') return; const p = { fired: false, t: setTimeout(() => { p.fired = true; setPicking(true); togglePick(r.id); navigator.vibrate?.(10); }, 500) }; press.current = p; },
+    onPointerUp: () => { if (press.current) clearTimeout(press.current.t); },
+    onPointerMove: () => { if (press.current && !press.current.fired) clearTimeout(press.current.t); },
+    onPointerCancel: () => { if (press.current) clearTimeout(press.current.t); },
+    onContextMenu: (e: React.MouseEvent) => { if (press.current?.fired) e.preventDefault(); },
+    onClickCapture: (e: React.MouseEvent) => { if (press.current?.fired) { e.stopPropagation(); e.preventDefault(); press.current = null; } },
+  } : {};
   const togglePick = (id: string) => setPicked((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const togglePage = () => setPicked((o) => { const n = new Set(o); if (pageState === true) pageIds.forEach((id) => n.delete(id)); else pageIds.forEach((id) => n.add(id)); return n; });
   const canBulk = canWrite && !!cfg.bulk?.length && (!cfg.readFrom || !!cfg.sameRows);
@@ -674,12 +694,16 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     toast(d.label + ': ' + cfg.rowTitle(r) + '.', { undo: async () => { await supabase().from(cfg.table).update({ [f]: old }).eq('id', r.id); toast('Put back as it was.'); load(); } });
     setTimeout(load, 600);
   };
+  // keep titles aligned only when some row on this page shows a circle (done or closable)
+  const doneSpace = !!cfg.done && pageRows.some((r) => r[cfg.assignee?.status || 'status'] === cfg.done!.value || !doneBlock(r));
   const doneBtn = (r: Row) => {
     const f = cfg.assignee?.status || 'status';
     if (r[f] === cfg.done!.value) return (
       <span title="Done" className="-my-2 flex h-11 w-9 shrink-0 items-center justify-center"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-goodBg text-goodText"><Check size={13} strokeWidth={3} aria-hidden /></span><span className="sr-only">Done</span></span>
     );
-    const blocked = doneBlock(r);
+    // only rows this person may close get the circle; others show nothing (no dead control)
+    if (doneBlock(r)) return doneSpace ? <span aria-hidden className="-my-2 -ml-1 h-11 w-10 shrink-0" /> : null;
+    const blocked = null as string | null;
     return (
       <button type="button" data-testid="row-done" aria-label={cfg.done!.label + ': ' + cfg.rowTitle(r)} aria-disabled={blocked ? true : undefined} title={blocked || cfg.done!.label}
         onClick={(e) => { e.stopPropagation(); if (blocked) toast(blocked + '.', { tone: 'bad' }); else markDone(r); }}
@@ -775,7 +799,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
 
         {/* narrow list (quick panel open): tabs get their own scrolling row so they never sit under Filter / View */}
         <div ref={barRef} className={cx('flex flex-wrap items-center gap-2', roomy && 'md:flex-nowrap')} data-testid="list-toolbar">
-          <div className={cx('-mx-1 flex min-w-0 max-w-full items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none]', roomy ? 'md:mx-0 md:flex-1 md:px-0' : 'w-full')}>
+          <div ref={stripRef} onScroll={fitStrip} data-more={stripMore || undefined} className={cx('-mx-1 flex min-w-0 max-w-full items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] data-[more]:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)]', roomy ? 'md:mx-0 md:flex-1 md:px-0' : 'w-full')}>
             <div className="flex shrink-0 gap-1" role="tablist">
               {views.map((v, i) => {
                 const on = view === i && !activeSaved, n = tabCount(i), warn = /overdue|late/i.test(v.label) && !!n;
@@ -1001,7 +1025,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
           })() : server && anyRows === null ? (
             <TableSkeleton />
           ) : (
-            <EmptyState kind={cfg.empty ? 'done' : 'empty'} title={cfg.empty ? 'Nothing to do' : 'No ' + plural + ' yet'}
+            <EmptyState kind={cfg.empty && !/^No /.test(cfg.empty) ? 'done' : 'empty'} title={cfg.empty && !/^No /.test(cfg.empty) ? 'Nothing to do' : 'No ' + plural + ' yet'}
               body={cfg.empty || (canWrite && cfg.cta && !cfg.noCreate ? `Add the first ${kind} to get started.` : `When ${plural} are added or shared with your role (${s.staff.role}), they appear here.`)}
               action={canWrite && cfg.fields && cfg.cta && !cfg.noCreate ? { label: cfg.cta, onClick: onCta } : undefined} />
           )
@@ -1014,15 +1038,15 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             renderCard={(r, colNext) => { const next = ruleKind ? stageMoves(ruleKind, r.stage, stages, stageRules(r.stage) || []).next : colNext; return (<>
               <div className="text-[13px] font-semibold">{plain(columns[0], r) || cfg.rowTitle(r)}</div>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-text2">
-                {columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field && c.type !== 'tags' && c.type !== 'progress' && (c.type === 'due' ? !c.doneWhen?.(r) : short(c, r))).map((c, i) => (
-                  <span key={c.key} className="flex items-center gap-1.5">{i > 0 && <span aria-hidden className="text-muted">·</span>}{c.type === 'due' ? cell(c, r, s.lists) : short(c, r)}</span>
+                {columns.slice(1, 5).filter((c) => c.key !== cfg.board!.field && c.type !== 'tags' && c.type !== 'progress' && (c.type === 'due' ? !c.doneWhen?.(r) : short(c, r))).map((c, i, all) => (
+                  <span key={c.key} className="flex items-center gap-1.5">{c.type === 'due' ? cell(c, r, s.lists) : short(c, r)}{i < all.length - 1 && <span aria-hidden className="text-muted">·</span>}</span>
                 ))}
               </div>
               {Array.isArray(r.tags) && r.tags.length > 0 && <div className="mt-1.5"><TagChips tags={r.tags} /></div>}
               <div className="mt-2 flex gap-1.5">
                 {canWrite && next && lockedFor(r, cfg.board!.field) && <span className="flex min-h-[32px] flex-1 items-center rounded-lg bg-surface2 px-2 text-[11.5px] text-muted">Only {statusLockedBy(cfg, r, s.staff, s.refs.staff || [])} can move this</span>}
-                {canWrite && next && !lockedFor(r, cfg.board!.field) && <button type="button" className="min-h-[32px] flex-1 rounded-lg border border-line2 bg-surface text-xs font-medium text-accentText" onClick={(e) => { e.stopPropagation(); move(r, next); }}>Move to {next} →</button>}
-                {canWrite && cfg.fields && cfg.person && <button type="button" aria-label="Edit" className="flex h-8 w-8 items-center justify-center rounded-lg border border-line2 bg-surface" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>}
+                {canWrite && next && !lockedFor(r, cfg.board!.field) && <button type="button" className="min-h-[32px] flex-1 rounded-lg bg-surface2 text-xs font-medium text-accentText transition-colors hover:bg-accentSoft" onClick={(e) => { e.stopPropagation(); move(r, next); }}>Move to {next} →</button>}
+                {canWrite && cfg.fields && cfg.person && <button type="button" aria-label="Edit" className="flex h-8 w-8 items-center justify-center rounded-lg text-text2 transition-colors hover:bg-surface2 hover:text-text" onClick={(e) => { e.stopPropagation(); setEditing(r); }}><Pencil size={13} /></button>}
               </div>
             </>); }} />
           </div>
@@ -1038,8 +1062,8 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                       {(() => { const c = columns.find((c) => c.type === 'pill'); return c && short(c, r) && !same.some((x) => x.col.key === c.key) ? <span className="shrink-0">{cell(c, r, s.lists)}</span> : null; })()}
                     </span>
                     <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-text2">
-                      {columns.slice(1, 6).filter((c) => c.type !== 'pill' && c.type !== 'tags' && c.type !== 'progress' && c.type !== 'people' && short(c, r)).slice(0, 3).map((c, i) => (
-                        <span key={c.key} className="flex min-w-0 items-center gap-1.5">{i > 0 && <span aria-hidden className="text-muted">·</span>}<span className="truncate">{c.type === 'due' ? cell(c, r, s.lists) : short(c, r)}</span></span>
+                      {columns.slice(1, 6).filter((c) => c.type !== 'pill' && c.type !== 'tags' && c.type !== 'progress' && c.type !== 'people' && short(c, r)).slice(0, 3).map((c, i, all) => (
+                        <span key={c.key} className="flex min-w-0 items-center gap-1.5"><span className="truncate">{c.type === 'due' ? cell(c, r, s.lists) : short(c, r)}</span>{i < all.length - 1 && <span aria-hidden className="text-muted">·</span>}</span>
                       ))}
                     </span>
                   </SwipeRow>
@@ -1047,13 +1071,13 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               ); })}
             </ul>
           )}
-          <Table label={(meta?.title || cfg.kind) + ' list'} density={density} className={cx('overflow-x-auto transition-opacity', busy && 'opacity-60', SWIPE && 'max-md:hidden')}>
+          <Table label={(meta?.title || cfg.kind) + ' list'} density={density} picking={picking || picked.size > 0} className={cx('overflow-x-auto transition-opacity', busy && 'opacity-60', SWIPE && 'max-md:hidden')}>
             <THead>
-              <Th className="ui-stick1 w-11 !pl-1 !pr-0"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></Th>
+              {canBulk && <Th className="ui-stick1 w-11 !pl-1 !pr-0"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></Th>}
               {tableCols.map((c, ci) => {
                 const on = sort?.key === c.key, num = NUMERIC.includes(c.type || ''), sortable = !server || !!orderKey(c);
                 return (
-                  <Th key={c.key} numeric={num} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className={cx('!px-1', ci === 0 && 'ui-stick2')}>
+                  <Th key={c.key} numeric={num} aria-sort={on ? (sort!.asc ? 'ascending' : 'descending') : 'none'} className={cx('!px-1', ci === 0 && 'ui-stick2', ci === 0 && !canBulk && '!left-0')}>
                     {sortable ? (
                       <button type="button" onClick={() => setSort(on ? (sort!.asc ? { key: c.key, asc: false } : null) : { key: c.key, asc: true })}
                         className={cx('inline-flex min-h-[32px] items-center gap-1 rounded-chip px-2 uppercase tracking-[inherit] transition-colors hover:bg-surface2 hover:text-text', num && 'flex-row-reverse', on && 'text-text')}>
@@ -1070,21 +1094,21 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                 <Fragment key={r.id ?? r.key ?? JSON.stringify(r)}>
                 {head && (
                   <tr data-testid="list-section" aria-label={cfg.groups![gi].label}>
-                    <th scope="colgroup" colSpan={1 + tableCols.length + (cfg.person && cfg.fields ? 1 : 0)}
+                    <th scope="colgroup" colSpan={(canBulk ? 1 : 0) + tableCols.length + (cfg.person && cfg.fields ? 1 : 0)}
                       className={cx('sticky top-9 z-[2] h-8 border-b border-line bg-surface px-3 text-left text-[11px] font-semibold uppercase tracking-wide', /overdue/i.test(cfg.groups![gi].label) ? 'text-badText' : 'text-muted')}>
                       {cfg.groups![gi].label}<span className="num ml-1.5 font-medium text-muted">{groupCount(gi)?.toLocaleString('en-IN') ?? ''}</span>
                     </th>
                   </tr>
                 )}
-                <Tr onOpen={() => openRow(r)} selected={!!((r.id && picked.has(r.id)) || (selId === r.id && cfg.person))}>
-                  <Td className="ui-stick1 w-11 !pl-1 !pr-0">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</Td>
+                <Tr {...longPress(r)} className="group/row" onOpen={() => openRow(r)} selected={!!((r.id && picked.has(r.id)) || (selId === r.id && cfg.person))}>
+                  {canBulk && <Td className="ui-stick1 w-11 !pl-1 !pr-0">{r.id ? <Tick state={picked.has(r.id)} label={'Select ' + cfg.rowTitle(r)} onChange={() => togglePick(r.id)} /> : null}</Td>}
                   {tableCols.map((c, i) => {
                     const f0 = canWrite && (!cfg.readFrom || cfg.sameRows) && r.id ? fieldFor(cfg, c) : null;
                     const f = f0 && !lockedFor(r, f0.key) ? f0 : null;
                     const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
                     const tip = c.type === 'tags' || c.type === 'people' ? undefined : short(c, r) || undefined;
                     return (
-                      <Td key={c.key} numeric={NUMERIC.includes(c.type || '')} title={editing ? undefined : tip} className={cx("whitespace-nowrap", i === 0 && "ui-stick2", editing && '!px-2', i === 0 ? 'font-semibold' : 'text-text2')}>
+                      <Td key={c.key} numeric={NUMERIC.includes(c.type || '')} title={editing ? undefined : tip} className={cx(wraps(c) ? "ui-wrap" : "whitespace-nowrap", i === 0 && "ui-stick2", i === 0 && !canBulk && "!left-0", editing && '!px-2', i === 0 ? 'font-semibold' : 'text-text2')}>
                         {i === 0 && cfg.done ? <span className="flex items-center gap-1">{doneBtn(r)}<span className="min-w-0">{editing ? inlineEditor(r, f!) : f ? hover(i === 0 && !!cfg.person?.(r), r,
                           <button type="button" title={(tip ? tip + ' · ' : '') + 'click to change'} aria-label={`${f.label}: ${plain(c, r) || 'empty'}. Change`} onClick={(e) => { e.stopPropagation(); setCellEdit({ id: r.id, key: c.key }); }}
                             className={cx('-mx-1.5 block rounded-chip px-1.5 py-0.5 text-left transition-colors hover:bg-surface2 hover:text-text', clip(c, i))}>{cell(c, r, s.lists)}</button>

@@ -31,32 +31,32 @@ export function AutomationBuilder() {
   const save = async () => { await supabase().from('integration_config').update({ value: url.trim() || null }).eq('key', 'builder_url'); load(); };
 
   return (
-    <section className="border-t border-line pt-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 max-w-2xl">
-          <h2 className="text-base font-semibold">Build automations in Activepieces</h2>
-          <p className="mt-1 text-[13px] text-text2">In a flow pick <b>Stint CRM</b>: a trigger such as “New lead” or “Payment recorded”, then actions like WhatsApp, email, or “Create follow-up” back in the CRM. Publish and it runs. A published flow acts on real people straight away, so test it on a demo lead first.</p>
+    <section className="flex flex-col gap-2 border-t border-line pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 max-w-3xl">
+          <h2 className="text-[14px] font-semibold">Build in Activepieces</h2>
+          <p className="text-[13px] text-text2">Pick a <b>Stint CRM</b> trigger (e.g. “New lead”), add actions, publish. Published flows message real people, so test on a demo lead first.</p>
         </div>
         {info.url && (
-          <div className="flex flex-wrap gap-2">
-            {s.can('builder') && <Link href="/p/builder" className="btn inline-flex h-10 items-center rounded-[10px] bg-accent px-4 text-[13.5px] font-semibold text-white hover:brightness-110">Open automation builder</Link>}
-            <Button variant="outline" onClick={() => openBuilder(info.url)} rightIcon={<ExternalLink size={15} />}>New tab</Button>
+          <div className="flex flex-wrap gap-1">
+            {s.can('builder') && <Link href="/p/builder" className="btn inline-flex h-8 items-center rounded-lg bg-accentSoft px-3 text-[13px] font-semibold text-accentText hover:brightness-95">Open builder</Link>}
+            <Button size="sm" variant="quiet" onClick={() => openBuilder(info.url)} rightIcon={<ExternalLink size={14} />}>New tab</Button>
           </div>
         )}
       </div>
-      <div className="mt-4 text-xs font-medium text-muted">Live flows listening to the CRM</div>
-      {info.listening.length ? (
-        <ul className="mt-1.5 flex flex-wrap gap-1.5">
-          {info.listening.map((l, i) => <li key={i} title={'Since ' + fmtDateTime(l.since)} className="rounded-full bg-goodBg px-2.5 py-1 text-xs font-semibold text-goodText">{EVENT_NAME[l.event] || l.event}</li>)}
-        </ul>
-      ) : <p className="mt-1 text-[13px] text-muted">None yet. Turn on a flow with a Stint CRM trigger and it shows here.</p>}
+      <div className="flex flex-wrap items-center gap-1.5 text-[12.5px]">
+        <span className="font-medium text-muted">Live flows:</span>
+        {info.listening.length ? info.listening.map((l, i) => <span key={i} title={'Since ' + fmtDateTime(l.since)} className="rounded-full bg-goodBg px-2.5 py-0.5 text-xs font-semibold text-goodText">{EVENT_NAME[l.event] || l.event}</span>)
+          : <span className="text-text2">none yet. A flow with a Stint CRM trigger shows here once it is on.</span>}
+      </div>
       {isAdmin && (
-        <label className="mt-4 flex flex-col gap-1.5 text-xs font-medium text-muted">Builder address (admin)
-          <div className="flex gap-2">
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://automations.stintacademy.com" className="h-10 min-w-0 flex-1 px-3 text-sm" />
+        <details className="text-[12.5px]">
+          <summary className="flex min-h-[44px] cursor-pointer items-center font-medium text-muted md:min-h-[32px]">Builder address: {info.url || 'not set'}</summary>
+          <div className="flex gap-2 pb-1">
+            <input aria-label="Builder address" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://automations.stintacademy.com" className="h-10 min-w-0 flex-1 px-3 text-sm" />
             <Button variant="outline" onClick={save}>Save</Button>
           </div>
-        </label>
+        </details>
       )}
     </section>
   );

@@ -329,7 +329,6 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         <div className="flex flex-1 flex-col gap-2 px-3 py-2.5">
           {tab === 'Log' && (
             <div className="anim-fade flex flex-col gap-1">
-              <div className="text-[12px] font-medium text-muted">Latest</div>
               {timeline.length === 0 && <div className="text-[13px] text-muted">Nothing logged yet. Use the box below.</div>}
               <ul className="flex flex-col divide-y divide-line">
                 {[...timeline].sort((a, b) => +new Date(b.at) - +new Date(a.at)).slice(0, 5).map((t, i) => (

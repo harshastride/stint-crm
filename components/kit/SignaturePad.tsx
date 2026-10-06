@@ -31,7 +31,7 @@ export function SignaturePad({ onChange, height = 160 }: { onChange: (png: strin
         {empty && <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[13px] text-[#94A3B8]">Sign here</span>}
         <span className="pointer-events-none absolute bottom-8 left-6 right-6 border-b border-[#CBD5E1]" />
       </div>
-      <Button variant="quiet" size="sm" className="mt-2" onClick={clear} disabled={empty} leftIcon={<Eraser size={14} />}>Clear and sign again</Button>
+      {!empty && <Button variant="quiet" size="sm" className="mt-2" onClick={clear} leftIcon={<Eraser size={14} />}>Clear and sign again</Button>}
     </div>
   );
 }

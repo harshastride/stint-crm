@@ -46,6 +46,7 @@ export function InstalmentsEditor({ total, value, onChange, disabled }: { total:
     );
   }
 
+  if (!total && !list.length) return <div className="rounded-[10px] bg-surface2 px-3 py-2 text-[13px] font-normal text-muted">Choose a program first; the plan splits its price.</div>;
   return (
     <div className="flex flex-col gap-2 font-normal">
       <div className="flex items-center gap-2">
