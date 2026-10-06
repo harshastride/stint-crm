@@ -94,7 +94,7 @@ export function Attendance() {
   const mineIds = new Set(batches.filter((b) => b.trainer_id === s.staff.id).map((b) => b.id));
 
   return (
-    <main className="flex flex-1 flex-col gap-5 overflow-y-auto p-4 pb-0 md:p-6 md:pb-0">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pb-0 md:p-6 md:pb-0">
       <PageHeader title="Attendance" description={canWrite ? 'Mark all present, then tap the few who are absent or late. Save once.' : 'View only for ' + s.staff.role + '.'}
         filters={<>
           <label className="flex min-w-0 flex-1 items-center gap-2 text-[13px] font-medium text-text2 sm:flex-none">Batch
@@ -131,18 +131,18 @@ export function Attendance() {
             <p className="text-[13px] text-text2" aria-live="polite"><span className="font-semibold text-goodText">{counts.P} present</span> · <span className="font-semibold text-badText">{counts.A} absent</span> · <span className="font-semibold text-warnText">{counts.L} late</span>{counts.none ? ` · ${counts.none} not marked` : ''}</p>
             {canWrite && counts.none > 0 && <Button variant="secondary" size="lg" onClick={allPresent} disabled={saving}>Mark all present</Button>}
           </div>
-          <ul className="flex flex-col gap-2" aria-label="Register">
+          <ul className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3" aria-label="Register">
             {people.map((p) => {
               const m = current(p.id), v = pctOf(p.id), st = standing[p.id], low = v !== null && v < minPct, dirty = p.id in draft && (saved[p.id] || '') !== m;
               return (
-                <li key={p.id} className={cx('flex flex-col gap-2 rounded-card bg-surface p-3 shadow-1 sm:flex-row sm:items-center', dirty && 'ring-1 ring-accent/50')}>
+                <li key={p.id} className={cx('flex flex-col gap-2 rounded-card bg-surface p-3 shadow-1', dirty && 'ring-1 ring-accent/50')}>
                   <div className="min-w-0 flex-1">
                     <a href={`/candidate/${p.id}`} className="block truncate text-[14.5px] font-medium">{p.full_name}</a>
                     <div className={cx('text-xs', low ? 'font-semibold text-badText' : 'text-muted')} title="Sessions attended (present or late) ÷ sessions held since joining">
                       {v === null ? 'No sessions yet' : `${v}% · ${st.sessions_attended} of ${st.sessions_held} sessions${low ? ' · below ' + minPct + '%' : ''}`}{dirty ? ' · not saved' : ''}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 sm:w-[300px]" role="group" aria-label={`${p.full_name} mark`}>
+                  <div className="grid grid-cols-3 gap-2" role="group" aria-label={`${p.full_name} mark`}>
                     {(['P', 'A', 'L'] as Mark[]).map((k) => (
                       <button key={k} type="button" disabled={!canWrite || saving} aria-pressed={m === k} onClick={() => tap(p.id, k)}
                         className={cx('h-12 rounded-[10px] text-[13.5px] font-semibold transition-transform duration-100 active:scale-[0.97] disabled:cursor-default', m === k ? ON[k] : 'bg-surface2 text-text2')}>{LABEL[k]}</button>

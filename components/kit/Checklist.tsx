@@ -12,6 +12,7 @@ export function Checklist() {
   const s = useSession();
   const k = 'stint-checklist-hidden:' + s.staff.id;
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(k) === '1'; } catch { return false; } });
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(k + ':open') === '1'; } catch { return false; } });
   const [done, setDone] = useState<Record<string, boolean> | null>(null);
   useEffect(() => { if (!hidden) supabase().rpc('my_onboarding').then(({ data }: { data: Record<string, boolean> | null }) => setDone(data || {})); }, [hidden]);
   if (hidden || !done) return null;
@@ -25,21 +26,29 @@ export function Checklist() {
   const n = items.filter((i) => done[i.key]).length;
   if (n === items.length) return null;
   const hide = () => { setHidden(true); try { localStorage.setItem(k, '1'); } catch {} };
+  const toggle = () => { const v = !open; setOpen(v); try { localStorage.setItem(k + ':open', v ? '1' : '0'); } catch {} };
+  const next = items.find((i) => !done[i.key]);
+  const btn = 'flex min-h-[44px] shrink-0 items-center rounded-row px-2.5 text-[13px] font-medium text-text2 transition-colors duration-150 hover:bg-surface hover:text-text';
   return (
-    <section className="anim-rise rounded-card bg-accentSoft p-5" aria-label="Getting started">
-      <div className="flex items-start justify-between gap-3">
-        <div><h2 className="text-base font-semibold">Getting started</h2><p className="text-xs text-text2">{n} of {items.length} done · learn the CRM by doing</p></div>
-        <button type="button" onClick={hide} aria-label="Hide getting started" className="flex h-11 w-11 items-center justify-center rounded-row text-muted transition-colors duration-150 hover:bg-surface"><X size={16} /></button>
+    <section className="rounded-control bg-accentSoft px-3" aria-label="Getting started">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0">
+        <h2 className="text-[13.5px] font-semibold">Getting started</h2>
+        <span className="num text-[12.5px] text-text2">{n} of {items.length} done</span>
+        <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-surface"><span className="block h-full rounded-full bg-accent" style={{ width: (100 * n) / items.length + '%' }} /></span>
+        {next && <span className="min-w-0 flex-1 truncate text-[13px]">Next: {next.href ? <Link href={next.href} className="font-medium text-accentText hover:underline">{next.label} →</Link> : <span className="font-medium">{next.label}</span>}</span>}
+        <div className="ml-auto flex items-center">
+          <button type="button" onClick={toggle} aria-expanded={open} className={btn}>{open ? 'Show less' : 'Show all'}</button>
+          <button type="button" onClick={hide} aria-label="Hide getting started" className="flex h-11 w-11 items-center justify-center rounded-row text-muted transition-colors duration-150 hover:bg-surface"><X size={16} /></button>
+        </div>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-accent transition-[width]" style={{ width: (100 * n) / items.length + '%' }} /></div>
-      <ul className="mt-3 grid gap-1.5 sm:grid-cols-2">
+      {open && <ul className="grid gap-1.5 pb-3 sm:grid-cols-2">
         {items.map((i) => {
           const ok = !!done[i.key];
           const body = <><span className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2', ok ? 'border-accent bg-accent text-white' : 'border-line2 bg-surface')}>{ok && <Check size={12} strokeWidth={3} />}</span>
             <span className={cx('text-[13.5px]', ok ? 'text-muted line-through' : 'font-medium')}>{i.label}</span></>;
-          return <li key={i.key}>{i.href && !ok ? <Link href={i.href} className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3 shadow-1 transition-shadow duration-150 hover:shadow-2">{body}</Link> : <span className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3">{body}</span>}</li>;
+          return <li key={i.key}>{i.href && !ok ? <Link href={i.href} className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3 transition-colors duration-150 hover:bg-surface2">{body}</Link> : <span className="flex min-h-[44px] items-center gap-2.5 rounded-lg bg-surface px-3">{body}</span>}</li>;
         })}
-      </ul>
+      </ul>}
     </section>
   );
 }

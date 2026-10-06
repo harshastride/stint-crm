@@ -32,7 +32,7 @@ export function TargetRing({ value, target, label = 'enrolments this month', tit
 
   return (
     <section data-testid="target-ring" data-pace={done ? 'done' : onTrack ? 'on-track' : 'behind'} aria-label={title}
-      className="anim-rise flex flex-wrap items-center gap-5 rounded-card bg-surface shadow-1 p-5">
+      className="anim-rise flex flex-wrap items-center gap-4 rounded-card bg-surface shadow-1 px-4 py-3">
       <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label={`${value} of ${target} ${label}, ${pct}%, ${status.toLowerCase()}`}>
         <circle cx="66" cy="66" r={R} fill="none" stroke="var(--surface2)" strokeWidth="12" />
         <circle cx="66" cy="66" r={R} fill="none" stroke={colour} strokeWidth="12" strokeLinecap="round"

@@ -95,40 +95,46 @@ function Portal() {
   return (
     <div className="min-h-[100dvh] bg-bg">
       <IdleGuard />
-      <header className="sticky top-0 z-20 bg-surface/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[960px] items-center justify-between gap-3 px-4 py-3">
+      <header className="sticky top-0 z-20 border-b border-line bg-surface/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-[1200px] items-center justify-between gap-3 px-4">
           <span className="flex items-end gap-1.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/stint-logo.svg" alt="Stint" className="logo-light h-[30px] w-auto" />
+            <img src="/brand/stint-logo.svg" alt="Stint" className="logo-light h-[26px] w-auto" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/brand/stint-logo-dark.svg" alt="" className="logo-dark h-[30px] w-auto" />
-            <span className="mb-[11px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">Student</span>
+            <img src="/brand/stint-logo-dark.svg" alt="" className="logo-dark h-[26px] w-auto" />
+            <span className="mb-[9px] rounded-md bg-accentSoft px-1.5 py-0.5 text-[10px] font-semibold text-accentText">Student</span>
           </span>
           <Button variant="quiet" size="sm" onClick={signOut} leftIcon={<LogOut size={15} />}>Sign out</Button>
         </div>
       </header>
-      <main className="mx-auto flex max-w-[960px] flex-col gap-5 px-4 pb-10 pt-6">
-        <div className="flex items-center gap-4">
-          <PortalPhoto id={String(c.id)} name={String(c.full_name)} />
-          <div>
-          <h1 className="text-[26px] font-semibold leading-tight">Hi {String(c.full_name).split(' ')[0]}</h1>
-          <p className="text-text2">{[c.program, c.batch, c.code].filter(Boolean).join(' · ')}</p>
+      <main className="mx-auto grid max-w-[1200px] gap-x-8 gap-y-4 px-4 pb-10 pt-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-start">
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-[72px]" aria-label="You">
+          <div className="flex items-center gap-3">
+            <PortalPhoto id={String(c.id)} name={String(c.full_name)} />
+            <div className="min-w-0">
+              <h1 className="text-[18px] font-semibold leading-tight">Hi {String(c.full_name).split(' ')[0]}</h1>
+              <p className="truncate text-[12.5px] text-text2">{[c.program, c.batch, c.code].filter(Boolean).join(' · ')}</p>
+            </div>
           </div>
-        </div>
-        {c.batch && <CheckIn />}
-        <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="tablist">
+          <NextUp me={me} go={go} />
+          {c.batch && <CheckIn />}
+          <div className="border-t border-line pt-3">
+            <Stepper label="Your joining steps" steps={[
+              { label: 'My details', done: !!(me.private?.contact?.mobile && c.profile?.date_of_birth), onClick: () => go('My details') },
+              { label: 'Documents', done: (me.documents || []).length > 0 && !(me.documents || []).some((d: Me) => d.status !== 'Received' && d.status !== 'Verified'), onClick: () => go('Documents') },
+              { label: 'Sign agreement', done: !!me.signed_at, onClick: () => go('Fees') },
+              { label: 'Fees paid', done: !!me.fees && Number(me.fees.balance) <= 0, onClick: () => go('Fees') },
+            ]} />
+          </div>
+        </aside>
+        <div className="flex min-w-0 flex-col gap-4">
+        <nav className="sticky top-14 z-10 -mx-4 flex gap-0.5 overflow-x-auto border-b border-line bg-bg/95 px-4 py-1.5 backdrop-blur [scrollbar-width:none] lg:top-[56px] lg:mx-0 lg:flex-wrap lg:rounded-[10px] lg:border lg:bg-surface lg:p-1" role="tablist">
           {TABS.map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => go(t)} className={cx('flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3.5 text-[13.5px] font-medium', tab === t ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>
+            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => go(t)} className={cx('relative flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13px] font-medium before:absolute before:inset-x-0 before:-inset-y-1 before:content-[""]', tab === t ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>
               {t}{t === 'Alerts' && unread > 0 && <span data-testid="unread-badge" aria-label={unread + ' unread'} className="num rounded-full bg-[#FF6B35] px-1.5 text-[11px] font-semibold leading-[18px] text-white">{unread}</span>}
             </button>
           ))}
         </nav>
-        <Stepper label="Your joining steps" steps={[
-          { label: 'My details', done: !!(me.private?.contact?.mobile && c.profile?.date_of_birth), onClick: () => setTab('My details') },
-          { label: 'Documents', done: (me.documents || []).length > 0 && !(me.documents || []).some((d: Me) => d.status !== 'Received' && d.status !== 'Verified'), onClick: () => setTab('Documents') },
-          { label: 'Sign agreement', done: !!me.signed_at, onClick: () => setTab('Fees') },
-          { label: 'Fees paid', done: !!me.fees && Number(me.fees.balance) <= 0, onClick: () => setTab('Fees') },
-        ]} />
         {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
         {tab === 'Overview' && <Overview me={me} go={go} unread={unread} />}
         {tab === 'My details' && <Details me={me} onSaved={(t) => { setMsg({ tone: 'good', text: t }); load(); }} onError={(t) => setMsg({ tone: 'bad', text: t })} />}
@@ -138,7 +144,8 @@ function Portal() {
         {tab === 'My resumes' && <Resumes />}
         {tab === 'My files' && <Files me={me} />}
         {tab === 'Alerts' && <Alerts notes={notes} go={go} reload={loadNotes} />}
-        {tab === 'Help' && <section aria-label="Help"><h2 className="text-lg font-semibold">Help</h2><HelpList topics={STUDENT_TOPICS} footer={STUDENT_HELP_FOOTER} /></section>}
+        {tab === 'Help' && <section aria-label="Help"><h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Help</h2><HelpList topics={STUDENT_TOPICS} footer={STUDENT_HELP_FOOTER} /></section>}
+        </div>
       </main>
       <AlertStack source="student" onOpen={(l) => { go(mapLinkToTab(l)); loadNotes(); }} />
     </div>
@@ -147,8 +154,8 @@ function Portal() {
 
 function Card({ icon: I, title, children }: { icon: React.ComponentType<{ size?: number }>; title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]">
-      <h2 className="mb-2 flex items-center gap-2 font-semibold"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-accentSoft text-accentText"><I size={16} /></span>{title}</h2>
+    <section aria-label={title} className="border-t border-line pt-4">
+      <h2 className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted"><I size={13} />{title}</h2>
       {children}
     </section>
   );
@@ -159,10 +166,9 @@ function Overview({ me, go, unread }: { me: Me; go: (t: Tab) => void; unread: nu
   const missing = (me.documents || []).filter((d: Me) => d.status !== 'Received' && d.status !== 'Verified').length;
   const upcoming = (me.mocks || []).filter((m: Me) => m.scheduled_at && new Date(m.scheduled_at) > new Date());
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <NextUp me={me} go={go} />
-      <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)] md:col-span-2" aria-label="Your journey">
-        <h2 className="mb-3 font-semibold">Your journey</h2>
+    <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
+      <section className="md:col-span-2" aria-label="Your journey">
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Your journey</h2>
         <Journey student steps={journey(me.journey || [], c.stage, c.joined_on)} />
       </section>
       <Card icon={GraduationCap} title="My course">
@@ -221,16 +227,16 @@ function nextUp(me: Me): Todo[] {
 }
 
 function NextUp({ me, go }: { me: Me; go: (t: Tab) => void }) {
-  const all = nextUp(me), top = all.slice(0, 2);
+  const all = nextUp(me), top = all.slice(0, 3);
   return (
-    <section aria-label="Next up" className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)] md:col-span-2">
-      <h2 className="mb-1 font-semibold">Next up</h2>
+    <section aria-label="Next up">
+      <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Next up</h2>
       {top.length === 0 ? <p className="text-[13.5px] text-goodText">You’re all caught up. Nothing to do right now.</p> : (
         <ul>
           {top.map((t) => (
-            <li key={t.key} data-testid={'next-' + t.key} className="flex items-center justify-between gap-3 border-t border-line py-3 first:border-0">
+            <li key={t.key} data-testid={'next-' + t.key} className="flex items-center justify-between gap-3 border-t border-line py-2 first:border-0">
               <div className="min-w-0">
-                <div className="font-medium">{t.title}</div>
+                <div className="truncate text-[13.5px] font-medium">{t.title}</div>
                 {t.when && <div className={cx('text-[12.5px]', t.urgent ? 'font-semibold text-badText' : 'text-text2')}>{t.when}</div>}
               </div>
               {t.tab !== 'Overview' && <Button variant={t.urgent ? 'primary' : 'secondary'} size="sm" onClick={() => go(t.tab)}>{t.cta}</Button>}
@@ -238,7 +244,7 @@ function NextUp({ me, go }: { me: Me; go: (t: Tab) => void }) {
           ))}
         </ul>
       )}
-      {all.length > 2 && <p className="mt-1 text-[12.5px] text-muted">+{all.length - 2} more to do later</p>}
+      {all.length > 3 && <p className="mt-1 text-[12.5px] text-muted">+{all.length - 3} more to do later</p>}
     </section>
   );
 }
@@ -274,14 +280,14 @@ function Progress() {
         <p className="mb-3 text-[13.5px] text-text2">Opens the Interview Coach in a new tab. Answer out loud and your score shows up here.</p>
         <div className="flex"><CoachLink /></div>
       </Card>
-      <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]" aria-label="Mock interview feedback">
-        <h2 className="mb-2 font-semibold">Mock interview feedback</h2>
+      <section className="border-t border-line pt-4" aria-label="Mock interview feedback">
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Mock interview feedback</h2>
         {fb.data === undefined ? <Loading err={fb.err} retry={fb.retry} />
           : !fb.data?.reviews?.length ? <p className="text-[13px] text-text2">No mock feedback yet</p>
           : <RatingSummary reviews={fb.data.reviews} mocks={fb.data.mocks} />}
       </section>
       {pr.data === undefined ? <Loading err={pr.err} retry={pr.retry} />
-        : !pr.data.length ? <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]"><h2 className="mb-2 font-semibold">Interview practice</h2><p className="text-[13px] text-text2">No practice yet — tap Practise interview to start</p></section>
+        : !pr.data.length ? <section className="border-t border-line pt-4"><h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Interview practice</h2><p className="text-[13px] text-text2">No practice yet — tap Practise interview to start</p></section>
         : <PracticeCard attempts={pr.data} />}
     </div>
   );

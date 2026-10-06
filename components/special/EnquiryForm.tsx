@@ -105,9 +105,10 @@ export function EnquiryForm() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+    <main className="flex flex-1 flex-col overflow-y-auto px-4 pt-4 md:px-6">
+      <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-4">
       <PageHeader title="New enquiry" description={'Walk-in or phone enquiry. Takes about a minute.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')} />
-      <div ref={formRef} className="flex max-w-[860px] flex-col gap-4" onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT' && (e.target as HTMLInputElement).type !== 'checkbox' && canWrite) { e.preventDefault(); if (step < 2) next(); else save(); } }}>
+      <div ref={formRef} className="flex flex-1 flex-col gap-4" onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT' && (e.target as HTMLInputElement).type !== 'checkbox' && canWrite) { e.preventDefault(); if (step < 2) next(); else save(); } }}>
         <ol className="grid grid-cols-3 gap-2" aria-label="Steps">
           {STEPS.map((t, i) => (
             <li key={t} aria-current={i === step ? 'step' : undefined}>
@@ -118,18 +119,18 @@ export function EnquiryForm() {
             </li>
           ))}
         </ol>
-        {step === 0 && <section className="anim-fade rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
-          <h2 className="mb-4 text-[15px] font-semibold">Who is enquiring</h2>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+        {step === 0 && <section className="anim-fade border-t border-line pt-4">
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Who is enquiring</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label data-field="full_name" className="flex flex-col gap-1 text-xs font-medium text-text2"><span>Full name <span className="text-badText" aria-hidden>*</span></span><input {...a('full_name')} aria-required className={ctl} value={v.full_name} onChange={set('full_name')} onBlur={blur('full_name')} placeholder="As they say it" autoComplete="off" /><Err id="enq-err-full_name" text={err.full_name} /></label>
             <div data-field="mobile" className="flex flex-col gap-1 text-xs font-medium text-text2" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && String(v.mobile).trim()) blur('mobile')(); }}><span>Mobile <span className="text-badText" aria-hidden>*</span></span><PhoneInput label="Mobile" value={v.mobile} onChange={(m) => { setV({ ...v, mobile: m }); if (err.mobile) setErr((x) => ({ ...x, mobile: '' })); }} /><Err id="enq-err-mobile" text={err.mobile} /></div>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Email<input className={ctl} type="email" value={v.email} onChange={set('email')} placeholder="Optional" /></label>
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">City<input className={ctl} value={v.city} onChange={set('city')} /></label>
           </div>
         </section>}
-        {step === 1 && <section className="anim-fade rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
-          <h2 className="mb-4 text-[15px] font-semibold">What they want</h2>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+        {step === 1 && <section className="anim-fade border-t border-line pt-4">
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted">What they want</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label data-field="program_id" className="flex flex-col gap-1 text-xs font-medium text-text2"><span>Course interested <span className="text-badText" aria-hidden>*</span></span>
               <select {...a('program_id')} aria-required className={ctl} value={v.program_id} onChange={set('program_id')} onBlur={blur('program_id')}>
                 <option value="">Select</option>{s.refs.program.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}<option value="__other">Other (not offered yet)</option>
@@ -142,9 +143,9 @@ export function EnquiryForm() {
             <div className="flex flex-col gap-1 text-xs font-medium text-text2">Currently<RadioCards label="Currently" options={s.lists.currently || []} value={v.currently || null} onChange={(x) => setV({ ...v, currently: x || '' })} /></div>
           </div>
         </section>}
-        {step === 2 && <section className="anim-fade rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
-          <h2 className="mb-4 text-[15px] font-semibold">How they found us</h2>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+        {step === 2 && <section className="anim-fade border-t border-line pt-4">
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted">How they found us</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Source
               <select className={ctl} value={v.source_id} onChange={set('source_id')}><option value="">Select</option>{s.refs.lead_source.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
             </label>
@@ -161,12 +162,13 @@ export function EnquiryForm() {
           <p className="mt-3 truncate rounded-lg bg-surface2 px-3 py-2.5 text-[13px] text-text2"><b className="text-text">{v.full_name}</b> · +91 {String(v.mobile).replace(/(\d{5})(\d{5})/, '$1 $2')}{v.email ? ' · ' + v.email : ''} · wants <b className="text-text">{v.program_id === '__other' ? v.course_other : s.refs.program.find((x) => x.id === v.program_id)?.label}</b></p>
         </section>}
         {msg && <Notice tone={msg.tone}>{msg.text} {msg.id && s.can('lead') && <Link className="underline" href={'/p/lead?person=lead:' + msg.id}>Open the lead</Link>}</Notice>}
-        <Toolbar
+        <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-line bg-bg px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:-mx-6 md:px-6"><Toolbar
           start={<span className="text-[13px] text-muted">{step === 0 ? 'The mobile is checked for duplicates straight away.' : step === 2 ? 'Saving assigns the lead by the assignment rule.' : ''}</span>}
           primary={step < 2 ? <Button variant="primary" disabled={!canWrite} onClick={next}>Next</Button>
             : <Button variant="primary" loading={busy} disabled={!canWrite} onClick={save}>Save enquiry</Button>}>
           {step > 0 && <Button variant="outline" onClick={() => { setMsg(null); setStep(step - 1); }}>Back</Button>}
-        </Toolbar>
+        </Toolbar></div>
+      </div>
       </div>
     </main>
   );

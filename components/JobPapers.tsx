@@ -46,7 +46,7 @@ export function JobPapers({ job, canWrite }: { job: Row; canWrite: boolean }) {
   const got = papers.filter((p) => ['Received', 'Verified'].includes(saved[key(p.paper)] || p.def)).length;
 
   return (
-    <div className="flex flex-col gap-1 rounded-control bg-surface2 p-3">
+    <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold">Papers</div>
         <div className="num text-xs font-semibold text-text2">{got} of {papers.length} received</div>

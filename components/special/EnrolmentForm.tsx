@@ -90,11 +90,14 @@ export function EnrolmentForm() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-4 md:px-6">
       <PageHeader title="Enrolment form" description={'The full data sheet, filled with the student after they enrol.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')} />
-      <div className="flex max-w-[980px] flex-col gap-4">
-        <section className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
-          <h2 className="mb-4 text-[15px] font-semibold">Candidate</h2>
+      <div className="mx-auto flex w-full max-w-[1040px] flex-1 flex-col gap-4">
+      <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[180px_minmax(0,1fr)] xl:gap-8">
+        {c && priv && <nav aria-label="Form sections" className="hidden xl:block"><ul className="sticky top-0 flex flex-col gap-0.5 pt-1">{[['personal','Personal'],...Object.entries(GROUPS).map(([g,d])=>[g,d.title]),['education','Education'],['work-experience','Work experience']].map(([k,l])=><li key={k}><a href={'#sec-'+k} className="flex min-h-[36px] items-center rounded-lg px-2.5 text-[13px] text-text2 hover:bg-surface2 hover:text-text">{l}</a></li>)}</ul></nav>}
+        <div className={cx('flex min-w-0 flex-col gap-4', !(c && priv) && 'xl:col-span-2')}>
+        <section>
+          <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Candidate</h2>
           <div className="grid items-end gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
             <div className="flex flex-col gap-1 text-xs font-medium text-text2">Enrolled candidate<PersonSearch kind="candidate" value={id} onChange={pick} /></div>
             {c && <div className="truncate rounded-lg bg-surface2 px-3 py-2.5 text-[13.5px] text-text2">{c.program?.name || 'No program'} · {c.batch?.code || 'No batch yet'} · {c.code}</div>}
@@ -106,7 +109,7 @@ export function EnrolmentForm() {
 
         {c && priv && (
           <>
-            <Section title="Personal" tag="Everyone">
+            <Section id="personal" title="Personal" tag="Everyone">
               <div data-field="full_name" className="flex flex-col gap-1">
                 <Text label="Full name" required value={c.full_name} onChange={(v) => { setC({ ...c, full_name: v }); if (v.trim()) setNameErr(false); }} disabled={!canWrite} invalid={nameErr} onBlur={() => setNameErr(!String(c.full_name || '').trim())} />
                 {nameErr && <span id="enr-err-full_name" className="text-[12px] font-medium text-badText">Enter the full name.</span>}
@@ -118,7 +121,7 @@ export function EnrolmentForm() {
             {Object.entries(GROUPS).map(([g, def]) => {
               const mode = priv.modes[g];
               return (
-                <Section key={g} title={def.title} tag={mode === 'f' ? 'You can edit' : mode === 'm' ? 'Masked for ' + s.staff.role : 'Hidden for ' + s.staff.role} tone={mode === 'f' ? 'good' : 'warn'}>
+                <Section key={g} id={g} title={def.title} tag={mode === 'f' ? 'You can edit' : mode === 'm' ? 'Masked for ' + s.staff.role : 'Hidden for ' + s.staff.role} tone={mode === 'f' ? 'good' : 'warn'}>
                   {mode === 'h' ? <div className="col-span-full text-[13px] text-text2">Your role can’t see or fill this part. Another team completes it.</div>
                     : def.fields.map(([k, l]) => <Text key={k} label={l} value={priv[g]?.[k] || ''} onChange={(v) => setGroup(g, k, v)} disabled={!canWrite || mode !== 'f'} />)}
                 </Section>
@@ -127,22 +130,24 @@ export function EnrolmentForm() {
             <Repeat title="Education" cols={EDU} choices={{ level: s.lists.education_level || [] }} rows={c.education || []} onChange={(i, k, v) => setList('education', i, k, v)} onAdd={() => addRow('education')} onDrop={(i) => dropRow('education', i)} disabled={!canWrite} addLabel="Add education" />
             <Repeat title="Work experience" cols={EXP} rows={c.experience || []} onChange={(i, k, v) => setList('experience', i, k, v)} onAdd={() => addRow('experience')} onDrop={(i) => dropRow('experience', i)} disabled={!canWrite} addLabel="Add a company" empty="No work experience. Leave empty for a fresher." />
             {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-            <Toolbar start={dirty ? <span className="text-[13px] text-warnText">Unsaved changes</span> : undefined} primary={<Button variant="primary" loading={busy} disabled={!canWrite} onClick={save}>Save data sheet</Button>} />
+            <div className="sticky bottom-0 z-20 -mx-4 border-t border-line bg-bg px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:-mx-6 md:px-6 xl:mx-0 xl:px-0"><Toolbar start={dirty ? <span className="text-[13px] text-warnText">Unsaved changes</span> : undefined} primary={<Button variant="primary" loading={busy} disabled={!canWrite} onClick={save}>Save data sheet</Button>} /></div>
           </>
         )}
+        </div>
+      </div>
       </div>
     </main>
   );
 }
 
-function Section({ title, tag, tone, children }: { title: string; tag: string; tone?: 'good' | 'warn'; children: React.ReactNode }) {
+function Section({ id, title, tag, tone, children }: { id?: string; title: string; tag: string; tone?: 'good' | 'warn'; children: React.ReactNode }) {
   return (
-    <section className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold">{title}</h2>
+    <section id={'sec-' + (id || title.toLowerCase())} className="scroll-mt-4 border-t border-line pt-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h2>
         <span className={cx('shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold', tone === 'warn' ? 'bg-warnBg text-warnText' : tone === 'good' ? 'bg-goodBg text-goodText' : 'bg-surface2 text-text2')}>{tag}</span>
       </div>
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>{children}</div>
+      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
     </section>
   );
 }
@@ -170,9 +175,9 @@ function Choice({ label, value, options, onChange, disabled }: { label: string; 
 
 function Repeat({ title, cols, rows, onChange, onAdd, onDrop, disabled, addLabel, empty, choices = {} }: { choices?: Record<string, string[]>; title: string; cols: [string, string][]; rows: Row[]; onChange: (i: number, k: string, v: string) => void; onAdd: () => void; onDrop: (i: number) => void; disabled?: boolean; addLabel: string; empty?: string }) {
   return (
-    <section className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold">{title}</h2>
+    <section id={'sec-' + title.toLowerCase().replace(/\s+/g, '-')} className="scroll-mt-4 border-t border-line pt-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h2>
         {!disabled && <Button variant="quiet" size="sm" leftIcon={<Plus size={15} />} onClick={onAdd}>{addLabel}</Button>}
       </div>
       {rows.length === 0 && <div className="text-[13px] text-text2">{empty || 'Nothing added yet.'}</div>}

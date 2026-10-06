@@ -165,7 +165,7 @@ export function ReportBuilder() {
   const starters = STARTERS.filter((x) => sources.some((src) => src.key === x.def.source));
 
   return (
-    <main className="flex flex-col gap-section p-page-sm md:p-page">
+    <main className="flex flex-col gap-3 p-page-sm md:p-page">
       <PageHeader title="Report builder" description="Pick what to count, how to split it and which rows to keep. You only see rows your role can see."
         actions={<>
           <select aria-label="Open a saved report" className={sel} value={savedId || ''} onChange={(e) => e.target.value && open(e.target.value)}>
@@ -175,7 +175,8 @@ export function ReportBuilder() {
           <Button variant="outline" leftIcon={<Download size={16} />} onClick={csv} disabled={!res?.rows.length}>Download CSV</Button>
         </>} />
 
-      <section className="grid gap-4 rounded-card bg-surface p-card shadow-1 md:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+      <aside aria-label="Report settings" className="flex flex-col gap-4 border-line lg:sticky lg:top-2 lg:max-h-[calc(100dvh-80px)] lg:overflow-y-auto lg:border-r lg:pr-4">
         <label className="flex flex-col gap-1"><span className={label}>1. Data</span>
           <select aria-label="Data source" className={sel} value={def.source} onChange={(e) => pickSource(e.target.value)}>
             <option value="">Choose what to report on</option>
@@ -196,12 +197,12 @@ export function ReportBuilder() {
             {(def.group_by || []).map((g, i) => {
               const f = fieldOf(g.field);
               return (
-                <div key={i} className="flex flex-wrap gap-2">
-                  <select aria-label={`Split by ${i + 1}`} className={sel} value={g.field} onChange={(e) => upd({ group_by: (def.group_by || []).map((x, j) => (j === i ? { field: e.target.value, bucket: fieldOf(e.target.value)?.type === 'date' ? 'month' : undefined } : x)) })}>
+                <div key={i} className="flex items-center gap-1">
+                  <select aria-label={`Split by ${i + 1}`} className={sel + ' min-w-0 flex-1'} value={g.field} onChange={(e) => upd({ group_by: (def.group_by || []).map((x, j) => (j === i ? { field: e.target.value, bucket: fieldOf(e.target.value)?.type === 'date' ? 'month' : undefined } : x)) })}>
                     {groupable.map((x) => <option key={x.col} value={x.col}>{x.label}</option>)}
                   </select>
                   {f?.type === 'date' && (
-                    <select aria-label={`Date step ${i + 1}`} className={sel} value={g.bucket || 'month'} onChange={(e) => upd({ group_by: (def.group_by || []).map((x, j) => (j === i ? { ...x, bucket: e.target.value as Group['bucket'] } : x)) })}>
+                    <select aria-label={`Date step ${i + 1}`} className={sel + ' min-w-0 flex-1'} value={g.bucket || 'month'} onChange={(e) => upd({ group_by: (def.group_by || []).map((x, j) => (j === i ? { ...x, bucket: e.target.value as Group['bucket'] } : x)) })}>
                       <option value="day">By day</option><option value="week">By week</option><option value="month">By month</option>
                     </select>
                   )}
@@ -210,13 +211,13 @@ export function ReportBuilder() {
               );
             })}
             {(def.group_by || []).length < 2 && groupable.length > 0 && (
-              <Button size="md" variant="quiet" leftIcon={<Plus size={16} />} onClick={() => { const f = groupable.find((x) => !(def.group_by || []).some((g) => g.field === x.col)); if (f) upd({ group_by: [...(def.group_by || []), { field: f.col, bucket: f.type === 'date' ? 'month' : undefined }] }); }}>Add split</Button>
+              <Button size="md" variant="quiet" className="self-start" leftIcon={<Plus size={16} />} onClick={() => { const f = groupable.find((x) => !(def.group_by || []).some((g) => g.field === x.col)); if (f) upd({ group_by: [...(def.group_by || []), { field: f.col, bucket: f.type === 'date' ? 'month' : undefined }] }); }}>Add split</Button>
             )}
           </div>
           <div className="flex flex-col gap-2"><span className={label}>Numbers to show</span>
             {(def.measures || []).map((m, i) => (
-              <div key={i} className="flex flex-wrap gap-2">
-                <select aria-label={`Measure ${i + 1}`} className={sel} value={m.agg === 'count' ? 'count' : `${m.agg}:${m.field}`}
+              <div key={i} className="flex items-center gap-1">
+                <select aria-label={`Measure ${i + 1}`} className={sel + ' min-w-0 flex-1'} value={m.agg === 'count' ? 'count' : `${m.agg}:${m.field}`}
                   onChange={(e) => { const [agg, field] = e.target.value.split(':'); upd({ measures: (def.measures || []).map((x, j) => (j === i ? (agg === 'count' ? { agg: 'count' } : { agg: agg as Measure['agg'], field }) : x)) }); }}>
                   <option value="count">Count of rows</option>
                   {aggregatable.flatMap((f) => [<option key={'s' + f.col} value={`sum:${f.col}`}>Total {f.label.toLowerCase()}</option>, <option key={'a' + f.col} value={`avg:${f.col}`}>Average {f.label.toLowerCase()}</option>])}
@@ -224,7 +225,7 @@ export function ReportBuilder() {
                 {(def.measures || []).length > 1 && <IconButton aria-label="Remove number" icon={<X size={16} />} onClick={() => upd({ measures: (def.measures || []).filter((_, j) => j !== i) })} />}
               </div>
             ))}
-            {aggregatable.length > 0 && (def.measures || []).length < 3 && <Button size="md" variant="quiet" leftIcon={<Plus size={16} />} onClick={() => upd({ measures: [...(def.measures || []), { agg: 'sum', field: aggregatable[0].col }] })}>Add number</Button>}
+            {aggregatable.length > 0 && (def.measures || []).length < 3 && <Button size="md" variant="quiet" className="self-start" leftIcon={<Plus size={16} />} onClick={() => upd({ measures: [...(def.measures || []), { agg: 'sum', field: aggregatable[0].col }] })}>Add number</Button>}
           </div>
         </>}
 
@@ -240,12 +241,12 @@ export function ReportBuilder() {
         )}
 
         {def.source && (
-          <div className="flex flex-col gap-2 md:col-span-2"><span className={label}>3. Keep only rows where</span>
+          <div className="flex flex-col gap-2"><span className={label}>3. Keep only rows where</span>
             {(def.filters || []).map((fl, i) => {
               const f = fieldOf(fl.field);
               const ranged = f && ['date', 'number', 'money'].includes(f.type);
               return (
-                <div key={i} className="flex flex-wrap items-center gap-2" data-testid="report-filter">
+                <div key={i} className="flex flex-wrap items-center gap-1 border-b border-line pb-2" data-testid="report-filter">
                   <select aria-label={`Filter field ${i + 1}`} className={sel} value={fl.field} onChange={(e) => { const nf = fieldOf(e.target.value); setFilter(i, { field: e.target.value, op: nf && ['date', 'number', 'money'].includes(nf.type) ? 'between' : 'in', values: [] }); }}>
                     {fs.map((x) => <option key={x.col} value={x.col}>{x.label}</option>)}
                   </select>
@@ -276,8 +277,9 @@ export function ReportBuilder() {
             <div><Button size="md" variant="quiet" leftIcon={<Plus size={16} />} onClick={() => { const f = fs[0]; if (f) upd({ filters: [...(def.filters || []), { field: f.col, op: ['date', 'number', 'money'].includes(f.type) ? 'between' : 'in', values: [] }] }); }}>Add filter</Button></div>
           </div>
         )}
-      </section>
+      </aside>
 
+      <div className="flex min-w-0 flex-col gap-3">
       {err && <Notice tone="bad">{err}</Notice>}
       {msg && <Notice>{msg}</Notice>}
 
@@ -297,8 +299,8 @@ export function ReportBuilder() {
           </div>
 
           {showChart && firstNum && (
-            <div className="rounded-card bg-surface p-card shadow-1">
-              <div className="mb-2 flex items-center justify-between">
+            <div className="border-b border-line pb-2">
+              <div className="mb-1 flex items-center justify-between">
                 <span className={label}>{colLabel(firstNum)}</span>
                 <ButtonGroup label="Chart type">
                   <IconButton aria-label="Bar chart" icon={<BarChart3 size={16} />} variant={chart === 'bar' ? 'secondary' : 'quiet'} onClick={() => setChart('bar')} />
@@ -316,7 +318,7 @@ export function ReportBuilder() {
             </Table>
           ) : <div className="rounded-card bg-surface p-card text-center text-text2 shadow-1">No rows match. Try removing a filter.</div>}
 
-          <div className="flex flex-col gap-3 rounded-card bg-surface p-card shadow-1">
+          <div className="flex flex-col gap-2 border-t border-line pt-3">
             <span className={label}>4. Save and share</span>
             <div className="flex flex-wrap items-center gap-2">
               <input aria-label="Report name" placeholder="Report name" maxLength={120} className={sel + ' min-w-[220px]'} value={name} onChange={(e) => setName(e.target.value)} />
@@ -334,21 +336,23 @@ export function ReportBuilder() {
         </section>
       )}
       {!def.source && (
-        <section aria-label="Starter reports" className="flex flex-col gap-3 rounded-card bg-surface p-card shadow-1">
+        <section aria-label="Starter reports" className="flex flex-col gap-2">
           <div>
-            <h2 className="text-[15px] font-semibold text-text">Start from a common question</h2>
+            <h2 className="text-[14px] font-semibold text-text">Start from a common question</h2>
             <p className="text-[13px] text-text2">Each one runs on live data you can see. Change anything after it opens, then save it under your own name.</p>
           </div>
           {starters.length ? (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid border-t border-line sm:grid-cols-2 sm:gap-x-6">
               {starters.map((x) => (
-                <button key={x.q} type="button" onClick={() => starter(x)} className="flex min-h-[44px] items-center rounded-[10px] border border-line2 px-3 py-2 text-left text-[13.5px] text-text hover:bg-accentSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">{x.q}</button>
+                <button key={x.q} type="button" onClick={() => starter(x)} className="flex min-h-[44px] items-center border-b border-line px-2 py-1.5 text-left text-[13.5px] text-text hover:bg-accentSoft focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">{x.q}</button>
               ))}
             </div>
-          ) : <p className="text-[13px] text-text2">No starter fits the data your role can see. Choose what to report on above.</p>}
-          <p className="text-xs text-muted">Or pick a data source above to build your own.</p>
+          ) : <p className="text-[13px] text-text2">No starter fits the data your role can see. Choose what to report on, on the left.</p>}
+          <p className="text-xs text-muted">Or pick a data source on the left to build your own.</p>
         </section>
       )}
+      </div>
+      </div>
     </main>
   );
 }
@@ -356,7 +360,7 @@ export function ReportBuilder() {
 // Small SVG bar / line chart in the style of kit/Sparkline. No chart library.
 function MiniChart({ kind, points }: { kind: 'bar' | 'line'; points: { label: string; value: number; text: string }[] }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 600, H = 180, pad = 6;
+  const W = 600, H = 200, pad = 6;
   const max = Math.max(1, ...points.map((p) => p.value));
   const bw = W / points.length;
   const y = (v: number) => H - pad - (v / max) * (H - pad * 2);

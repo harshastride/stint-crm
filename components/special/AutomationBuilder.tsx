@@ -31,7 +31,7 @@ export function AutomationBuilder() {
   const save = async () => { await supabase().from('integration_config').update({ value: url.trim() || null }).eq('key', 'builder_url'); load(); };
 
   return (
-    <section className="rounded-card bg-surface p-card shadow-1">
+    <section className="border-t border-line pt-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 max-w-2xl">
           <h2 className="text-base font-semibold">Build automations in Activepieces</h2>

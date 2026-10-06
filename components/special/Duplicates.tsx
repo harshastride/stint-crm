@@ -40,7 +40,7 @@ export function Duplicates() {
   );
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
       <PageHeader title="Duplicates" description={'Records that look like the same person (same phone or email). Merging keeps one record, moves all calls, notes, payments and classes from the other onto it, and deletes the other. It can’t be undone.' + (s.staff.role === 'Admin' ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {pairs === null ? <div className="rounded-[14px] bg-surface p-6 text-muted shadow-[var(--shadow-1)]">Looking for duplicates…</div>

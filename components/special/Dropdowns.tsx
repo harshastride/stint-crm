@@ -51,25 +51,25 @@ export function Dropdowns() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-section overflow-y-auto p-page-sm md:p-page">
+    <main className="flex flex-1 flex-col gap-3 overflow-y-auto p-page-sm md:px-page md:py-4">
       <PageHeader title="Dropdown values" description="The choices staff see in every dropdown. Hiding a value removes it for new records only; old records keep it. Locked values drive rules and can’t be hidden."
         actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-      <div className="grid gap-6 md:grid-cols-[minmax(220px,280px)_minmax(0,1fr)]">
-        <section aria-label="Lists" className="flex max-h-[70vh] flex-col gap-0.5 overflow-y-auto">
+      <div className="grid min-h-0 flex-1 gap-0 md:grid-cols-[minmax(200px,248px)_minmax(0,1fr)]">
+        <section aria-label="Lists" className="flex max-h-[40vh] flex-col gap-0.5 overflow-y-auto border-line md:max-h-none md:border-r md:pr-3">
           {lists.map((l) => (
-            <button key={l.id} type="button" onClick={() => { setSel(l.id); setMsg(null); }} className={cx('rounded-lg px-2.5 py-2 text-left transition-colors duration-150', sel === l.id ? 'bg-accentSoft' : 'hover:bg-surface2')}>
+            <button key={l.id} type="button" onClick={() => { setSel(l.id); setMsg(null); }} className={cx('min-h-[44px] rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150', sel === l.id ? 'bg-accentSoft' : 'hover:bg-surface2')}>
               <div className={cx('truncate text-[13.5px]', sel === l.id ? 'font-semibold text-accentText' : 'font-medium')}>{l.name}</div>
               <div className="truncate text-xs text-muted">{l.used_on} · {values.filter((v) => v.list_id === l.id && v.active).length} values</div>
             </button>
           ))}
         </section>
-        <section className="min-w-0 rounded-card bg-surface p-card shadow-1">
-          <h2 className="text-[17px] font-semibold">{list?.name}</h2>
+        <section aria-label="Values" className="flex min-w-0 flex-col pt-3 md:pl-5 md:pt-0">
+          <h2 className="text-[15px] font-semibold">{list?.name}</h2>
           <p className="mb-3 mt-0.5 text-[13px] text-text2">Used on: {list?.used_on}. The order here is the order people see{/stage|status|result/i.test(list?.name || '') ? ', and the order of the board columns' : ''}.</p>
           <div className="flex flex-col">
             {mine.map((v, i) => (
-              <div key={v.id} className="group flex min-h-[48px] items-center gap-1 border-b border-line px-1 last:border-0">
+              <div key={v.id} className="group flex min-h-[44px] items-center gap-1 border-b border-line px-1 last:border-0">
                 {canWrite && <IconButton size="icon-sm" aria-label={'Move ' + v.value + ' up'} disabled={i === 0} onClick={() => shift(i, -1)} icon={<ArrowUp size={15} />} />}
                 {canWrite && <IconButton size="icon-sm" aria-label={'Move ' + v.value + ' down'} disabled={i === mine.length - 1} onClick={() => shift(i, 1)} icon={<ArrowDown size={15} />} />}
                 <span title={v.value} className={cx('ml-1 min-w-0 flex-1 truncate text-[13.5px] font-medium', !v.active && 'text-muted line-through')}>{v.value}</span>
@@ -79,12 +79,12 @@ export function Dropdowns() {
             ))}
           </div>
           {canWrite && (
-            <div className="mt-4 flex gap-2">
-              <input aria-label="New value" className="h-10 min-w-0 flex-1 px-3 text-sm" placeholder="New value" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
+            <div className="sticky bottom-0 mt-2 flex gap-2 border-t border-line bg-bg py-2">
+              <input aria-label="New value" className="h-11 min-w-0 flex-1 px-3 text-sm" placeholder="New value" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
               <Button variant="primary" onClick={add}>Add value</Button>
             </div>
           )}
-          <p className="mt-3 text-xs text-muted">Hidden values stay on old records. Locked values are ones the app’s own rules depend on.</p>
+          <p className="mt-1 text-xs text-muted">Hidden values stay on old records. Locked values are ones the app’s own rules depend on.</p>
         </section>
       </div>
     </main>

@@ -30,6 +30,7 @@ test('admin builds an advanced filter on leads, sees a live count, and saves it 
   await expect(page.getByRole('button', { name: /^Advanced · 1/ })).toBeVisible();
 
   const name = 'Adv test ' + Date.now();
+  await page.getByRole('button', { name: /^View/ }).click();   // Save this view lives in the View menu
   await page.getByRole('button', { name: 'Save this view' }).click();
   await page.getByLabel('View name').fill(name);
   await page.getByRole('button', { name: 'Save', exact: true }).click();

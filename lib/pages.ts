@@ -4,7 +4,7 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean; /** 'person': the team/role shown on hover */ role?: (r: Row) => string | null | undefined };
 export type Field = {
   key: string; label: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
@@ -27,7 +27,7 @@ export type Q = any;
 /** where: rows already in the browser; filter: the same rule for the database (pages with `server`). */
 export type View = { label: string; where?: (r: Row, me: string) => boolean; filter?: (q: Q, me: string) => Q; order?: { col: string; asc?: boolean } };
 /** One number in the summary strip. Clicking it applies `where` / `filter`. `sumKey`: value comes from the page's summaryRpc. */
-export type Kpi = { label: string; calc: (rows: Row[]) => string | number; where?: (r: Row) => boolean; filter?: (q: Q) => Q; sumKey?: string; money?: boolean };
+export type Kpi = { label: string; calc: (rows: Row[]) => string | number; where?: (r: Row) => boolean; filter?: (q: Q) => Q; sumKey?: string; money?: boolean; /** this number is the same as a tab's: shown as that tab's count instead of in the strip */ tab?: string };
 export type PageCfg = {
   id: string; table: string; readFrom?: string; /** readFrom view has the same rows/ids as table, so editing in the list still works */ sameRows?: boolean; select?: string; order?: { col: string; asc?: boolean };
   kind: string; purpose: string; cta?: string; readOnly?: boolean; noCreate?: boolean; csv?: boolean;
@@ -45,6 +45,10 @@ export type PageCfg = {
   bulk?: Bulk[];                 // actions for ticked rows (shown only to roles that can edit the page)
   top?: string;                  // id of an extra block shown above the list (see ListPage TOP)
   assignee?: { field: string; status: string; label: string };   // only this person (or their team head) changes the status; the database enforces it
+  /** one-tap close button at the start of each row (sets assignee.status to `value`); respects the assignee rule */
+  done?: { value: string; label: string };
+  /** rows in the default order fall into these sections (sticky headers with counts); a row in none of them is shown without a header */
+  groups?: { label: string; where: (r: Row) => boolean; filter: (q: Q) => Q }[];
 };
 
 type Me = { id: string; role: string; level?: string | null };
@@ -88,13 +92,19 @@ export const PAGES: Record<string, PageCfg> = {
     id: 'followups', table: 'follow_up', kind: 'Follow-up', purpose: 'Everything you need to do, sorted by when it is due.', cta: 'Add follow-up',
     empty: 'You’re all caught up. Follow-ups given to you or your team, and ones the CRM raises from its rules, appear here.',
     select: '*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name), owner:owner_id(full_name)', order: { col: 'due_at', asc: true },
-    columns: [{ key: 'title', label: 'Follow-up' }, { key: 'who', label: 'Person', get: (r) => r.lead?.full_name || r.candidate?.full_name || '—' }, { key: 'owner_role', label: 'Team' },
-      { key: 'owner.full_name', label: 'Owner', type: 'person' }, { key: 'due_at', label: 'Due', type: 'due', doneWhen: (r) => r.status === 'Done' }, { key: 'status', label: 'Status', type: 'pill' }],
+    columns: [{ key: 'title', label: 'Follow-up' }, { key: 'who', label: 'Person', get: (r) => r.lead?.full_name || r.candidate?.full_name || '—' },
+      { key: 'owner.full_name', label: 'Owner', type: 'person', role: (r) => r.owner_role }, { key: 'due_at', label: 'Due', type: 'due', doneWhen: (r) => r.status === 'Done' }, { key: 'status', label: 'Status', type: 'pill' }],
+    done: { value: 'Done', label: 'Mark done' },
+    groups: [
+      { label: 'Overdue', where: (r) => r.status === 'Open' && !!r.due_at && new Date(r.due_at).getTime() < new Date(dayStart()).getTime(), filter: (q) => q.eq('status', 'Open').lt('due_at', dayStart()) },
+      { label: 'Today', where: (r) => r.status === 'Open' && isToday(r.due_at), filter: (q) => today('due_at')(q.eq('status', 'Open')) },
+      { label: 'Upcoming', where: (r) => r.status === 'Open' && !!r.due_at && new Date(r.due_at).getTime() >= new Date(dayStart(1)).getTime(), filter: (q) => q.eq('status', 'Open').gte('due_at', dayStart(1)) },
+      { label: 'No date', where: (r) => r.status === 'Open' && !r.due_at, filter: (q) => q.eq('status', 'Open').is('due_at', null) }],
     server: true,
     views: [{ label: 'Open', where: (r) => r.status === 'Open', filter: (q) => q.eq('status', 'Open') }, { label: 'Overdue', where: (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at), filter: (q) => q.eq('status', 'Open').lt('due_at', dayStart()) },
       { label: 'Today', where: (r) => r.status === 'Open' && isToday(r.due_at), filter: (q) => today('due_at')(q.eq('status', 'Open')) }, { label: 'Mine', where: (r, id) => r.status === 'Open' && r.owner_id === id, filter: (q, id) => q.eq('status', 'Open').eq('owner_id', id) }, { label: 'Done', where: (r) => r.status === 'Done', filter: (q) => q.eq('status', 'Done') }],
     kpis: [count('Open', (r) => r.status === 'Open', (q) => q.eq('status', 'Open')), count('Overdue', (r) => r.status === 'Open' && isPast(r.due_at) && !isToday(r.due_at), (q) => q.eq('status', 'Open').lt('due_at', dayStart())),
-      count('Due today', (r) => r.status === 'Open' && isToday(r.due_at), (q) => today('due_at')(q.eq('status', 'Open')))],
+      { ...count('Due today', (r) => r.status === 'Open' && isToday(r.due_at), (q) => today('due_at')(q.eq('status', 'Open'))), tab: 'Today' }],
     person: (r) => (r.lead_id ? { kind: 'lead', id: r.lead_id } : r.candidate_id ? { kind: 'candidate', id: r.candidate_id } : null),
     fields: [{ key: 'title', label: 'What needs doing', type: 'text', required: true }, { key: 'lead_id', label: 'Lead (if it is about a lead)', type: 'person', person: 'lead', createOnly: true },
       { key: 'candidate_id', label: 'Candidate (if it is about a candidate)', type: 'person', person: 'candidate', createOnly: true },

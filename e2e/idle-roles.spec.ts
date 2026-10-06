@@ -21,6 +21,7 @@ test('Records tab: contact-stage chips save to app_role', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/roles');
   await page.getByRole('button', { name: 'Records', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Roles' }).getByRole('button', { name: 'Telecaller', exact: true }).click();
   const sec = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Telecaller', exact: true }) });
   await expect(sec.getByText('Can see contact details while the lead is in')).toBeVisible({ timeout: 15_000 });
   await expect(sec.getByText('Can see contact details while the student is in')).toBeVisible();

@@ -36,6 +36,7 @@ export function RolesGrid() {
 
   const [pendingRemove, setPendingRemove] = useState<{ role: string; page: string; title: string } | null>(null);
   const [focusRole, setFocusRole] = useState('');
+  const [recRole, setRecRole] = useState('');
   const tapPage = async (role: string, page: string, title: string, confirmed = false) => {
     if (!canWrite) return;
     const key = role + '|' + page, next = PAGE_NEXT[pageAccess[key] || ''];
@@ -99,7 +100,7 @@ export function RolesGrid() {
   const btn = 'btn relative h-8 w-full min-w-[64px] rounded-lg text-[12.5px] font-semibold transition-colors duration-150 disabled:cursor-default';
 
   return (
-    <main className="flex flex-1 flex-col gap-section overflow-y-auto p-page-sm md:p-page">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-page-sm md:px-page md:py-4">
       <PageHeader title="Roles & permissions" description="What each role can open and change. Taking access away really blocks it, not just hides it."
         actions={<span className="rounded-full bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accentText">{s.staff.role + (canWrite ? ' · can edit' : ' · view only')}</span>}
         filters={<ButtonGroup label="Permission type">{(['Pages', 'Sensitive details', 'Records'] as const).map((t) => <Button key={t} size="sm" variant="quiet" active={tab === t} onClick={() => setTab(t)}>{t}</Button>)}</ButtonGroup>} />
@@ -112,7 +113,7 @@ export function RolesGrid() {
         </div>
       )}
       {tab === 'Pages' && (
-        <section className="rounded-card bg-surface p-card shadow-1" aria-label="What a role can do" data-testid="role-summary">
+        <section className="border-t border-line pt-3" aria-label="What a role can do" data-testid="role-summary">
           <label className="flex flex-wrap items-center gap-2 text-[13.5px] font-medium">In plain words, what can
             <select aria-label="Role to summarise" className="h-11 rounded-[10px] border border-line2 bg-surface px-3 text-sm" value={focusRole} onChange={(e) => setFocusRole(e.target.value)}>
               <option value="">pick a role</option>{roles.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -135,9 +136,15 @@ export function RolesGrid() {
         </section>
       )}
       {tab === 'Records' ? (
-        <div className="flex flex-col gap-3">
-          {roles.map((r) => (
-            <section key={r} className="rounded-card bg-surface p-card shadow-1">
+        <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:gap-0">
+          <nav aria-label="Roles" className="flex gap-1 overflow-x-auto border-line lg:flex-col lg:gap-0.5 lg:overflow-visible lg:border-r lg:pr-3">
+            {roles.map((r) => { const on = (recRole || roles[0]) === r; return (
+              <button key={r} type="button" aria-pressed={on} onClick={() => setRecRole(r)} className={cx('min-h-[44px] shrink-0 rounded-lg px-2.5 text-left text-[13.5px] transition-colors duration-150', on ? 'bg-accentSoft font-semibold text-accentText' : 'font-medium hover:bg-surface2')}>{r}</button>
+            ); })}
+          </nav>
+          <div className="flex min-w-0 flex-col gap-3 lg:pl-5">
+          {roles.filter((r) => (recRole || roles[0]) === r).map((r) => (
+            <section key={r}>
               <h2 className="text-[15px] font-semibold">{r}</h2>
               <div className="mt-3 grid gap-x-6 gap-y-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
                 <div><div className="mb-1 text-xs font-medium text-text2">Sees students in these stages</div><StageChips role={r} k="sees_candidate_stages" all={candStages} what="students" /></div>
@@ -158,6 +165,7 @@ export function RolesGrid() {
             </section>
           ))}
           <p className="text-xs text-muted">“All” and “Any stage” mean no limit. Every time someone shows a phone, email or address it is logged. Juniors and Heads are set per person under Users &amp; staff. Page access still applies: a role needs the page to see the records at all. Admin always sees everything.</p>
+          </div>
         </div>
       ) : (<>
       <Table label={tab === 'Pages' ? 'Page access by role' : 'Sensitive details by role'} density="compact">

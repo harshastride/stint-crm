@@ -25,7 +25,7 @@ export function auditSentence(r: Row) {
   return `${who} changed ${nice(k)} ${val(c.old)} → ${val(c.new)}${keys.length > 1 ? ` (+${keys.length - 1} more)` : ''} on ${on}`;
 }
 
-const field = 'h-11 rounded-[10px] border border-line2 bg-surface px-3 text-sm';
+const field = 'h-11 min-w-0 rounded-[10px] border border-line2 bg-surface px-2.5 text-[13px] md:h-9';
 
 /** Admin: who changed what, when. Read-only; rows can never be edited or removed. */
 export function AuditLog() {
@@ -65,12 +65,12 @@ export function AuditLog() {
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   return (
-    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+    <main className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 md:px-6 md:py-4">
       <PageHeader title="Audit log" description="Answers “who changed what, and when” for every add, change and removal, newest first. Read-only: nobody, including Admin, can edit or delete it. Private details show as [changed]; kept for 2 years."
         actions={<Button variant="outline" leftIcon={<Download size={16} />} onClick={csv} disabled={!rows?.length}>Export CSV</Button>}
         filters={
-          <div className="flex flex-wrap gap-2">
-            <input aria-label="Person or record" placeholder="Person or record" className={field} value={f.person} onChange={set('person')} />
+          <div className="flex flex-wrap items-center gap-1.5 xl:flex-nowrap">
+            <input aria-label="Person or record" placeholder="Person or record" className={field + ' w-44'} value={f.person} onChange={set('person')} />
             <select aria-label="Kind of change" className={field} value={f.action} onChange={set('action')}>
               <option value="">Any change</option><option value="INSERT">Added</option><option value="UPDATE">Changed</option><option value="DELETE">Removed</option>
             </select>
@@ -91,7 +91,7 @@ export function AuditLog() {
           </div>
         } />
       {err && <Notice tone="bad">{err}</Notice>}
-      {rows && rows.length > 0 && <p className="text-[12.5px] text-muted">{rows.length === 500 ? 'Showing the newest 500 changes. Narrow the filters to see older ones.' : `${rows.length} change${rows.length === 1 ? '' : 's'}`}</p>}
+      {rows && rows.length > 0 && <p className="-mt-1 text-[12px] text-muted">{rows.length === 500 ? 'Showing the newest 500 changes. Narrow the filters to see older ones.' : `${rows.length} change${rows.length === 1 ? '' : 's'}`}</p>}
       {rows === null ? <div className="rounded-[14px] bg-surface p-6 text-muted shadow-[var(--shadow-1)]">Loading…</div>
         : rows.length === 0 ? <EmptyState kind="done" title="Nothing found" body="No changes match these filters." />
         : (

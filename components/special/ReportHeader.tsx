@@ -57,23 +57,25 @@ export function ReportHeader() {
   const Extra = d.extra;
   return (
     <>
-      <section aria-label="About this report" data-testid="report-header" className="flex flex-col gap-3 rounded-card bg-surface p-card shadow-1">
-        <p className="text-[15px] font-semibold text-text">{d.question}</p>
-        <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-text2">
-          <span><b className="font-medium text-text">Period:</b> {d.period}</span>
-          <span data-testid="report-freshness"><b className="font-medium text-text">Data:</b> live, loaded {at || 'now'} IST. Only rows your role can see.</span>
+      <section aria-label="About this report" data-testid="report-header" className="flex flex-col gap-1 border-b border-line pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <p className="min-w-0 text-[14px] font-semibold text-text">{d.question}</p>
+          <nav aria-label="See the rows behind this report" className="flex flex-wrap items-center gap-1 text-[12.5px]">
+            <span className="text-muted">See the rows:</span>
+            {d.drill.map(([l, href]) => <Link key={href} href={href} className="inline-flex min-h-[44px] items-center rounded-[8px] px-2 text-accent hover:bg-accentSoft">{l}</Link>)}
+          </nav>
         </div>
-        <details className="text-[13px] text-text2">
-          <summary className="flex min-h-[44px] cursor-pointer items-center font-medium text-accent">How each number is worked out</summary>
+        <details className="text-[12.5px] text-text2">
+          <summary className="flex min-h-[44px] cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 [&::-webkit-details-marker]:hidden">
+            <span><span className="text-muted">Period:</span> {d.period}</span>
+            <span data-testid="report-freshness" className="text-muted">Live, loaded {at || 'now'} IST · only rows your role can see</span>
+            <span className="font-medium text-accent">How each number is worked out</span>
+          </summary>
           <dl className="mt-1 grid gap-x-4 gap-y-1 sm:grid-cols-[max-content_1fr]">
             {d.defs.map(([k, v]) => <div key={k} className="contents"><dt className="font-medium text-text">{k}</dt><dd>{v}</dd></div>)}
           </dl>
           {d.note && <p className="mt-2">{d.note}</p>}
         </details>
-        <nav aria-label="See the rows behind this report" className="flex flex-wrap items-center gap-2 text-[13px]">
-          <span className="text-muted">See the rows:</span>
-          {d.drill.map(([l, href]) => <Link key={href} href={href} className="inline-flex min-h-[44px] items-center rounded-[10px] border border-line2 px-3 hover:bg-accentSoft">{l}</Link>)}
-        </nav>
       </section>
       {Extra && <Extra />}
     </>

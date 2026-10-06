@@ -12,8 +12,8 @@ import { friendlyError } from '../Fields';
 function Switch({ on, label, disabled, onClick }: { on: boolean; label: string; disabled?: boolean; onClick: () => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={onClick} className="flex h-11 w-14 shrink-0 items-center disabled:opacity-50">
-      <span className={cx('relative h-6 w-11 rounded-full transition-colors duration-150', on ? 'bg-accent' : 'bg-line')}>
-        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-150', on ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+      <span className={cx('relative block h-6 w-11 rounded-full transition-colors duration-150', on ? 'bg-accent' : 'bg-line')}>
+        <span className={cx('absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-150', on ? 'translate-x-[22px]' : 'translate-x-0.5')} />
       </span>
     </button>
   );
@@ -56,24 +56,26 @@ export function StageRules() {
   const when = (r: Row) => r.from_stage && r.to_stage ? `${r.from_stage} → ${r.to_stage}` : r.to_stage ? `Any move into ${r.to_stage}` : `Any move out of ${r.from_stage}`;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6" data-testid="stage-rules">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-4" data-testid="stage-rules">
       <PageHeader title="Stage rules"
-        description={'Which stage moves staff can make, and what must be done first. The database checks these on every move, from every screen and import. An Admin can still override one move with a reason.' + (canEdit ? '' : ' View only.')}
-        filters={(
-          <div role="tablist" aria-label="Rules for" className="flex gap-1 rounded-[10px] bg-surface2 p-1">
+        description={'Which stage moves staff can make, and what must be done first. The database checks these on every move, from every screen and import. An Admin can still override one move with a reason.' + (canEdit ? '' : ' View only.')} />
+      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-0">
+        <div className="lg:border-r lg:border-line lg:pr-3">
+          <div className="mb-1 hidden px-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted lg:block">Rules for</div>
+          <div role="tablist" aria-label="Rules for" aria-orientation="vertical" className="flex gap-1 lg:flex-col lg:gap-0.5">
             {(['lead', 'candidate'] as const).map((k) => (
               <button key={k} role="tab" type="button" aria-selected={kind === k} onClick={() => { setKind(k); setMsg(null); }}
-                className={cx('min-h-[40px] rounded-lg px-4 text-[13.5px] font-medium', kind === k ? 'bg-surface text-text shadow-1' : 'text-text2')}>
+                className={cx('min-h-[44px] rounded-lg px-2.5 text-left text-[13.5px] transition-colors duration-150', kind === k ? 'bg-accentSoft font-semibold text-accentText' : 'font-medium text-text2 hover:bg-surface2')}>
                 {k === 'lead' ? 'Leads' : 'Candidates'}
               </button>
             ))}
           </div>
-        )} />
-      {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
-
-      <section className="rounded-[14px] bg-surface p-4 shadow-1" aria-labelledby="sr-moves">
+        </div>
+        <div className="flex min-w-0 flex-col gap-4 lg:pl-5">
+      <section aria-labelledby="sr-moves">
         <h2 id="sr-moves" className="text-[15px] font-semibold">Allowed moves</h2>
-        <p className="mb-3 text-[13px] text-text2">Each row is where the {kind} is now; tick the stages it can move to next.</p>
+        <p className="mb-2 text-[13px] text-text2">Each row is where the {kind} is now; tick the stages it can move to next.</p>
         {moves === null ? <p className="text-muted">Loading…</p> : (
           <div className="overflow-x-auto">
             <table className="border-separate border-spacing-0 text-[13px]" aria-label="Allowed stage moves">
@@ -105,7 +107,7 @@ export function StageRules() {
         )}
       </section>
 
-      <section className="rounded-[14px] bg-surface p-4 shadow-1" aria-labelledby="sr-reqs">
+      <section className="border-t border-line pt-3" aria-labelledby="sr-reqs">
         <h2 id="sr-reqs" className="text-[15px] font-semibold">Must be done first</h2>
         <p className="mb-2 text-[13px] text-text2">When a check is on, staff see it as a checklist and the move stays blocked until it is met.</p>
         <ul className="divide-y divide-line">
@@ -121,6 +123,8 @@ export function StageRules() {
           {reqs.length === 0 && <li className="py-3 text-muted">No checks for {kind === 'lead' ? 'leads' : 'candidates'}.</li>}
         </ul>
       </section>
+        </div>
+      </div>
     </main>
   );
 }

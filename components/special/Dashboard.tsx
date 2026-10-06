@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Info } from 'lucide-react';
+import { ArrowRight, Info } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
@@ -39,38 +39,40 @@ type Tile = { id: string; label: string; value: string | number; def: string; hr
 const short = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 const span = (a: string, b: string) => (a === b ? short(a) : a.slice(0, 7) === b.slice(0, 7) ? `${Number(a.slice(8))}–${short(b)}` : `${short(a)} – ${short(b)}`);
 
-function StatTile({ t }: { t: Tile }) {
+function StatTile({ t, compact }: { t: Tile; compact?: boolean }) {
   const [why, setWhy] = useState(false);
   return (
-    <div data-testid="tile" data-tile={t.id} className="flex flex-col rounded-card bg-surface shadow-1">
-      <div className="px-4 pb-2 pt-3">
-        <div className="flex items-start justify-between gap-1">
-          <span className="pt-2 text-[13px] font-medium text-muted">{t.label}</span>
-          <button type="button" aria-expanded={why} aria-label={'How “' + t.label + '” is counted'} onClick={() => setWhy(!why)}
-            className="-mr-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-row text-muted hover:bg-surface2 hover:text-text"><Info size={14} /></button>
+    <div data-testid="tile" data-tile={t.id} className="flex flex-col rounded-row border border-line bg-surface px-3 py-2">
+      <div className="flex items-center gap-1">
+        <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-muted" title={t.label}>{t.label}</span>
+        <button type="button" aria-expanded={why} aria-label={'How “' + t.label + '” is counted'} onClick={() => setWhy(!why)}
+          className="-my-2 flex h-11 w-9 shrink-0 items-center justify-center rounded-row text-muted hover:bg-surface2 hover:text-text"><Info size={13} /></button>
+        <Link href={t.href} data-testid="tile-link" aria-label={'Open list: ' + t.label} title="Open list"
+          className="-my-2 -mr-2 flex h-11 w-9 shrink-0 items-center justify-center rounded-row text-accentText hover:bg-surface2"><ArrowRight size={15} /></Link>
+      </div>
+      <div className={cx('flex items-end gap-3', compact ? 'mt-0.5' : 'mt-1')}>
+        <div className="min-w-0 flex-1">
+          <div data-testid="tile-value" className={cx('num font-semibold leading-none', compact ? 'text-[22px]' : 'text-[24px]', t.tone === 'bad' && 'text-badText')}>{t.value}</div>
+          {t.note && <div className="mt-1 text-[11.5px] leading-snug text-muted">{t.note}</div>}
         </div>
-        <div data-testid="tile-value" className={cx('num text-[26px] font-semibold leading-none', t.tone === 'bad' && 'text-badText')}>{t.value}</div>
-        {t.note && <div className="mt-1 text-xs text-muted">{t.note}</div>}
-        {why && <p className="mt-2 rounded-row bg-surface2 p-2 text-[12px] leading-relaxed text-text2">{t.def}</p>}
         {t.spark && (
-          <div className="mt-2">
+          <div className="w-[45%] shrink-0" title="Per day, last 30 days">
             <Sparkline points={t.spark} label={t.label} format={t.sparkMoney ? (n) => money(n) : undefined} />
-            <div className="mt-0.5 text-[11px] text-muted">Per day, last 30 days</div>
           </div>
         )}
       </div>
-      <Link href={t.href} data-testid="tile-link" className="mt-auto flex min-h-[44px] items-center justify-end rounded-b-card px-4 text-[13px] font-medium text-accentText hover:bg-surface2">Open list →</Link>
+      {why && <p className="mt-2 rounded-row bg-surface2 p-2 text-[12px] leading-relaxed text-text2">{t.def}</p>}
     </div>
   );
 }
 
-function Tiles({ label, tiles }: { label: string; tiles: Tile[] }) {
+function Tiles({ label, tiles, compact }: { label: string; tiles: Tile[]; compact?: boolean }) {
   if (!tiles.length) return null;
   return (
-    <section aria-label={label} className="flex flex-col gap-2">
-      <h2 className="text-[13px] font-semibold uppercase tracking-wide text-muted">{label}</h2>
-      <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 200px), 1fr))' }}>
-        {tiles.map((t) => <StatTile key={t.id} t={t} />)}
+    <section aria-label={label} className="flex flex-col gap-1.5">
+      <h2 className="text-[11.5px] font-semibold uppercase tracking-wide text-muted">{label}</h2>
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${compact ? 200 : 240}px), 1fr))` }}>
+        {tiles.map((t) => <StatTile key={t.id} t={t} compact={compact} />)}
       </div>
     </section>
   );
@@ -103,10 +105,10 @@ export function Dashboard() {
   }, [s]);
 
   const [title, sub] = TITLES[s.staff.role] || TITLES.Admin;
-  const header = <PageHeader title={title} description={`${s.staff.role} · ${sub}`} />;
-  if (err) return <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-5 md:p-8">{header}<p className="text-badText">Could not load the dashboard numbers: {err}. Refresh to try again.</p></main>;
+  const header = <PageHeader title={title} description={sub} />;
+  if (err) return <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">{header}<p className="text-badText">Could not load the dashboard numbers: {err}. Refresh to try again.</p></main>;
   if (!m || !lists) return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-5 md:p-8">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">
       {header}
       <StatSkeleton count={4} />
       <PageSkeleton />
@@ -151,16 +153,15 @@ export function Dashboard() {
     ? <TargetRing value={m.target_done} target={m.target} title={m.target_mine ? 'My monthly target' : 'Team monthly target'} /> : null;
 
   const workLists = (
-    <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 340px), 1fr))' }}>
-      <section aria-label="Follow-ups due" className="rounded-card bg-surface p-5 shadow-1">
+    <>
+      <section aria-label="Follow-ups due" className="rounded-card bg-surface px-4 py-3 shadow-1">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Next follow-ups</h2>
+          <h2 className="text-[13px] font-semibold" title="Open, earliest due first">Next follow-ups</h2>
           <Link href="/p/followups" className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText hover:underline">Open all</Link>
         </div>
-        <p className="text-[12px] text-muted">Open, earliest due first</p>
         {lists.tasks.length === 0 && <p className="mt-3 text-text2">Nothing due. You’re clear.</p>}
         {lists.tasks.map((t) => (
-          <div key={t.id} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0">
+          <div key={t.id} className="flex items-center justify-between gap-3 border-t border-line py-1.5 first:border-0">
             <div className="min-w-0">
               <div className="truncate text-[13px] font-medium">{t.title}</div>
               <div className="truncate text-xs text-muted">{t.lead?.full_name || t.candidate?.full_name || ''} · {t.owner_role}</div>
@@ -170,40 +171,37 @@ export function Dashboard() {
         ))}
       </section>
       {s.can('alert') && (
-        <section aria-label="Open alerts" className="rounded-card bg-surface p-5 shadow-1">
+        <section aria-label="Open alerts" className="rounded-card bg-surface px-4 py-3 shadow-1">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Latest open alerts</h2>
+            <h2 className="text-[13px] font-semibold" title="Newest first">Latest open alerts</h2>
             <Link href="/p/alert" className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText hover:underline">Open all</Link>
           </div>
-          <p className="text-[12px] text-muted">Newest first</p>
           {lists.alerts.length === 0 && <p className="mt-3 text-text2">No open alerts.</p>}
           {lists.alerts.map((a) => (
-            <div key={a.id} className="flex items-center justify-between gap-3 border-t border-line py-2.5 first:border-0">
+            <div key={a.id} className="flex items-center justify-between gap-3 border-t border-line py-1.5 first:border-0">
               <div className="truncate text-[13px] font-medium" title={a.title}>{a.title}: {a.lead?.full_name || a.candidate?.full_name || ''}</div>
               <Pill>{a.priority}</Pill>
             </div>
           ))}
         </section>
       )}
-    </div>
+    </>
   );
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-5 md:p-8">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">
       {header}
       <Checklist />
-      <Tiles label="Needs attention" tiles={attention} />
-      {!manager && workLists}
+      <Tiles label="Needs attention" tiles={attention} compact />
       <Tiles label={`This month so far · ${monthSpan}`} tiles={month} />
-      {ring}
-      {manager && workLists}
-      {(showFunnel || showSources) && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))' }}>
-          {showFunnel && <Funnel />}
-          {showSources && <DashboardInsights sources={m.sources!} from={m.month_from} to={m.today} />}
-        </div>
-      )}
-      <Leaderboard role={s.staff.role} />
+      <div className="grid items-start gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))' }}>
+        {!manager && workLists}
+        {ring}
+        {manager && workLists}
+        {showFunnel && <Funnel />}
+        {showSources && <DashboardInsights sources={m.sources!} from={m.month_from} to={m.today} />}
+        <Leaderboard role={s.staff.role} />
+      </div>
       {['Telecaller', 'Sales', 'HR / Counsellor', 'Placement', 'Front desk', 'Admin'].includes(s.staff.role) && <ActivityHeatmap />}
     </main>
   );

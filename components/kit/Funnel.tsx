@@ -38,10 +38,10 @@ export function Funnel({ title = 'Lead conversion' }: { title?: string }) {
   const listHref = '/p/lead' + (range ? `?from=${range.from}&to=${range.to}` : '');
 
   return (
-    <section data-testid="funnel" aria-label={title} className="rounded-card bg-surface p-5 shadow-1">
+    <section data-testid="funnel" aria-label={title} className="rounded-card bg-surface px-4 py-3 shadow-1">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1">
-          <h2 className="text-base font-semibold">{title}</h2>
+          <h2 className="text-[13px] font-semibold">{title}</h2>
           <button type="button" aria-expanded={why} aria-controls="funnel-def" onClick={() => setWhy(!why)} aria-label="How this is counted"
             className="flex h-11 w-11 items-center justify-center rounded-row text-muted hover:bg-surface2 hover:text-text"><Info size={15} /></button>
         </div>

@@ -73,7 +73,7 @@ export function Reminders() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-4">
       <PageHeader title="Reminders" description={'Controls the automatic WhatsApp and email reminders. Turning one on messages real students or staff every day at its time. Nothing is sent between 9pm and 8am, and nobody gets the same reminder twice in a day.' + (canEdit ? '' : ' View only.')} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
       {turnOn && (
@@ -84,7 +84,8 @@ export function Reminders() {
         </div>
       )}
 
-      <section className="rounded-[14px] bg-surface shadow-[var(--shadow-1)]" data-testid="reminder-rules">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-0">
+      <section className="min-w-0 xl:pr-5" data-testid="reminder-rules">
         {rules === null ? <div className="p-6 text-muted">Loading…</div> : (
           <Table label="Reminder rules">
             <THead><Th>On</Th><Th>Reminder</Th><Th>When</Th><Th>Send at</Th><Th>Channel</Th><Th>To</Th><Th /></THead>
@@ -94,8 +95,8 @@ export function Reminders() {
                   <Td>
                     <button type="button" role="switch" aria-checked={!!r.active} aria-label={`${r.name} on or off`} disabled={!canEdit} onClick={() => toggle(r)}
                       className="flex h-11 w-14 items-center disabled:opacity-50">
-                      <span className={cx('relative h-6 w-11 rounded-full transition-colors duration-150', r.active ? 'bg-accent' : 'bg-line')}>
-                        <span className={cx('absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-150', r.active ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+                      <span className={cx('relative block h-6 w-11 rounded-full transition-colors duration-150', r.active ? 'bg-accent' : 'bg-line')}>
+                        <span className={cx('absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-150', r.active ? 'translate-x-[22px]' : 'translate-x-0.5')} />
                       </span>
                     </button>
                   </Td>
@@ -117,8 +118,9 @@ export function Reminders() {
         )}
       </section>
 
+      <div className="flex min-w-0 flex-col gap-4 border-line xl:border-l xl:pl-5">
       {edit && (
-        <section className="flex flex-col gap-3 rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]" aria-label="Edit reminder">
+        <section className="flex flex-col gap-3" aria-label="Edit reminder">
           <h2 className="text-[15px] font-semibold">Edit: {edit.name}</h2>
           <div className="flex flex-wrap gap-3">
             <label className="flex flex-col gap-1 text-[13px]">{OFFSET_LABEL[edit.trigger]}
@@ -145,15 +147,15 @@ export function Reminders() {
       )}
 
       {preview && (
-        <section className="rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]" data-testid="reminder-preview">
+        <section className="border-b border-line pb-3" data-testid="reminder-preview">
           <div className="mb-3 flex items-center gap-2">
             <h2 className="flex-1 text-[15px] font-semibold">Who would get “{preview.rule.name}” today ({preview.rows.length}) — nothing is sent</h2>
             <Button size="sm" variant="ghost" onClick={() => setPreview(null)}>Close</Button>
           </div>
           {preview.rows.length === 0 ? <p className="text-text2">Nobody matches today.</p> : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col divide-y divide-line">
               {preview.rows.map((p, i) => (
-                <li key={i} className="rounded-[10px] bg-surface2 p-3 text-[13.5px]">
+                <li key={i} className="py-2 text-[13.5px]">
                   <div className="font-semibold">{p.person_name}{p.opted_out && <span className="ml-2 text-[12px] font-normal text-text2">(opted out, skipped)</span>}{p.already_sent && <span className="ml-2 text-[12px] font-normal text-text2">(already sent today)</span>}</div>
                   <div className="text-text2">{p.body}</div>
                 </li>
@@ -163,15 +165,17 @@ export function Reminders() {
         </section>
       )}
 
-      <section className="rounded-[14px] bg-surface shadow-[var(--shadow-1)]" data-testid="reminder-log">
-        <h2 className="p-4 pb-2 text-[15px] font-semibold">Recent sends</h2>
-        {log.length === 0 ? <p className="p-4 pt-0 text-text2">No reminders sent yet.</p> : (
+      <section data-testid="reminder-log">
+        <h2 className="pb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">Recent sends</h2>
+        {log.length === 0 ? <p className="text-[13px] text-text2">No reminders sent yet.</p> : (
           <Table label="Recent reminder sends">
             <THead><Th>When</Th><Th>Reminder</Th><Th>To</Th></THead>
             <TBody>{log.map((l) => <Tr key={l.id}><Td>{fmtDateTime(l.created_at)}</Td><Td>{l.rule?.name}</Td><Td>{l.person_name}</Td></Tr>)}</TBody>
           </Table>
         )}
       </section>
+      </div>
+      </div>
     </main>
   );
 }

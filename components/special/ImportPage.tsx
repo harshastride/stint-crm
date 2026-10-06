@@ -103,13 +103,13 @@ export function ImportPage() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 overflow-y-auto p-4 md:p-6">
+    <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
       <PageHeader title="Import / export" description={'Bring leads in from a sheet. Imported leads are assigned to telecallers straight away and there is no one-click undo, so check step 3 carefully. Export any list from its own page.' + (canWrite ? '' : ' View only for ' + s.staff.role + '.')}
         actions={canWrite && step === 0 ? <Button variant="primary" leftIcon={<Plus size={16} />} onClick={() => { setStep(1); setMsg(null); }}>New import</Button> : undefined} />
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
 
       {step > 0 && (
-        <section className="anim-fade flex max-w-[760px] flex-col gap-4 rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
+        <section className="anim-fade mx-auto flex w-full max-w-[760px] flex-col gap-4 rounded-[14px] bg-surface p-4 shadow-[var(--shadow-1)]">
           <div className="flex items-center justify-between gap-3"><div><div className="text-xs font-medium text-muted">Step {step} of 3</div><h2 className="text-[15px] font-semibold">New import</h2></div><IconButton aria-label="Cancel import" icon={<X size={18} />} onClick={() => { setStep(0); setGrid([]); setCheck(null); }} /></div>
           {step === 1 && (
             <>

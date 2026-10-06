@@ -57,11 +57,11 @@ export function CheckIn() {
     } catch { stop(); setMsg({ tone: 'bad', text: 'The camera could not start. Type the code shown under the QR instead.' }); }
   };
 
-  if (!open) return <Button variant="primary" size="lg" leftIcon={<QrCode size={18} />} onClick={() => setOpen(true)}>Check in to class</Button>;
+  if (!open) return <Button variant="primary" leftIcon={<QrCode size={16} />} onClick={() => setOpen(true)}>Check in to class</Button>;
   return (
-    <section aria-label="Check in to class" className="flex flex-col gap-3 rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]">
+    <section aria-label="Check in to class" className="flex flex-col gap-2 border-t border-line pt-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold">Check in to class</h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted">Check in to class</h2>
         <Button variant="quiet" size="sm" onClick={() => { stop(); setOpen(false); setMsg(null); }}>Close</Button>
       </div>
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}

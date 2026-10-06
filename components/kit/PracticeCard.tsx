@@ -13,8 +13,8 @@ export function PracticeCard({ attempts, title = 'Interview practice' }: { attem
   const trend = list.slice(0, 10).reverse().map((a) => Number(a.overall ?? 0));
   const pts = trend.map((v, i) => `${trend.length > 1 ? (i * 120) / (trend.length - 1) : 60},${30 - (v / 100) * 28}`).join(' ');
   return (
-    <section className="rounded-2xl bg-surface p-5 shadow-[0_1px_3px_rgba(16,24,40,.06)]" aria-label={title}>
-      <h2 className="mb-2 text-base font-semibold">{title}</h2>
+    <section className="border-t border-line pt-4" aria-label={title}>
+      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</h2>
       {!latest ? <p className="text-sm text-text2">No practice yet.</p> : (
         <>
           <div className="mb-3 flex items-end gap-4">

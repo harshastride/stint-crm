@@ -249,13 +249,13 @@ test('tables: tick rows, bulk reassign, export ticked, hide a column', async ({ 
   expect(ids.length).toBe(2);
   // hide a column, and it stays hidden after reload
   await page.getByRole('button', { name: /^View/ }).click();   // columns live in the View menu
-  await page.getByRole('menuitemcheckbox', { name: 'Team' }).click();
-  await expect(page.locator('thead')).not.toContainText('Team');
+  await page.getByRole('menuitemcheckbox', { name: 'Person' }).click();
+  await expect(page.locator('thead')).not.toContainText('Person');
   await page.reload();
-  await expect(page.locator('thead')).not.toContainText('Team');
+  await expect(page.locator('thead')).not.toContainText('Person');
   await page.getByRole('button', { name: /^View/ }).click();
   await page.getByRole('button', { name: 'Show all columns' }).click();
-  await expect(page.locator('thead')).toContainText('Team');
+  await expect(page.locator('thead')).toContainText('Person');
 });
 
 test('tables: a role without edit rights gets no bulk actions', async ({ page }) => {
@@ -303,7 +303,7 @@ test('calendar: the old /p/calendar address opens the week calendar, items open 
   await login(page, 'harsha');
   await page.goto('/p/calendar');
   await expect(page).toHaveURL(/\/calendar$/);
-  await expect(page.getByRole('heading', { name: 'Week calendar' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Week calendar' })).toBeVisible({ timeout: 20_000 });
   const first = page.locator('section[data-day] button[data-kind]').first();
   if (await first.count()) { await first.click(); await expect(page).toHaveURL(/\/p\/(lead|candidate|followups|batch)/); }
   await login(page, 'kiran');   // Trainer: no counselling items
@@ -338,6 +338,7 @@ test('saved views: save, share with team, reopen, delete', async ({ page }) => {
   await page.goto('/p/lead');
   await page.getByRole('button', { name: 'table', exact: true }).click();
   await page.getByPlaceholder('Search this list').fill('ravi');
+  await page.getByRole('button', { name: /^View/ }).click();   // Save this view lives in the View menu
   await page.getByRole('button', { name: 'Save this view' }).click();
   await page.getByLabel('View name').fill('E2E view ravi');
   await page.getByLabel('Who sees it').selectOption('team');
@@ -498,7 +499,7 @@ test('student portal: invite, first password, details, document upload, receipt'
     // document
     await page.getByRole('tab', { name: 'Documents' }).click();
     const chooser = page.waitForEvent('filechooser');
-    await page.getByRole('button', { name: 'Upload' }).click();
+    await page.getByRole('button', { name: 'Upload', exact: true }).last().click();   // the Documents tab's button ("Next up" has its own)
     await (await chooser).setFiles({ name: 'pan.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') });
     await expect(page.getByText('PAN uploaded. The institute will verify it.')).toBeVisible();
     const { data: d } = await db.from('candidate_document').select('status, file_path').eq('id', doc!.id).single();

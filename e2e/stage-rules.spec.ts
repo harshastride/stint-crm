@@ -41,6 +41,7 @@ test('candidate: checklist before moving, move off until met, Admin override wit
   const h = (await db.from('status_history').select('what').eq('entity_id', cid)).data || [];
   expect(h.some((x) => x.what === 'Stage override by Admin: Batch starts Monday, paid in cash')).toBe(true);
   // only allowed next stages are offered (Training → Mocks, back to Enrolled), plus the Admin override group
+  await expect(stage.getByLabel('Move to another stage').locator('option', { hasText: 'Enrolled' })).toHaveCount(1, { timeout: 15_000 });   // wait for the reload after the move
   const opts = await stage.getByLabel('Move to another stage').locator('option').allTextContents();
   expect(opts).toContain('Enrolled');
   expect(opts.some((o) => /Placed \(not an allowed move\)/.test(o))).toBe(true);

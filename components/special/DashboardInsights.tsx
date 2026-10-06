@@ -8,9 +8,9 @@ export type SourceRow = { name: string; leads: number; enrolled: number | null }
 export function DashboardInsights({ sources, from, to }: { sources: SourceRow[]; from: string; to: string }) {
   const showEnrolled = sources.some((s) => s.enrolled != null);
   return (
-    <section aria-label="Lead sources this month" data-testid="sources" className="rounded-card bg-surface p-5 shadow-1">
-      <h2 className="text-base font-semibold">Lead sources this month</h2>
-      <p className="text-[12.5px] text-muted">Leads created since the 1st (India time){showEnrolled ? ', and how many of them have enrolled so far' : ''}. Top 6.</p>
+    <section aria-label="Lead sources this month" data-testid="sources" className="rounded-card bg-surface px-4 py-3 shadow-1">
+      <h2 className="text-[13px] font-semibold">Lead sources this month</h2>
+      <p className="text-[11.5px] text-muted">Since the 1st, India time · top 6</p>
       {sources.length === 0
         ? <p className="mt-3 text-text2">No leads created this month yet.</p>
         : (

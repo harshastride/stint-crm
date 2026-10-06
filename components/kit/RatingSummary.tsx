@@ -11,8 +11,8 @@ export function RatingSummary({ reviews, mocks = [] }: { reviews: Review[]; mock
   const passed = mocks.filter((m) => m.status === 'Passed').length, failed = mocks.filter((m) => m.status === 'Failed').length;
   const latest = [...reviews].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).filter((r) => r.comments).slice(0, 3);
   return (
-    <section className="rounded-[14px] border border-line bg-surface p-4" aria-label="Rating summary">
-      <h2 className="mb-3 text-base font-semibold">Mock and SME rating</h2>
+    <section className="border-t border-line pt-4 first:border-0 first:pt-0" aria-label="Rating summary">
+      <h2 className="mb-2 text-[11.5px] font-semibold uppercase tracking-wide text-muted">Mock and SME rating</h2>
       <div className="flex flex-wrap items-center gap-5">
         <div>
           <div className="num text-[32px] font-semibold leading-none">{avg ? avg.toFixed(1) : '—'}<span className="text-[14px] text-muted"> / 5</span></div>

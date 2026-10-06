@@ -1,10 +1,9 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
-import { PageHeader } from '../ListPage';
 import { Button, ButtonGroup, IconButton, cx } from '../ui';
 import { TableSkeleton } from '../Skeletons';
 
@@ -92,48 +91,59 @@ export function WeekCalendar() {
     const clashText = clash ? `Overlaps for ${e.staff_id === s.staff.id ? 'you' : staffName(e.staff_id)}: ` + clash.map((o) => `${o.title} at ${hm(o.starts_at)}`).join('; ') : '';
     return (
       <button key={e.kind + e.id + e.starts_at} type="button" data-kind={e.kind} onClick={() => router.push(href(e))}
-        title={e.title + (e.detail ? ' · ' + e.detail : '') + (clash ? ' — ' + clashText : '')} data-clash={clash ? 'yes' : undefined}
-        className={cx('flex min-h-[44px] w-full flex-col items-start rounded-lg border-l-[3px] px-2 py-1.5 text-left transition-shadow hover:shadow-2', KIND[e.kind].chip, late && 'ring-1 ring-badText')}>
-        <span className="num text-[11px] font-semibold opacity-80">{hm(e.starts_at)}{e.ends_at ? '–' + hm(e.ends_at) : ''}{late ? ' · overdue' : ''}</span>
-        <span className="w-full truncate text-[12.5px] font-medium">{e.title}</span>
-        {e.detail && <span className="w-full truncate text-[11px] opacity-75">{e.detail}</span>}
-        {clash && <span className="mt-0.5 flex w-full items-center gap-1 text-[11px] font-semibold text-warnText"><AlertTriangle size={12} aria-hidden /><span className="truncate">Clash: {clash.length} other at this time</span><span className="sr-only">. {clashText}</span></span>}
+        title={hm(e.starts_at) + (e.ends_at ? '–' + hm(e.ends_at) : '') + ' · ' + e.title + (e.detail ? ' · ' + e.detail : '') + (late ? ' · overdue' : '') + (clash ? ' — Clash. ' + clashText : '')} data-clash={clash ? 'yes' : undefined}
+        className={cx('relative flex min-h-[44px] w-full items-center gap-1.5 rounded-md border-l-[3px] py-0 pl-1.5 pr-2 text-left text-[12.5px] transition-colors hover:brightness-95 md:min-h-[32px]', KIND[e.kind].chip, late && 'ring-1 ring-inset ring-badText')}>
+        <span className="num shrink-0 text-[11px] font-semibold opacity-80">{hm(e.starts_at)}</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{e.title}</span>
+        {late && <span className="sr-only">, overdue</span>}
+        {clash && <span className="h-2 w-2 shrink-0 rounded-full bg-warnText" aria-hidden />}
+        {clash && <span className="sr-only">. Clash: {clash.length} other at this time. {clashText}</span>}
       </button>
     );
   };
+  const addBtn = (d: Date, always = false) => (
+    <button type="button" onClick={() => addAt(d)} aria-label={'Add follow-up on ' + d.toDateString()} title="Add follow-up"
+      className={cx('flex h-11 w-11 items-center justify-center rounded-md text-muted transition-opacity hover:bg-surface2 hover:text-accentText focus-visible:opacity-100 md:h-7 md:w-7',
+        !always && 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 [@media(hover:none)]:opacity-100')}>
+      <Plus size={15} aria-hidden />
+    </button>
+  );
+  const overlapCount = [...clashes.keys()].filter((e) => shown.includes(e)).length;
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
-      <PageHeader group="Home" title="Week calendar" purpose="Follow-ups, batch classes and mock interviews for the week. Tap an item to open it, or add a follow-up on a day." scope={s.staff.role + ' · what your role can see'} />
-      <div className="flex flex-wrap items-center gap-2">
-        <ButtonGroup label="Week">
-          <IconButton aria-label="Previous week" icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
-          <Button variant="quiet" onClick={goToday}>Today</Button>
-          <IconButton aria-label="Next week" icon={<ChevronRight size={16} />} onClick={() => step(1)} />
-        </ButtonGroup>
-        <h2 className="text-[17px] font-semibold tracking-tight" aria-live="polite">{title}</h2>
-        <div className="flex flex-wrap items-center gap-2 md:ml-auto">
-          <ButtonGroup label="Layout">
-            <Button variant="quiet" active={mode === 'week'} onClick={() => setMode('week')}>Week</Button>
-            <Button variant="quiet" active={mode === 'agenda'} onClick={() => setMode('agenda')}>Agenda</Button>
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto p-3 md:h-full md:overflow-hidden md:px-5 md:py-3">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 className="text-[18px] font-semibold leading-tight" title={`Follow-ups, batch classes and mock interviews for the week (${s.staff.role} · what your role can see). Tap an item to open it, or add a follow-up on a day.`}>Week calendar</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <ButtonGroup label="Week">
+            <IconButton aria-label="Previous week" size="icon-sm" icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
+            <Button variant="quiet" size="sm" onClick={goToday}>Today</Button>
+            <IconButton aria-label="Next week" size="icon-sm" icon={<ChevronRight size={16} />} onClick={() => step(1)} />
           </ButtonGroup>
-          <Button variant="outline" active={mine} onClick={() => setMine(!mine)}>Only mine</Button>
+          <h2 className="text-[14px] font-semibold tracking-tight" aria-live="polite">{title}</h2>
         </div>
-      </div>
-      <div className="flex flex-wrap gap-2" aria-label="Show or hide">
-        {(Object.keys(KIND) as Kind[]).filter((k) => present.has(k) || !show[k]).map((k) => (
-          <button key={k} type="button" aria-pressed={show[k]} onClick={() => setShow({ ...show, [k]: !show[k] })}
-            className={cx('flex min-h-[44px] items-center gap-2 rounded-lg px-3 text-[13px] font-medium transition-colors hover:bg-surface2', show[k] ? 'text-text' : 'text-muted line-through opacity-70')}>
-            <span className={cx('h-2.5 w-2.5 rounded-full', KIND[k].dot)} />{KIND[k].label}
-          </button>
-        ))}
-      </div>
+        <div className="flex flex-wrap items-center gap-1.5 md:ml-auto">
+          <div className="flex flex-wrap gap-1" aria-label="Show or hide" role="group">
+            {(Object.keys(KIND) as Kind[]).filter((k) => present.has(k) || !show[k]).map((k) => (
+              <button key={k} type="button" aria-pressed={show[k]} onClick={() => setShow({ ...show, [k]: !show[k] })}
+                className={cx('flex min-h-[44px] items-center gap-1.5 rounded-md px-2 text-[12.5px] font-medium transition-colors hover:bg-surface2 md:min-h-[32px]', show[k] ? 'text-text' : 'text-muted line-through opacity-70')}>
+                <span className={cx('h-2 w-2 rounded-full', KIND[k].dot)} />{KIND[k].label}
+              </button>
+            ))}
+          </div>
+          <ButtonGroup label="Layout">
+            <Button variant="quiet" size="sm" active={mode === 'week'} onClick={() => setMode('week')}>Week</Button>
+            <Button variant="quiet" size="sm" active={mode === 'agenda'} onClick={() => setMode('agenda')}>Agenda</Button>
+          </ButtonGroup>
+          <Button variant="outline" size="sm" active={mine} onClick={() => setMine(!mine)}>Only mine</Button>
+        </div>
+      </header>
 
       {/* phone: day picker */}
       {mode === 'week' && <div className="grid grid-cols-7 gap-1 md:hidden" role="tablist" aria-label="Day">
         {days.map((d, i) => (
           <button key={i} type="button" role="tab" aria-selected={day === i} onClick={() => setDay(i)}
-            className={cx('flex min-h-[52px] flex-col items-center justify-center rounded-[10px] text-[11px] transition-colors', day === i ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>
+            className={cx('flex min-h-[48px] flex-col items-center justify-center rounded-[10px] text-[11px] transition-colors', day === i ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2')}>
             {d.toLocaleDateString('en-IN', { weekday: 'narrow' })}
             <span className={cx('num text-[14px] font-semibold', same(d, today) && 'text-coral')}>{d.getDate()}</span>
             {onDay(d).length > 0 && <span className="h-1 w-1 rounded-full bg-accent" />}
@@ -143,48 +153,47 @@ export function WeekCalendar() {
 
       {error && <p role="alert" className="rounded-lg bg-badBg px-3 py-2 text-[13px] text-badText">{error}</p>}
       {items === null ? <TableSkeleton rows={6} /> : mode === 'agenda' ? (
-        <div className="flex flex-col gap-3" data-view="agenda">
+        <div className="flex flex-col md:min-h-0 md:flex-1 md:overflow-y-auto" data-view="agenda">
           {days.map((d) => {
             const list = onDay(d);
             const past = sod(d) < today;
             if (!list.length && past) return null;
             return (
-              <section key={d.toISOString()} aria-label={d.toDateString()} className={cx('ui-col flex flex-col gap-1.5', same(d, today) && 'ring-1 ring-inset ring-accent')}>
-                <div className="flex min-h-[44px] items-center justify-between gap-2 px-1">
-                  <h3 className="text-[14px] font-semibold">{same(d, today) ? 'Today · ' : ''}{d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
-                    <span className="ml-2 text-[12px] font-normal text-muted">{list.length ? list.length + (list.length === 1 ? ' item' : ' items') : 'Nothing planned'}</span></h3>
-                  {canAdd && !past && <Button variant="quiet" size="sm" leftIcon={<Plus size={15} />} onClick={() => addAt(d)} aria-label={'Add follow-up on ' + d.toDateString()}>Follow-up</Button>}
+              <section key={d.toISOString()} aria-label={d.toDateString()} className="border-b border-line pb-2">
+                <div className="sticky top-0 z-[1] flex min-h-[40px] items-center justify-between gap-2 bg-bg px-1">
+                  <h3 className={cx('text-[12px] font-semibold uppercase tracking-wide', same(d, today) ? 'text-accentText' : 'text-muted')}>{same(d, today) ? 'Today · ' : ''}{d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
+                    <span className="ml-2 font-normal normal-case tracking-normal">{list.length ? list.length + (list.length === 1 ? ' item' : ' items') : 'Nothing planned'}</span></h3>
+                  {canAdd && !past && addBtn(d, true)}
                 </div>
-                {list.map(card)}
+                <div className="flex flex-col gap-1">{list.map(card)}</div>
               </section>
             );
           })}
         </div>
       ) : (
-        <div className="grid gap-2 md:grid-cols-7">
+        <div className="grid gap-1.5 md:min-h-0 md:flex-1 md:grid-cols-7">
           {days.map((d, i) => {
             const list = onDay(d);
+            const isToday = same(d, today);
             return (
               <section key={d.toISOString()} aria-label={d.toDateString()} data-day={i}
-                className={cx('ui-col min-h-[160px] flex-col gap-1.5 md:flex', i === day ? 'flex' : 'hidden', same(d, today) && 'ring-1 ring-inset ring-accent')}>
-                <div className="flex items-center justify-between px-1 pb-1">
+                className={cx('group min-h-[160px] min-w-0 flex-col rounded-lg bg-surface md:flex md:min-h-0', i === day ? 'flex' : 'hidden', isToday && 'ring-1 ring-inset ring-accent')}>
+                <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-line px-2">
                   <span className="text-[12px] font-medium text-muted">{d.toLocaleDateString('en-IN', { weekday: 'short' })}</span>
-                  <span className={cx('num flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold', same(d, today) && 'bg-accent text-white')}>{d.getDate()}</span>
+                  <span className={cx('num flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-[13px] font-semibold', isToday && 'bg-accent text-white')}>{d.getDate()}</span>
+                  {list.length > 0 && <span className="num text-[11px] text-muted">{list.length}</span>}
+                  <span className="ml-auto">{canAdd && sod(d) >= today && addBtn(d)}</span>
                 </div>
-                {list.length === 0 && <span className="px-1 text-[12px] text-muted">Nothing planned</span>}
-                {list.map(card)}
-                {canAdd && sod(d) >= today && (
-                  <button type="button" onClick={() => addAt(d)} aria-label={'Add follow-up on ' + d.toDateString()}
-                    className="mt-auto flex min-h-[44px] w-full items-center justify-center gap-1 rounded-lg border border-dashed border-line2 text-[12px] font-medium text-muted transition-colors hover:border-accent hover:text-accentText">
-                    <Plus size={14} aria-hidden />Follow-up
-                  </button>
-                )}
+                <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1.5">
+                  {list.length === 0 && <span className="px-1 text-[12px] text-muted">Nothing planned</span>}
+                  {list.map(card)}
+                </div>
               </section>
             );
           })}
         </div>
       )}
-      <p className="text-xs text-muted">{shown.length} items this week{mine ? ' (only yours)' : ''}{clashes.size ? ` · ${[...clashes.keys()].filter((e) => shown.includes(e)).length} overlap with another item for the same person` : ''}. Overdue follow-ups have a red outline.</p>
+      <p className="shrink-0 text-xs text-muted">{shown.length} items this week{mine ? ' (only yours)' : ''}{overlapCount ? ` · ${overlapCount} clash (orange dot)` : ''} · overdue follow-ups have a red outline.</p>
     </main>
   );
 }
