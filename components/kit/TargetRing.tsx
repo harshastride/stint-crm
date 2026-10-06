@@ -1,53 +1,40 @@
 'use client';
-import { useEffect, useState } from 'react';
 
-// Monthly target ring: "18 / 25 enrolments this month", coloured by pace against days elapsed,
-// with "need X more, ~Y per day". The ring fills on load unless the person prefers reduced motion.
-export function TargetRing({ value, target, label = 'enrolments this month', title = 'My monthly target', now = new Date() }:
+// Monthly target, as one compact row: "Team target · 11 / 60 enrolments · Just on pace · need ~1.9/day · 26 days left",
+// a thin progress bar and a small marker where today's expected count sits. Pace compares the value with the
+// exact expected count (target × days elapsed ÷ days in month), not a rounded one.
+export function TargetRing({ value, target, label = 'enrolments', title = 'My target', now = new Date() }:
   { value: number; target: number; label?: string; title?: string; now?: Date }) {
   const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const day = now.getDate();
   const expected = (target * day) / days;
   const done = value >= target;
-  const onTrack = done || value >= Math.floor(expected);
+  const pace = done ? 'done' : value >= expected + 1 ? 'ahead' : value >= expected - 1 ? 'on-pace' : 'behind';
+  const status = { done: 'Target reached', ahead: 'Ahead of pace', 'on-pace': 'Just on pace', behind: 'Behind pace' }[pace];
   const need = Math.max(0, target - value);
   const left = days - day + 1;
   const perDay = need ? Math.ceil((need / left) * 10) / 10 : 0;
   const frac = target > 0 ? Math.min(1, value / target) : 0;
-  const pct = Math.round(frac * 100);
-
-  const [shown, setShown] = useState(0);
-  const [animate, setAnimate] = useState(true);
-  useEffect(() => {
-    const reduce = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    setAnimate(!reduce);
-    if (reduce) { setShown(frac); return; }
-    const t = requestAnimationFrame(() => setShown(frac));
-    return () => cancelAnimationFrame(t);
-  }, [frac]);
-
-  const R = 52, C = 2 * Math.PI * R;
-  const colour = done ? '#16A34A' : onTrack ? 'var(--accent, #4474B9)' : '#FF6B35';
-  const status = done ? 'Target reached' : onTrack ? 'On track' : 'Behind pace';
+  const mark = target > 0 ? Math.min(1, expected / target) : 0;
+  const tip = `Expected by today: ${expected.toFixed(1)} (${target} × ${day}/${days} days)`;
+  const tone = pace === 'behind' ? 'bg-badBg text-badText' : pace === 'on-pace' ? 'bg-surface2 text-text2' : 'bg-goodBg text-goodText';
+  const bar = pace === 'behind' ? 'bg-[#FF6B35]' : pace === 'done' ? 'bg-[#16A34A]' : 'bg-accent';
 
   return (
-    <section data-testid="target-ring" data-pace={done ? 'done' : onTrack ? 'on-track' : 'behind'} aria-label={title}
-      className="anim-rise flex flex-wrap items-center gap-4 rounded-card bg-surface shadow-1 px-4 py-3">
-      <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label={`${value} of ${target} ${label}, ${pct}%, ${status.toLowerCase()}`}>
-        <circle cx="66" cy="66" r={R} fill="none" stroke="var(--surface2)" strokeWidth="12" />
-        <circle cx="66" cy="66" r={R} fill="none" stroke={colour} strokeWidth="12" strokeLinecap="round"
-          strokeDasharray={C} strokeDashoffset={C * (1 - shown)} transform="rotate(-90 66 66)"
-          style={{ transition: animate ? 'stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none' }} />
-        <text x="66" y="62" textAnchor="middle" className="num" fontSize="26" fontWeight="600" fill="var(--text)">{value}</text>
-        <text x="66" y="84" textAnchor="middle" fontSize="13" fill="var(--muted)">of {target}</text>
-      </svg>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-muted">{title}</p>
-        <p className="num mt-1 text-xl font-semibold">{value} / {target} {label}</p>
-        <span data-testid="target-status" className={'mt-2 inline-block rounded-md px-2 py-0.5 text-[12px] font-semibold ' + (onTrack ? 'bg-goodBg text-goodText' : 'bg-badBg text-badText')}>{status}</span>
-        <p data-testid="target-need" className="mt-2 text-sm text-text2">
-          {done ? 'Well done. Anything more is a bonus.' : `Need ${need} more, ~${perDay} per day (${left} day${left === 1 ? '' : 's'} left).`}
-        </p>
+    <section data-testid="target-ring" data-pace={pace === 'behind' ? 'behind' : done ? 'done' : 'on-track'} aria-label={title}
+      className="rounded-card bg-surface px-4 py-2.5 shadow-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+        <span className="font-semibold">{title}</span>
+        <span className="text-muted">·</span>
+        <span className="num font-semibold">{value} / {target}</span><span className="text-text2">{label}</span>
+        <span data-testid="target-status" title={tip} className={'rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold ' + tone}>{status}</span>
+        <span data-testid="target-need" className="text-text2">
+          {done ? 'Anything more is a bonus.' : `need ~${perDay}/day · ${left} day${left === 1 ? '' : 's'} left`}
+        </span>
+      </div>
+      <div className="relative mt-2 h-1.5 rounded-full bg-surface2" role="img" aria-label={`${value} of ${target} ${label}, ${status.toLowerCase()}. ${tip}`}>
+        <div className={'h-full rounded-full ' + bar} style={{ width: `${frac * 100}%` }} />
+        {!done && <div title={tip} className="absolute -top-1 h-3.5 w-0.5 rounded bg-text" style={{ left: `calc(${mark * 100}% - 1px)` }} />}
       </div>
     </section>
   );

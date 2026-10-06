@@ -81,7 +81,7 @@ function Tiles({ label, tiles, compact }: { label: string; tiles: Tile[]; compac
 /** Same days of last month, e.g. "1–5 Sep last month: 4 (▲ 3)"; says "none" when there is nothing to compare. */
 function vsLast(now: number, before: number, m: Metrics, fmt: (n: number) => string = String) {
   const when = span(m.last_from, m.last_to) + ' last month';
-  if (!before) return `${when}: none to compare`;
+  if (!before) return undefined;
   const d = now - before;
   return `${when}: ${fmt(before)} (${d === 0 ? 'same' : (d > 0 ? '▲ ' : '▼ ') + fmt(Math.abs(d))})`;
 }
@@ -98,9 +98,16 @@ export function Dashboard() {
     db.rpc('dashboard_metrics').then(({ data, error }) => { if (!live) return; if (error) setErr(error.message); else setM(data as Metrics); });
     Promise.all([
       db.from('follow_up').select('*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name)').eq('status', 'Open').order('due_at').limit(7),
-      s.can('alert') ? db.from('alert').select('*, lead:lead_id(full_name), candidate:candidate_id(full_name)').eq('status', 'Open').order('raised_at', { ascending: false }).limit(6) : Promise.resolve({ data: [] }),
+      s.can('alert') ? db.from('alert').select('*, lead:lead_id(full_name), candidate:candidate_id(full_name)').eq('status', 'Open').order('raised_at', { ascending: false }).limit(14) : Promise.resolve({ data: [] }),
       db.rpc('kpi_trends', { days: 30 }).then((r) => r, () => ({ data: [] })),
-    ]).then(([tasks, alerts, trends]) => { if (live) setLists({ tasks: tasks.data || [], alerts: alerts.data || [], trends: (trends.data as Row[]) || [] }); });
+    ]).then(([tasks, alerts, trends]) => {
+      if (!live) return;
+      const t: Row[] = tasks.data || [];
+      // A "followup_missed" alert is about the same person as an overdue follow-up already listed: skip it (matched by reason + person id).
+      const shown = new Set(t.filter((f) => new Date(f.due_at).getTime() < Date.now()).map((f) => f.candidate_id || f.lead_id).filter(Boolean));
+      const a = ((alerts.data || []) as Row[]).filter((x) => !(x.reason === 'followup_missed' && shown.has(x.candidate_id || x.lead_id))).slice(0, 6);
+      setLists({ tasks: t, alerts: a, trends: (trends.data as Row[]) || [] });
+    });
     return () => { live = false; };
   }, [s]);
 
@@ -150,11 +157,11 @@ export function Dashboard() {
   const showFunnel = manager && s.can('lead') && s.can('candidate');
   const showSources = manager && m.sources != null;
   const ring = m.target != null && m.target > 0 && m.target_done != null
-    ? <TargetRing value={m.target_done} target={m.target} title={m.target_mine ? 'My monthly target' : 'Team monthly target'} /> : null;
+    ? <TargetRing value={m.target_done} target={m.target} title={m.target_mine ? 'My target' : 'Team target'} /> : null;
 
   const workLists = (
     <>
-      <section aria-label="Follow-ups due" className="rounded-card bg-surface px-4 py-3 shadow-1">
+      <section aria-label="Follow-ups due" className="mb-3 break-inside-avoid rounded-card bg-surface px-4 py-3 shadow-1">
         <div className="flex items-center justify-between">
           <h2 className="text-[13px] font-semibold" title="Open, earliest due first">Next follow-ups</h2>
           <Link href="/p/followups" className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText hover:underline">Open all</Link>
@@ -166,17 +173,21 @@ export function Dashboard() {
               <div className="truncate text-[13px] font-medium">{t.title}</div>
               <div className="truncate text-xs text-muted">{t.lead?.full_name || t.candidate?.full_name || ''} · {t.owner_role}</div>
             </div>
-            <span className={'whitespace-nowrap text-xs font-medium ' + (new Date(t.due_at).getTime() < Date.now() ? 'text-badText' : 'text-text2')}>{fmtDateTime(t.due_at)}</span>
+            {(() => {
+              const due = new Date(t.due_at); const late = due.getTime() < Date.now();
+              const today = due.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }) === m.today;
+              return <span data-testid="fu-due" className={'whitespace-nowrap text-xs font-medium ' + (late ? 'text-badText' : 'text-text2')}>{late ? 'Overdue · ' : today ? 'Today · ' : ''}{fmtDateTime(t.due_at)}</span>;
+            })()}
           </div>
         ))}
       </section>
       {s.can('alert') && (
-        <section aria-label="Open alerts" className="rounded-card bg-surface px-4 py-3 shadow-1">
+        <section aria-label="Open alerts" className="mb-3 break-inside-avoid rounded-card bg-surface px-4 py-3 shadow-1">
           <div className="flex items-center justify-between">
             <h2 className="text-[13px] font-semibold" title="Newest first">Latest open alerts</h2>
             <Link href="/p/alert" className="inline-flex min-h-[44px] items-center text-[13px] font-medium text-accentText hover:underline">Open all</Link>
           </div>
-          {lists.alerts.length === 0 && <p className="mt-3 text-text2">No open alerts.</p>}
+          {lists.alerts.length === 0 && <p className="mt-3 text-text2">{m.alerts_open ? 'No other alerts. Missed follow-ups are listed in Next follow-ups.' : 'No open alerts.'}</p>}
           {lists.alerts.map((a) => (
             <div key={a.id} className="flex items-center justify-between gap-3 border-t border-line py-1.5 first:border-0">
               <div className="truncate text-[13px] font-medium" title={a.title}>{a.title}: {a.lead?.full_name || a.candidate?.full_name || ''}</div>
@@ -194,10 +205,9 @@ export function Dashboard() {
       <Checklist />
       <Tiles label="Needs attention" tiles={attention} compact />
       <Tiles label={`This month so far · ${monthSpan}`} tiles={month} />
-      <div className="grid items-start gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 360px), 1fr))' }}>
-        {!manager && workLists}
-        {ring}
-        {manager && workLists}
+      {ring}
+      <div className="gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid" style={{ columnWidth: 380, columnGap: 12 }}>
+        {workLists}
         {showFunnel && <Funnel />}
         {showSources && <DashboardInsights sources={m.sources!} from={m.month_from} to={m.today} />}
         <Leaderboard role={s.staff.role} />

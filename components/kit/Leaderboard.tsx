@@ -34,18 +34,18 @@ export function Leaderboard({ role }: { role: string }) {
   }, [metric, period]);
 
   const prevLabel = period === 'week' ? 'last week' : 'last month';
-  const btn = (on: boolean) => cx('min-h-[44px] rounded-lg px-3 text-[13px] font-medium', on ? 'bg-accent text-white' : 'text-text2 hover:bg-surface2');
+  const btn = (on: boolean) => cx('min-h-[44px] rounded-row px-2.5 text-[12.5px] font-medium', on ? 'bg-accentSoft text-accentText' : 'text-text2 hover:bg-surface2');
 
   return (
     <section aria-label="Team leaderboard" data-testid="leaderboard" className="rounded-card bg-surface shadow-1 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-[13px] font-semibold">Team leaderboard</h2>
-        <div role="group" aria-label="Period" className="flex gap-1 rounded-xl bg-surface2 p-1">
+        <div role="group" aria-label="Period" className="flex gap-0.5">
           <button type="button" aria-pressed={period === 'week'} className={btn(period === 'week')} onClick={() => setPeriod('week')}>This week</button>
           <button type="button" aria-pressed={period === 'month'} className={btn(period === 'month')} onClick={() => setPeriod('month')}>This month</button>
         </div>
       </div>
-      <div role="group" aria-label="Measure" className="mt-3 flex flex-wrap gap-1">
+      <div role="group" aria-label="Measure" className="mt-1 flex flex-wrap gap-0.5 border-b border-line pb-1">
         {METRICS.map(([m, label]) => (
           <button key={m} type="button" aria-pressed={metric === m} className={btn(metric === m)} onClick={() => setMetric(m)}>{label}</button>
         ))}
@@ -55,12 +55,12 @@ export function Leaderboard({ role }: { role: string }) {
       {!err && rows === null && <div className="mt-3 h-24 animate-pulse rounded-xl bg-surface2" />}
       {rows && rows.length === 0 && <p className="mt-3 text-text2">No staff in this team yet.</p>}
       {rows && rows.length > 0 && (
-        <ol className="mt-3">
+        <ol className="mt-1">
           {rows.map((r) => {
             const move = r.prev_rank == null ? null : r.prev_rank - r.rank;
             return (
               <li key={r.staff_id} data-me={r.is_me || undefined}
-                className={cx('flex min-h-[44px] items-center gap-3 rounded-xl px-3 py-2', r.is_me && 'bg-accentSoft ring-1 ring-accent')}>
+                className={cx('flex min-h-[44px] items-center gap-3 rounded-row px-2 py-1', r.is_me && 'bg-accentSoft ring-1 ring-accent')}>
                 <span className="num w-8 text-center text-[15px] font-semibold" aria-label={'Rank ' + r.rank}>
                   {r.total > 0 && r.rank <= 3 ? MEDAL[r.rank - 1] : r.rank}
                 </span>
