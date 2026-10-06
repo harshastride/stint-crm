@@ -1124,5 +1124,108 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   check('Admin can correct a student name', !r3.error && (r3.data || []).length === 1, r3.error?.message);
   await svc.from('candidate').update({ full_name: c.full_name }).eq('id', c.id);
 }
+
+// Receipt / quote verification by QR (migration 077)
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const pay = (await svc.from('fee_payment').select('id, verification_code, amount, candidate:candidate_id(full_name, code)').eq('status', 'Received').limit(1).single()).data;
+  const q = (await svc.from('fee_quote').select('verification_code, lead:lead_id(full_name, mobile, email)').limit(1).single()).data;
+  check('verify: every receipt and quote has a 16-char code', /^[0-9A-F]{16}$/.test(pay?.verification_code || '') && /^[0-9A-F]{16}$/.test(q?.verification_code || ''));
+  const a = await anon.rpc('verify_document', { p_code: pay.verification_code });
+  const s = await sales.rpc('verify_document', { p_code: pay.verification_code });
+  check('verify: anonymous and staff cannot call the function directly (page uses the server)', !!a.error && !!s.error);
+  const r = (await svc.rpc('verify_document', { p_code: pay.verification_code })).data || {};
+  const allowed = ['found', 'kind', 'number', 'issued_on', 'valid_until', 'amount', 'status', 'institute', 'holder'];
+  const text = JSON.stringify(r);
+  check('verify: genuine receipt found with only the allowed fields', r.found === true && r.kind === 'receipt' && Object.keys(r).every((k) => allowed.includes(k)), text);
+  check('verify: no full name, student ID or internal id revealed', !text.includes(pay.candidate.full_name) && !(pay.candidate.code && text.includes(pay.candidate.code)) && !text.includes(pay.id), text);
+  const rq = JSON.stringify((await svc.rpc('verify_document', { p_code: q.verification_code })).data || {});
+  check('verify: quote shows no lead name, mobile or email', rq.includes('"found": true') || rq.includes('"found":true') ? ![q.lead.full_name, q.lead.mobile, q.lead.email].filter(Boolean).some((x) => rq.includes(x)) : false, rq);
+  let hits = 0;
+  for (let i = 0; i < 25; i++) { const c = [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    if ((await svc.rpc('verify_document', { p_code: c })).data?.found) hits++; }
+  check('verify: 25 random codes all return not found', hits === 0, String(hits));
+  check('verify: short or junk codes return not found', (await svc.rpc('verify_document', { p_code: "' or 1=1--" })).data?.found === false);
+  const due = (await svc.from('fee_payment').select('verification_code').neq('status', 'Received').limit(1).maybeSingle()).data;
+  if (due) check('verify: an unpaid payment is not shown as a receipt', (await svc.rpc('verify_document', { p_code: due.verification_code })).data?.found === false);
+  const chg = await admin.from('fee_payment').update({ verification_code: 'AAAAAAAAAAAAAAAA' }).eq('id', pay.id).select('verification_code');
+  check('verify: the code cannot be changed by staff', !chg.error && chg.data?.[0]?.verification_code === pay.verification_code, JSON.stringify(chg.data || chg.error)); }
+// QR check-in (migration 076): codes are signed in the database, bound to the student's own batch and today
+{ const { createHmac } = await import('node:crypto');
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const student = await as('priya');
+  const me = (await svc.from('candidate').select('id, batch_id').eq('full_name', 'Priya Reddy').single()).data;
+  const other = (await svc.from('batch').select('id').neq('id', me.batch_id).eq('trainer_id', (await svc.from('staff').select('id').eq('email', 'kiran@demo.stint.local').single()).data.id).limit(1).single()).data;
+  await svc.from('checkin_log').delete().eq('candidate_id', me.id).eq('ok', false); // fresh rate-limit window
+  const t0 = new Date(Date.now() - 1000).toISOString();
+  const codeOf = async (sid, w) => { const sec = (await svc.from('checkin_session').select('secret').eq('id', sid).single()).data.secret;
+    const h = createHmac('sha256', Buffer.from(String(sec).replace(/^\\x/, ''), 'hex')).update(`${sid}|${w}`).digest();
+    return [...h.subarray(0, 6)].map((b) => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[b % 31]).join(''); };
+  const w = Math.floor(Date.now() / 30000);
+  const so = await student.rpc('open_checkin', { p_batch: me.batch_id });
+  check('Check-in: a student cannot open a check-in', !!so.error);
+  const an = await anon.rpc('student_checkin', { p_code: 'ABCDEF' });
+  check('Check-in: a visitor without login is refused', !!an.error);
+  const hro = await hr.rpc('open_checkin', { p_batch: me.batch_id });
+  check('Check-in: a role without attendance write cannot open one', !!hro.error);
+  const sec = await trainer.from('checkin_session').select('secret').limit(1);
+  check('Check-in: staff cannot read the signing secret', !!sec.error, JSON.stringify(sec.data));
+  const s1 = (await trainer.rpc('open_checkin', { p_batch: me.batch_id })).data;
+  const s2 = (await trainer.rpc('open_checkin', { p_batch: other.id })).data;
+  const live = (await trainer.rpc('current_checkin_token', { p_session: s1 })).data;
+  check('Check-in: trainer gets a 6-character code that matches the signature', live?.code?.length === 6 && live.code === await codeOf(s1, w) || live?.code === await codeOf(s1, w + 1), JSON.stringify(live));
+  const today = (await svc.rpc('checkin_today')).data;
+  await svc.from('attendance').delete().eq('candidate_id', me.id).eq('day', today);
+  const ex = await student.rpc('student_checkin', { p_code: await codeOf(s1, w - 3) });
+  check('Check-in: an expired code is refused', ex.data?.status === 'invalid', JSON.stringify(ex));
+  const ob = await student.rpc('student_checkin', { p_code: await codeOf(s2, w) });
+  check('Check-in: the code of another batch is refused', ob.data?.status === 'invalid', JSON.stringify(ob));
+  const ok1 = await student.rpc('student_checkin', { p_code: live.code });
+  const ok2 = await student.rpc('student_checkin', { p_code: live.code });
+  const rows = (await svc.from('attendance').select('mark, batch_id').eq('candidate_id', me.id).eq('day', today)).data || [];
+  check('Check-in: valid code marks the student present once (second scan is a no-op)', ok1.data?.status === 'present' && ok2.data?.status === 'already' && rows.length === 1 && rows[0].mark === 'P' && rows[0].batch_id === me.batch_id, JSON.stringify([ok1, ok2, rows]));
+  const after = (await trainer.rpc('current_checkin_token', { p_session: s1 })).data;
+  check('Check-in: trainer screen shows the arrival', (after?.arrived || []).some((a) => a.name === 'Priya Reddy') && after.present >= 1, JSON.stringify(after));
+  await trainer.rpc('close_checkin', { p_session: s1 }); await trainer.rpc('close_checkin', { p_session: s2 });
+  const cl = await student.rpc('student_checkin', { p_code: live.code });
+  check('Check-in: a stopped check-in accepts no codes', cl.data?.status === 'invalid', JSON.stringify(cl));
+  const fails = (await svc.from('checkin_log').select('id').eq('candidate_id', me.id).eq('ok', false).gte('at', t0)).data || [];
+  check('Check-in: wrong codes are logged (for the rate limit)', fails.length >= 3, String(fails.length));
+  const uid = (await student.auth.getUser()).data.user.id;
+  await svc.from('checkin_log').insert(Array.from({ length: 8 }, () => ({ user_id: uid, candidate_id: me.id, ok: false, reason: 'test' })));
+  const rl = await student.rpc('student_checkin', { p_code: 'ABCDEF' });
+  check('Check-in: 8 wrong codes in 5 minutes block further tries', !!rl.error && /Too many/.test(rl.error.message), JSON.stringify(rl));
+  await svc.from('attendance').delete().eq('candidate_id', me.id).eq('day', today);
+  await svc.from('checkin_log').delete().eq('candidate_id', me.id).gte('at', t0); // only this run's rows (keeps the rate limit clean)
+}
+// ---- 075 Profile photos ----
+{ const st = await as('priya');
+  const me = (await service.from('candidate').select('id').eq('full_name', 'Priya Reddy').single()).data;
+  const other = (await service.from('candidate').select('id').neq('id', me.id).limit(1).single()).data;
+  const png = new Blob([new Uint8Array([82, 73, 70, 70])], { type: 'image/webp' });
+  const own = `candidate/${me.id}/sectest${Date.now()}.webp`, theirs = `candidate/${other.id}/sectest${Date.now()}.webp`;
+  const u1 = await st.storage.from('photos').upload(own, png, { contentType: 'image/webp' });
+  const s1 = await st.rpc('set_photo', { p_kind: 'candidate', p_id: me.id, p_path: own });
+  check('Photos: student can set their own photo', !u1.error && !s1.error, (u1.error || s1.error)?.message);
+  const u2 = await st.storage.from('photos').upload(theirs, png, { contentType: 'image/webp' });
+  const s2 = await st.rpc('set_photo', { p_kind: 'candidate', p_id: other.id, p_path: theirs });
+  check('Photos: student cannot set another student\'s photo', !!u2.error && !!s2.error);
+  const s3 = await st.rpc('set_photo', { p_kind: 'candidate', p_id: me.id, p_path: `candidate/${other.id}/borrowed1.webp` });
+  check('Photos: a photo path must be in the person\'s own folder', !!s3.error);
+  const t1 = await tele.rpc('set_photo', { p_kind: 'candidate', p_id: me.id, p_path: null });
+  const t2 = await tele.storage.from('photos').upload(`candidate/${me.id}/teletest${Date.now()}.webp`, png, { contentType: 'image/webp' });
+  check('Photos: telecaller cannot change a candidate photo', !!t1.error && !!t2.error);
+  const a1 = await anon.storage.from('photos').createSignedUrl(own, 60);
+  const a2 = await anon.storage.from('photos').list(`candidate/${me.id}`);
+  check('Photos: visitor without login cannot read the bucket', !!a1.error && !(a2.data || []).length);
+  const ad = await admin.storage.from('photos').createSignedUrl(own, 60);
+  check('Photos: staff who can see the candidate can view the photo', !ad.error && !!ad.data?.signedUrl, ad.error?.message);
+  const sf = await tele.rpc('set_photo', { p_kind: 'staff', p_id: (await service.from('staff').select('id').eq('email', 'harsha@demo.stint.local').single()).data.id, p_path: null });
+  check('Photos: staff cannot change another staff member\'s photo', !!sf.error);
+  const hist = (await service.from('audit_log').select('id').eq('table_name', 'candidate').eq('row_id', me.id).gte('at', startedAt).limit(50)).data;
+  await service.rpc('set_photo', { p_kind: 'candidate', p_id: me.id, p_path: null }).then(() => {}, () => {});
+  await service.from('candidate').update({ photo_path: null }).eq('id', me.id);
+  await service.storage.from('photos').remove([own]);
+  check('Photos: the photo change is in the audit trail', !!hist && hist.length > 0, JSON.stringify(hist));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

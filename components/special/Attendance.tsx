@@ -5,6 +5,7 @@ import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
 import { Button, Notice, cx } from '../ui';
 import { PageHeader } from '../kit/PageHeader';
+import { CheckinScreen } from './CheckinScreen';
 
 // Trainer's class register: "my batch, today". Mark all present, fix the exceptions, save once.
 // Marks are kept on the device until the save succeeds, so a lost connection never loses a register.
@@ -31,6 +32,7 @@ export function Attendance() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ tone: 'good' | 'bad' | 'warn'; text: string } | null>(null);
   const savingRef = useRef(false);
+  const [qr, setQr] = useState(false);
 
   // batches: the trainer's own first, then the rest
   useEffect(() => {
@@ -106,9 +108,11 @@ export function Attendance() {
             <Button variant="quiet" aria-label="Next day" disabled={day >= today} onClick={() => setDay(shift(day, 1))}>›</Button>
             {day !== today && <Button variant="link" onClick={() => setDay(today)}>Today</Button>}
           </div>
+          {canWrite && batch && day === today && (s.staff.role === 'Admin' || mineIds.has(batch)) && <Button variant="secondary" onClick={() => setQr(true)}>Show check-in QR</Button>}
         </>} />
 
       {msg && <Notice tone={msg.tone}>{msg.text}</Notice>}
+      {qr && <CheckinScreen batchId={batch} batchCode={batchLabel} onClose={() => { setQr(false); load(); }} />}
 
       {behind.length > 0 && (
         <section aria-label="Falling behind" className="rounded-card bg-badBg/50 p-card">

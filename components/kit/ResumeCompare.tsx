@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Columns2, Download, X } from 'lucide-react';
+import { Columns2, Download, Maximize2, X } from 'lucide-react';
+import { useFilePreview } from './FilePreview';
 import { supabase } from '@/lib/supabase';
 import { Pill, fmtDate } from '../ui';
 
@@ -16,6 +17,7 @@ function Pane({ versions, value, onPick, label }: { versions: Version[]; value: 
   const v = versions.find((x) => x.id === value);
   const [url, setUrl] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const preview = useFilePreview();
   useEffect(() => {
     setUrl(null); setErr(null);
     if (!v?.file_path) return;
@@ -45,6 +47,10 @@ function Pane({ versions, value, onPick, label }: { versions: Version[]; value: 
               <a href={url} className="flex min-h-[44px] items-center gap-1 rounded-lg border border-line2 bg-surface px-3 font-medium text-text"><Download size={14} /> Download {fileName(v.file_path)}</a>
             </div>}
       </div>
+      {v?.file_path && url && kind(v.file_path) !== 'other' && (
+        <button type="button" onClick={() => preview.open({ title: `${v.version}: ${fileName(v.file_path!)}`, fileName: fileName(v.file_path!), src: url })}
+          className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-[10px] border border-line2 bg-surface px-3 text-[13px] font-semibold text-text hover:bg-surface2"><Maximize2 size={14} /> Open larger</button>
+      )}
       {v && (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">
           <dt className="text-muted">Status</dt><dd><Pill>{v.status}</Pill></dd>

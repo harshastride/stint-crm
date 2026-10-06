@@ -1,10 +1,10 @@
 import { isUuid, safeFilename } from '@/lib/server/guard';
 import { NextResponse } from 'next/server';
 import { asCaller, service } from '@/lib/server/recordings';
-import { institute, quotePdf } from '@/lib/server/pdf';
+import { verifyUrl, institute, quotePdf } from '@/lib/server/pdf';
 
 // Fee quote as PDF, for anyone who can see the quote (row security decides).
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   if (!isUuid(id)) return NextResponse.json({ error: 'Not found.' }, { status: 400 });
   const db = await asCaller();
@@ -24,6 +24,6 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const { data: settings } = await db.from('setting').select('key, value');
   const get = async (k: string) => (settings || []).find((x: { key: string }) => x.key === k)?.value || '';
-  const { bytes, filename } = await quotePdf({ ...q, lead, list_price: Number(q.list_price), discount_pct: Number(q.discount_pct), amount: Number(q.amount), program: q.program?.name || '', by: q.by?.full_name }, await institute(get), await get('quote_terms'));
+  const { bytes, filename } = await quotePdf({ ...q, lead, list_price: Number(q.list_price), discount_pct: Number(q.discount_pct), amount: Number(q.amount), program: q.program?.name || '', by: q.by?.full_name, verify: verifyUrl(q.verification_code, req.url) }, await institute(get), await get('quote_terms'));
   return new NextResponse(Buffer.from(bytes), { headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${safeFilename(filename)}"`, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, no-store' } });
 }

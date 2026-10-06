@@ -46,6 +46,13 @@ export async function middleware(request: NextRequest) {
     return secure(NextResponse.json({ error: 'Use /api/auth/sign-in' }, { status: 403 }), request, policy);
   }
   if (path.startsWith('/api/') || path.startsWith('/supabase/')) return secure(NextResponse.next(), request, policy);
+  // /v/<code>: public receipt/quote check (QR on the PDF); shows only limited, non-personal fields.
+  if (path.startsWith('/v/')) {
+    const h = new Headers(request.headers); h.set('x-nonce', nonce); h.set('Content-Security-Policy', policy);
+    const res = secure(NextResponse.next({ request: { headers: h } }), request, policy);
+    res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+    return res;
+  }
 
   const headers = new Headers(request.headers);
   headers.set('x-nonce', nonce);

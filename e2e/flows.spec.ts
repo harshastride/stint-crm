@@ -141,7 +141,7 @@ test('phone layout: menu folds away and the quick panel opens as a sheet', async
   await page.getByRole('button', { name: 'Open menu' }).click();
   await expect(page.getByRole('link', { name: 'Payments' })).toBeVisible();
   await page.getByRole('button', { name: 'Close menu' }).click();
-  await page.locator('tbody tr').first().locator('td').nth(1).click({ position: { x: 3, y: 3 } }); // the row, not a cell's inline-edit button (Admin can edit every cell)
+  await page.getByTestId('phone-cards').getByTestId('swipe-row').first().getByRole('button').first().click(); // phones show cards, not the table
   await expect(page.getByRole('complementary', { name: 'Quick panel' })).toBeInViewport();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
 });
@@ -505,7 +505,9 @@ test('student portal: invite, first password, details, document upload, receipt'
     expect(d!.status).toBe('Received');
     // receipt
     await page.getByRole('tab', { name: 'Fees' }).click();
-    const href = await page.getByRole('link', { name: 'Receipt' }).getAttribute('href');
+    const { data: rp } = await db.from('fee_payment').select('id').eq('candidate_id', c!.id).eq('status', 'Received').limit(1).single();
+    const href = '/api/portal/receipt/' + rp!.id;
+    await expect(page.getByRole('button', { name: 'Receipt' }).first()).toBeVisible();
     const pdf = await page.request.get(href!);
     expect(pdf.status()).toBe(200);
     // steps and signature

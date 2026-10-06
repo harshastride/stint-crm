@@ -12,7 +12,7 @@ import { use, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
-import { Pill, cx, fmtDate, fmtDateTime, initials, money } from '@/components/ui';
+import { Pill, cx, fmtDate, fmtDateTime, money } from '@/components/ui';
 import { PageSkeleton } from '@/components/Skeletons';
 import { StageControl } from '@/components/profile/StageControl';
 import { NextSteps } from '@/components/profile/NextSteps';
@@ -21,6 +21,7 @@ import { Timeline } from '@/components/Timeline';
 import { stepsForStage } from '@/lib/nextSteps';
 import { useRouter } from 'next/navigation';
 import { AvatarStack, type StackPerson } from '@/components/kit/AvatarStack';
+import { PhotoUpload } from '@/components/kit/PhotoUpload';
 
 export default function Candidate360({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -86,7 +87,7 @@ export default function Candidate360({ params }: { params: Promise<{ id: string 
       </div>
       <section className={cx(card, 'flex flex-col gap-4 p-5')} aria-label="Candidate summary">
         <div className="flex flex-wrap items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-card bg-accentSoft text-lg font-semibold text-accentText sm:h-16 sm:w-16 sm:text-xl" aria-hidden>{initials(c.full_name)}</div>
+          <PhotoUpload kind="candidate" id={c.id as string} name={c.full_name as string} photo={(c.photo_path as string | null) ?? null} canEdit={s.can('candidate', 'w')} onChange={(p) => setC({ ...c, photo_path: p })} />
           <div className="min-w-0 flex-1 basis-56">
             <div className="text-xs font-medium text-muted">Candidate · {c.code}</div>
             <h1 className="line-clamp-2 break-words text-[22px] font-semibold leading-tight">{c.full_name}</h1>

@@ -1,7 +1,7 @@
 'use client';
 import { Board } from './kit/Board';
 import { Funnel } from './kit/Funnel';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, KanbanSquare, Lock, Minus, Pencil, RotateCw, Search, Settings2, Table2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, KanbanSquare, Lock, Minus, Pencil, RotateCw, Search, Settings2, Table2, X, Phone, CalendarPlus, NotebookPen } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +27,7 @@ import { Confirm } from './kit/Confirm';
 import { RangeSlider, rupees } from './kit/RangeSlider';
 import { FilterBuilder, advExpr, advFields, type Adv } from './kit/FilterBuilder';
 import { PersonChip } from './kit/Avatar';
+import { SwipeRow, type SwipeAction } from './kit/SwipeRow';
 import { Table, THead, TBody, Th, Td, Tr, RowActions, useDensity } from './kit/Table';
 import { AvatarStack, type StackPerson } from './kit/AvatarStack';
 
@@ -597,6 +598,36 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
     const p = cfg.person?.(r);
     if (p) { setPerson(p); setSelId(r.id); setEditing(null); setPanelOpen(true); } else if (cfg.fields) setEditing(r);
   };
+  // Phone cards (Leads, Follow-ups, Candidates): swipe or "⋯" opens the quick panel and starts the chosen action there,
+  // so calls still go through the panel's reveal flow (logged) and the list never holds an unmasked number.
+  const SWIPE = ['lead', 'followups', 'candidate'].includes(cfg.id);
+  const [swipeOpen, setSwipeOpen] = useState<string | null>(null);
+  const [panelAct, setPanelAct] = useState<string | null>(null);   // aria-label of the quick-panel button to press once it is ready
+  useEffect(() => {
+    if (!panelAct) return;
+    let n = 0;
+    const t = setInterval(() => {
+      const b = document.querySelector<HTMLButtonElement>(`aside[aria-label="Quick panel"] button[aria-label="${panelAct}"]`);
+      if (b && !b.disabled) { b.click(); b.scrollIntoView({ block: 'nearest' }); }
+      if (b || ++n > 30) { clearInterval(t); setPanelAct(null); }
+    }, 100);
+    return () => clearInterval(t);
+  }, [panelAct, person]);
+  const rowActs = (r: Row): { primary?: SwipeAction; actions: SwipeAction[] } => {
+    const p = cfg.person?.(r);
+    if (!p) return { actions: [] };
+    const go = (label: string) => () => { openRow(r); setPanelAct(label); };
+    const actions: SwipeAction[] = [];
+    if (p.kind === 'lead' && s.can('call', 'w')) actions.push({ key: 'log', label: 'Log outcome', icon: <NotebookPen size={17} />, run: go('Log call') });
+    actions.push({ key: 'task', label: 'Follow-up', icon: <CalendarPlus size={17} />, tone: 'warn', run: go('Add follow-up') });
+    if (cfg.id === 'followups' && canWrite && r.status !== 'Done') actions.push({ key: 'done', label: 'Done', icon: <Check size={17} />, tone: 'good', run: async () => {
+      const { error } = await supabase().from('follow_up').update({ status: 'Done' }).eq('id', r.id);
+      if (error) toast('Can’t mark done: ' + friendlyError(error), { tone: 'bad' });
+      else toast('Marked done: ' + cfg.rowTitle(r) + '.', { undo: async () => { await supabase().from('follow_up').update({ status: 'Open' }).eq('id', r.id); load(); } });
+      load();
+    } });
+    return { primary: { key: 'call', label: 'Call', icon: <Phone size={17} />, tone: 'good', run: go('Call') }, actions };
+  };
   const saved = (text: string) => { setEditing(null); setNotice({ tone: 'good', text }); load(); if (['users', 'program', 'batch', 'branch', 'company', 'source', 'campaign', 'fields'].includes(cfg.id)) s.reload(); };
 
   const move = async (r: Row, to: string) => {
@@ -919,7 +950,27 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
             </>); }} />
           </div>
         ) : (
-          <Table label={(meta?.title || cfg.kind) + ' list'} density={density} className={cx('overflow-x-auto transition-opacity', busy && 'opacity-60')}>
+          <>
+          {SWIPE && (
+            <ul className={cx('flex flex-col gap-2 md:hidden', busy && 'opacity-60')} aria-label={(meta?.title || cfg.kind) + ' cards'} data-testid="phone-cards">
+              {pageRows.map((r) => { const k = String(r.id ?? r.key); const a = rowActs(r); return (
+                <li key={k}>
+                  <SwipeRow label={cfg.rowTitle(r)} primary={a.primary} actions={a.actions} open={swipeOpen === k} onOpenChange={(o) => setSwipeOpen(o ? k : null)} onTap={() => openRow(r)}>
+                    <span className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{plain(columns[0], r) || cfg.rowTitle(r)}</span>
+                      {(() => { const c = columns.find((c) => c.type === 'pill'); return c && short(c, r) ? <span className="shrink-0">{cell(c, r, s.lists)}</span> : null; })()}
+                    </span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-text2">
+                      {columns.slice(1, 6).filter((c) => c.type !== 'pill' && c.type !== 'tags' && c.type !== 'progress' && c.type !== 'people' && short(c, r)).slice(0, 3).map((c, i) => (
+                        <span key={c.key} className="flex min-w-0 items-center gap-1.5">{i > 0 && <span aria-hidden className="text-muted">·</span>}<span className="truncate">{c.type === 'due' ? cell(c, r, s.lists) : short(c, r)}</span></span>
+                      ))}
+                    </span>
+                  </SwipeRow>
+                </li>
+              ); })}
+            </ul>
+          )}
+          <Table label={(meta?.title || cfg.kind) + ' list'} density={density} className={cx('overflow-x-auto transition-opacity', busy && 'opacity-60', SWIPE && 'max-md:hidden')}>
             <THead>
               <Th className="ui-stick1 w-11 !pl-1 !pr-0"><Tick state={pageState} label="Select all rows on this page" onChange={togglePage} /></Th>
               {cols.map((c, ci) => {
@@ -964,6 +1015,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
               ))}
             </TBody>
           </Table>
+          </>
         )}
         {rows && shown.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted" data-testid="list-count">

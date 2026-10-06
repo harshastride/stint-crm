@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
-import { Download, Paperclip, X } from 'lucide-react';
+import { Download, Eye, Paperclip, X } from 'lucide-react';
+import { useFilePreview } from './kit/FilePreview';
 import { supabase } from '@/lib/supabase';
 import { DropZone } from './DropZone';
 import { Button, IconButton } from './ui';
@@ -13,6 +14,7 @@ export function FileField({ page, candidateId, value, onChange, disabled }: { pa
   const path = typeof value === 'string' && value ? value : null;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const preview = useFilePreview();
 
   const upload = async (f: File) => {
     if (!candidateId) return;
@@ -33,13 +35,21 @@ export function FileField({ page, candidateId, value, onChange, disabled }: { pa
     window.location.href = data.signedUrl;
   };
 
+  const signed = async () => {
+    const { data, error } = await supabase().storage.from(BUCKET).createSignedUrl(path!, 60);
+    if (error || !data) throw new Error('sign');
+    return data.signedUrl;
+  };
+  const show = () => { if (path) preview.open({ title: fileName(path), fileName: fileName(path), getUrl: signed }); };
+
   return (
     <div className="flex flex-col gap-1 font-normal">
       {path ? (
         <div className="flex min-h-10 items-center gap-2 rounded-[10px] bg-surface2 py-1 pl-3 pr-1 text-[13.5px] text-text">
           <Paperclip size={14} className="shrink-0 text-muted" />
           <span className="min-w-0 flex-1 truncate">{fileName(path)}</span>
-          <Button variant="quiet" size="sm" onClick={download} leftIcon={<Download size={14} />}>Download</Button>
+          <Button variant="primary" size="sm" onClick={show} leftIcon={<Eye size={14} />}>Preview</Button>
+          <IconButton aria-label="Download" size="icon-sm" onClick={download} icon={<Download size={14} />} />
           {!disabled && <IconButton aria-label="Remove file" size="icon-sm" onClick={() => onChange(null)} icon={<X size={14} />} />}
         </div>
       ) : disabled ? (

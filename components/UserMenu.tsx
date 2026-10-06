@@ -1,11 +1,14 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays, CircleHelp, Compass, Download, Keyboard, ChevronDown, KeyRound, ListTodo, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from 'lucide-react';
+import { Camera, CalendarDays, CircleHelp, Compass, Download, Keyboard, ChevronDown, KeyRound, ListTodo, LoaderCircle, LogOut, Monitor, Moon, Sun, SunMoon } from 'lucide-react';
 import type { Staff } from '@/lib/session';
-import { cx, initials } from './ui';
+import { cx } from './ui';
 import { openShortcuts } from './kit/Shortcuts';
 import { useInstall } from './kit/ServiceWorker';
+import { Avatar, photosChanged } from './kit/Avatar';
+import { PhotoDialog } from './kit/PhotoUpload';
+import { supabase } from '@/lib/supabase';
 
 export type ThemePref = 'light' | 'dark' | 'system';
 
@@ -18,6 +21,9 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
   const [leaving, setLeaving] = useState(false);
   const app = useInstall();
   const [iosHint, setIosHint] = useState(false);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  useEffect(() => { void supabase().from('staff').select('photo_path').eq('id', staff.id).maybeSingle().then(({ data }: { data: { photo_path: string | null } | null }) => setPhoto(data?.photo_path ?? null)); }, [staff.id]);
   const root = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -48,7 +54,7 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
       <button ref={trigger} type="button" aria-haspopup="menu" aria-expanded={open} aria-label={`Account menu, ${staff.full_name}`}
         onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); } }}
         className={cx('flex min-h-[44px] items-center gap-2 rounded-[12px] px-1.5 transition-colors md:pr-2.5', open ? 'bg-accentSoft' : 'hover:bg-surface2')}>
-        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-[12px] font-semibold text-white">{initials(staff.full_name)}</span>
+        <Avatar name={staff.full_name} id={staff.id} photo={photo} />
         <span className="hidden text-left leading-tight md:block">
           <span className="block max-w-[140px] truncate text-[13px] font-semibold">{staff.full_name}</span>
           <span className="block text-[11px] text-muted">{staff.role}{staff.level === 'Head' ? ' · Head' : ''}</span>
@@ -62,7 +68,7 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
           className="anim-rise fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border border-line bg-surface p-2 pb-4 shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:mt-2 sm:w-[300px] sm:rounded-2xl sm:pb-2">
           <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-line2 sm:hidden" aria-hidden />
           <div className="flex items-center gap-3 px-2.5 pb-3 pt-1.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-semibold text-white">{initials(staff.full_name)}</span>
+            <Avatar name={staff.full_name} id={staff.id} photo={photo} size="lg" />
             <span className="min-w-0">
               <span className="flex items-center gap-1.5"><span className="truncate font-semibold">{staff.full_name}</span><span className="shrink-0 rounded-md bg-accentSoft px-1.5 py-0.5 text-[10.5px] font-semibold text-accentText">{staff.role}{staff.level === 'Head' ? ' · Head' : ''}</span></span>
               <span className="block truncate text-[12.5px] text-muted" title={staff.email}>{staff.email}</span>
@@ -71,6 +77,7 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
           <div className="my-1 h-px bg-line" role="separator" />
           <button type="button" role="menuitem" className={item} onClick={() => go('/p/followups')}><ListTodo size={16} className="text-muted" />My follow-ups</button>
           {canCalendar && <button type="button" role="menuitem" className={item} onClick={() => go('/calendar')}><CalendarDays size={16} className="text-muted" />Calendar</button>}
+          <button type="button" role="menuitem" className={item} onClick={() => { close(false); setPhotoOpen(true); }}><Camera size={16} className="text-muted" />My photo</button>
           <button type="button" role="menuitem" className={item} onClick={() => { close(false); onChangePassword(); }}><KeyRound size={16} className="text-muted" />Change password</button>
           {onTour && <button type="button" role="menuitem" className={item} onClick={() => { close(false); onTour(); }}><Compass size={16} className="text-muted" />Show me around</button>}
           <button type="button" role="menuitem" className={item} onClick={() => go('/help')}><CircleHelp size={16} className="text-muted" />Help</button>
@@ -96,6 +103,7 @@ export function UserMenu({ staff, theme, onTheme, onChangePassword, onSignOut, c
           </button>
         </div>
       )}
+      {photoOpen && <PhotoDialog kind="staff" id={staff.id} name={staff.full_name} photo={photo} onClose={() => setPhotoOpen(false)} onChange={(p) => { setPhoto(p); photosChanged(); }} />}
     </div>
   );
 }

@@ -3,26 +3,30 @@ import { useRef, useState } from 'react';
 import { ChevronRight, FileText, Folder } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Pill, cx } from '../ui';
+import { storageName, useFilePreview } from './FilePreview';
 
 export type TreeFile = { id: string; name: string; path: string | null; status?: string | null; note?: string };
 export type TreeFolder = { id: string; name: string; files: TreeFile[] };
 
 const BUCKET = 'candidate-files';
 
-/** Folders of candidate files. Arrow keys move, Right/Left open/close, Enter opens a file in a new tab (one-minute link). */
+/** Folders of candidate files. Arrow keys move, Right/Left open/close, Enter previews a file on top of the page (one-minute link). */
 export function FileTree({ folders, label = 'Files' }: { folders: TreeFolder[]; label?: string }) {
   const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(folders.map((f) => [f.id, true])));
   const [focus, setFocus] = useState(folders[0]?.id || '');
   const [err, setErr] = useState<string | null>(null);
   const tree = useRef<HTMLUListElement>(null);
+  const preview = useFilePreview();
 
   const openFile = async (f: TreeFile) => {
     if (!f.path) return;
     setErr(null);
-    const w = window.open('', '_blank');
-    const { data, error } = await supabase().storage.from(BUCKET).createSignedUrl(f.path, 60);
-    if (error || !data) { w?.close(); setErr('Could not open ' + f.name + '.'); return; }
-    if (w) w.location.href = data.signedUrl; else window.location.href = data.signedUrl;
+    const path = f.path;
+    preview.open({ title: f.name, fileName: storageName(path), getUrl: async () => {
+      const { data, error } = await supabase().storage.from(BUCKET).createSignedUrl(path, 60);
+      if (error || !data) { setErr('Could not open ' + f.name + '.'); throw new Error('sign'); }
+      return data.signedUrl;
+    } });
   };
 
   // visible items in order, for arrow keys

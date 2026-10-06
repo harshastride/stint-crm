@@ -15,10 +15,13 @@ import { RatingSummary } from '@/components/kit/RatingSummary';
 import { PracticeCard, type PracticeAttempt } from '@/components/kit/PracticeCard';
 import { ResumeCompareView, type ResumeVersion } from '@/components/kit/ResumeCompare';
 import { FileTree } from '@/components/kit/FileTree';
+import { FilePreviewProvider, useFilePreview } from '@/components/kit/FilePreview';
 import { AlertStack } from '@/components/kit/AlertStack';
 import { IdleGuard } from '@/components/kit/IdleGuard';
 import { HelpList } from '@/components/kit/HelpList';
 import { STUDENT_HELP_FOOTER, STUDENT_TOPICS } from '@/components/kit/studentHelp';
+import { CheckIn } from '@/components/portal/CheckIn';
+import { PortalPhoto } from '@/components/kit/PhotoUpload';
 
 // Student portal: the student's own details, documents, fees and schedule. Everything goes through portal_* functions.
 type Me = Record<string, any>;
@@ -39,7 +42,11 @@ const pollMs = () => (typeof window !== 'undefined' && (window as unknown as { _
 type Note = { id: string; kind: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string };
 const EDU: [string, string][] = [['level', 'Level'], ['institution', 'Institution'], ['course', 'Course'], ['years', 'Years'], ['marks', 'Marks %']];
 
-export default function Portal() {
+export default function PortalPage() {
+  return <FilePreviewProvider><Portal /></FilePreviewProvider>;
+}
+
+function Portal() {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
   const [tab, setTab] = useState<Tab>('Overview');
   const [notes, setNotes] = useState<Note[] | null>(null);
@@ -101,10 +108,14 @@ export default function Portal() {
         </div>
       </header>
       <main className="mx-auto flex max-w-[960px] flex-col gap-5 px-4 pb-10 pt-6">
-        <div>
+        <div className="flex items-center gap-4">
+          <PortalPhoto id={String(c.id)} name={String(c.full_name)} />
+          <div>
           <h1 className="text-[26px] font-semibold leading-tight">Hi {String(c.full_name).split(' ')[0]}</h1>
           <p className="text-text2">{[c.program, c.batch, c.code].filter(Boolean).join(' · ')}</p>
+          </div>
         </div>
+        {c.batch && <CheckIn />}
         <nav className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" role="tablist">
           {TABS.map((t) => (
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => go(t)} className={cx('flex min-h-[44px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] px-3.5 text-[13.5px] font-medium', tab === t ? 'bg-accentSoft font-semibold text-accentText' : 'text-text2 hover:bg-surface2 hover:text-text')}>
@@ -276,15 +287,14 @@ function Progress() {
   );
 }
 
-async function openSigned(path: string) {
-  const w = window.open('', '_blank');
+async function signed(path: string) {
   const { data, error } = await supabase().storage.from('candidate-files').createSignedUrl(path, 60);
-  if (error || !data) { w?.close(); return false; }
-  if (w) w.location.href = data.signedUrl; else window.location.href = data.signedUrl;
-  return true;
+  if (error || !data) throw new Error('sign');
+  return data.signedUrl;
 }
 
 function Resumes() {
+  const preview = useFilePreview();
   const rs = useRpc<ResumeVersion[]>('portal_resumes', []);
   const [err, setErr] = useState<string | null>(null);
   const list = rs.data || [];
@@ -301,7 +311,7 @@ function Resumes() {
                 <div className="text-[12.5px] text-text2">{[v.reviewer ? 'Reviewer: ' + v.reviewer : '', day(v.created_at)].filter(Boolean).join(' · ')}</div>
                 {v.reason && /reject|change/i.test(v.status) && <div className="text-[12.5px] text-badText">Reason: {v.reason}</div>}
               </div>
-              {v.file_path && <button type="button" onClick={async () => { setErr(null); if (!(await openSigned(v.file_path!))) setErr('Could not open ' + v.version + '.'); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><ExternalLink size={15} /> Open</button>}
+              {v.file_path && <button type="button" onClick={() => { setErr(null); preview.open({ title: 'Resume ' + v.version, fileName: v.file_path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, ''), getUrl: () => signed(v.file_path!) }); }} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><ExternalLink size={15} /> Preview</button>}
             </li>
           ))}
         </ul>
@@ -446,6 +456,7 @@ function Documents({ me, onDone }: { me: Me; onDone: (t: string, bad?: boolean) 
 }
 
 function Fees({ me, onSigned }: { me: Me; onSigned: (text: string, bad?: boolean) => void }) {
+  const preview = useFilePreview();
   const pays: Me[] = me.payments || [];
   const [png, setPng] = useState<string | null>(null);
   const [agree, setAgree] = useState(false);
@@ -478,7 +489,7 @@ function Fees({ me, onSigned }: { me: Me; onSigned: (text: string, bad?: boolean
         <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-3 first:border-0">
           <div><div className="num font-semibold">{inr(p.amount)} <span className="font-normal text-text2">· {p.label || 'Course fee'}</span></div>
             <div className={cx('text-[12.5px]', p.status === 'Overdue' ? 'font-semibold text-badText' : 'text-text2')}>{p.status === 'Received' ? 'Paid ' + day(p.paid_on) + (p.receipt_no ? ' · ' + p.receipt_no : '') : (p.status === 'Overdue' ? 'Overdue · was due ' : 'Due ') + day(p.due_on)}</div></div>
-          {p.status === 'Received' && <a href={'/api/portal/receipt/' + p.id} target="_blank" rel="noopener" className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><FileDown size={15} /> Receipt</a>}
+          {p.status === 'Received' && <button type="button" onClick={() => preview.open({ title: 'Receipt' + (p.receipt_no ? ' ' + p.receipt_no : ''), fileName: 'receipt-' + (p.receipt_no || p.id) + '.pdf', kind: 'pdf', src: '/api/portal/receipt/' + p.id })} className="flex min-h-[44px] items-center gap-1.5 rounded-[10px] bg-surface2 px-3.5 text-[13px] font-semibold hover:bg-accentSoft hover:text-accentText"><FileDown size={15} /> Receipt</button>}
         </div>
       ))}
     </Card>

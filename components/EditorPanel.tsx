@@ -10,12 +10,14 @@ import { FileField } from './FileField';
 import { FileDown } from 'lucide-react';
 import { RecordingExtras } from './RecordingExtras';
 import { Confirm } from './kit/Confirm';
+import { useFilePreview } from './kit/FilePreview';
 import { ResumeCompare } from './kit/ResumeCompare';
 import { InstalmentsEditor, quoteAmount, type Instalment } from './InstalmentsEditor';
 
 /** Create form and record editor in one: `row` null (or a summary row with no id yet) means a new record, prefilled from the row. */
 export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: PageCfg; row: Row | null; canWrite: boolean; onClose: () => void; onSaved: (msg: string) => void }) {
   const s = useSession();
+  const preview = useFilePreview();
   const isNew = !row?.id;
   const fields = useMemo(() => (cfg.fields || []).filter((f) => isNew || !f.createOnly), [cfg, isNew]);
   const [values, setValues] = useState<Row>(() => {
@@ -187,14 +189,10 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
         </div>
       )}
       {cfg.id === 'quote' && row?.id && (
-        <a href={'/api/pdf/quote/' + row.id} target="_blank" rel="noopener" className="btn inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface px-4 text-[13.5px] font-medium hover:bg-surface2">
-          <FileDown size={16} aria-hidden /> Fee quote PDF
-        </a>
+        <Button variant="outline" onClick={() => preview.open({ title: 'Fee quote PDF', fileName: 'quote-' + row.id + '.pdf', kind: 'pdf', src: '/api/pdf/quote/' + row.id })} leftIcon={<FileDown size={16} aria-hidden />}>Fee quote PDF</Button>
       )}
       {cfg.id === 'payment' && row?.id && row.status === 'Received' && (
-        <a href={'/api/pdf/receipt/' + row.id} target="_blank" rel="noopener" className="btn inline-flex h-10 items-center justify-center gap-2 rounded-[10px] border border-line2 bg-surface px-4 text-[13.5px] font-medium hover:bg-surface2">
-          <FileDown size={16} aria-hidden /> Receipt PDF
-        </a>
+        <Button variant="outline" onClick={() => preview.open({ title: 'Receipt PDF', fileName: 'receipt-' + row.id + '.pdf', kind: 'pdf', src: '/api/pdf/receipt/' + row.id })} leftIcon={<FileDown size={16} aria-hidden />}>Receipt PDF</Button>
       )}
       {cfg.id === 'recordings' && row?.id && <RecordingExtras row={row} values={values} setValue={set} onDone={onSaved} />}
       {cfg.id === 'deliveries' && row?.id && (

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { Avatar, avatarBox, type AvatarSize } from './Avatar';
 
-export type StackPerson = { id?: string; name: string; role?: string };
+export type StackPerson = { id?: string; name: string; role?: string; photo?: string | null };
 
 // Overlapping faces. Hover or tab onto a face to see the name and role. Extra people (or a plain count) show as "+N".
 export function AvatarStack({ people, max = 4, size = 'md', more = 0, moreLabel, label }: {
@@ -19,7 +19,7 @@ export function AvatarStack({ people, max = 4, size = 'md', more = 0, moreLabel,
         {shown.map((p, i) => (
           <span key={(p.id || p.name) + i} tabIndex={0} className="relative rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent"
             onMouseEnter={() => setTip(i)} onMouseLeave={() => setTip(null)} onFocus={() => setTip(i)} onBlur={() => setTip(null)} aria-label={p.name + (p.role ? ', ' + p.role : '')}>
-            <Avatar name={p.name} id={p.id} size={size} ring />
+            <Avatar name={p.name} id={p.id} photo={p.photo} size={size} ring />
             {tip === i && <span role="tooltip" className={tipBox}>{p.name}{p.role && <span className="font-normal opacity-75"> · {p.role}</span>}</span>}
           </span>
         ))}
