@@ -44,9 +44,9 @@ const ago = (d: Date) => {
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
 const clean = (b: string) => b.replace(/^\[Automation\]\s*/, '').replace(/\b(Payment|Quote) (\d+)(?:\.\d+)?/, (_: string, w: string, n: string) => `${w} ₹${Number(n).toLocaleString('en-IN')}`);
 
-export function Timeline({ items }: { items: Row[] }) {
+export function Timeline({ items, pageSize = PAGE }: { items: Row[]; pageSize?: number }) {
   const [filter, setFilter] = useState(0);
-  const [shown, setShown] = useState(PAGE);
+  const [shown, setShown] = useState(pageSize);
   const [open, setOpen] = useState<Set<number>>(new Set());
   const all = useMemo(() => items.map((t, idx) => ({ ...t, k: kindOf(t), idx }) as Row & { k: Kind; idx: number })
     .sort((a, b) => +new Date(b.at) - +new Date(a.at)), [items]);
@@ -65,7 +65,7 @@ export function Timeline({ items }: { items: Row[] }) {
       <style>{`@keyframes tlRail{from{transform:scaleY(0)}to{transform:scaleY(1)}}.tl-rail{transform-origin:top;animation:tlRail .5s ease-out both}@media (prefers-reduced-motion: reduce){.tl-rail{animation:none}}`}</style>
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show">
         {FILTERS.map(([label, ks], i) => (i === 0 || ks!.some((k) => present.has(k))) && (
-          <button key={label} type="button" aria-pressed={filter === i} onClick={() => { setFilter(i); setShown(PAGE); }}
+          <button key={label} type="button" aria-pressed={filter === i} onClick={() => { setFilter(i); setShown(pageSize); }}
             className={cx('min-h-[36px] rounded-full border px-3 text-xs font-semibold', filter === i ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 text-text2 hover:bg-surface2')}>
             {label}{i > 0 && <span className="ml-1 text-muted">{all.filter((t) => ks!.includes(t.k)).length}</span>}
           </button>
@@ -107,7 +107,7 @@ export function Timeline({ items }: { items: Row[] }) {
         </section>
       ))}
       {matched.length > shown && (
-        <button type="button" onClick={() => setShown((s) => s + PAGE)} className="min-h-[44px] rounded-lg border border-line2 text-[13px] font-semibold text-text2 hover:bg-surface2">
+        <button type="button" onClick={() => setShown((s) => s + pageSize)} className="min-h-[44px] rounded-lg border border-line2 text-[13px] font-semibold text-text2 hover:bg-surface2">
           Load older ({matched.length - shown} more)
         </button>
       )}

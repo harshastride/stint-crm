@@ -4,7 +4,7 @@ import {
   AlarmClock, BadgeIndianRupee, CalendarDays, Copy, ListPlus, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable,
   FileCheck2, FileSpreadsheet, FileStack, FileText, Filter, GitBranch, GraduationCap, HandCoins, History, Home, Inbox, IndianRupee, LayoutGrid,
   ListChecks, ListTodo, type LucideIcon, Megaphone, MessageSquareText, Mic, NotebookPen, Palette, PhoneCall, PieChart, Receipt, Route, ScrollText,
-  Send, Shield, Shuffle, SlidersHorizontal, Target, TrendingUp, Upload, UserPlus, UserRoundCheck, Users, UsersRound, Wallet, Workflow, Zap,
+  Send, Shield, Shuffle, SlidersHorizontal, Star, Target, TrendingUp, Upload, UserPlus, UserRoundCheck, Users, UsersRound, Wallet, Workflow, Zap,
 } from 'lucide-react';
 
 export const PAGE_ICON: Record<string, LucideIcon> = {
@@ -18,7 +18,7 @@ export const PAGE_ICON: Record<string, LucideIcon> = {
   plan: Wallet, payment: HandCoins, alert: Bell, history: History, company: Building2,
   rep_funnel: Route, rep_roi: TrendingUp, rep_batch: BarChart3, rep_place: PieChart, rep_cash: BadgeIndianRupee, reports_builder: FileSpreadsheet,
   users: Users, duplicates: Copy, audit: ScrollText, roles: Shield, assign: Shuffle, followrules: AlarmClock, dropdowns: SlidersHorizontal, fields: ListPlus, imports: Upload,
-  automations: Zap, builder: Workflow, connections: Cable, deliveries: ScrollText, branding: Palette, reminders: AlarmClock, stage_rules: Route,
+  automations: Zap, builder: Workflow, connections: Cable, deliveries: ScrollText, branding: Palette, reminders: AlarmClock, stage_rules: Route, feedback: Star,
 };
 export const pageIcon = (id: string): LucideIcon => PAGE_ICON[id] || LayoutGrid;
 

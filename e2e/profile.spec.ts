@@ -39,7 +39,7 @@ test('full profile: identity, stage, next steps at the top; moves with confirm f
   await expect(ask).toHaveCount(0);
   expect((await db.from('candidate').select('stage').eq('id', id).single()).data!.stage).toBe('Resume');
 
-  await page.getByRole('button', { name: 'Activity', exact: true }).click();
+  await page.getByRole('group', { name: 'Candidate sections' }).getByRole('button', { name: 'Activity', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Activity' })).toContainText(/Mocks|Resume/);
 
   await page.setViewportSize({ width: 390, height: 844 });

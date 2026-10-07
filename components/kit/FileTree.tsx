@@ -56,7 +56,7 @@ export function FileTree({ folders, label = 'Files' }: { folders: TreeFolder[]; 
               <ChevronRight size={15} className={cx('shrink-0 text-muted transition-transform', open[d.id] && 'rotate-90')} />
               <Folder size={15} className="shrink-0 text-accentText" />
               <span className="min-w-0 flex-1 truncate" title={d.name}>{d.name}</span>
-              <span className="ui-count">{d.files.filter((f) => f.path).length} of {d.files.length}</span>
+              <span className="ui-count" title="Files uploaded">{d.files.filter((f) => f.path).length}/{d.files.length} files</span>
             </div>
             {open[d.id] && (
               <ul role="group" className="ml-[18px] flex flex-col border-l border-line pl-2">

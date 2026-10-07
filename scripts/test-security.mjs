@@ -1227,5 +1227,84 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   await service.storage.from('photos').remove([own]);
   check('Photos: the photo change is in the audit trail', !!hist && hist.length > 0, JSON.stringify(hist));
 }
+// ---- 079 Discussion threads ----
+{ const ids = Object.fromEntries(((await service.from('staff').select('id,email').in('email', ['harsha@demo.stint.local', 'suresh@demo.stint.local', 'teja@demo.stint.local', 'kiran@demo.stint.local'])).data || []).map((r) => [r.email.split('@')[0], r.id]));
+  const cand = (await service.from('candidate').select('id').eq('full_name', 'Priya Reddy').single()).data;
+  const suresh = await as('suresh'), kiran = await as('kiran');
+  const t = await admin.from('thread').insert({ candidate_id: cand.id, body: 'SECTEST fee issue @Suresh', mentioned: [ids.suresh, ids.teja] }).select('id, mentioned').single();
+  check('Threads: staff who can see the candidate can start a discussion', !t.error, t.error?.message);
+  check('Threads: mention of someone without access is dropped', (t.data?.mentioned || []).includes(ids.suresh) && !(t.data?.mentioned || []).includes(ids.teja), JSON.stringify(t.data));
+  const tr = await tele.from('thread').select('id').eq('id', t.data.id);
+  const tw = await tele.from('thread_reply').insert({ thread_id: t.data.id, body: 'SECTEST tele' });
+  check('Threads: telecaller cannot read or reply on a candidate they cannot see', !(tr.data || []).length && !!tw.error);
+  const n1 = (await service.from('notification').select('id').eq('staff_id', ids.suresh).eq('kind', 'mention').ilike('title', '%discussion%').gte('created_at', startedAt)).data || [];
+  const nt = (await service.from('notification').select('id').eq('staff_id', ids.teja).ilike('title', '%discussion%').gte('created_at', startedAt)).data || [];
+  check('Threads: mentioned person is notified, person without access is not', n1.length >= 1 && nt.length === 0, JSON.stringify([n1, nt]));
+  const r = await suresh.from('thread_reply').insert({ thread_id: t.data.id, body: 'SECTEST checked' }).select('id').single();
+  const nh = (await service.from('notification').select('id').eq('staff_id', ids.harsha).eq('kind', 'thread').gte('created_at', startedAt)).data || [];
+  check('Threads: a reply notifies the thread starter', !r.error && nh.length >= 1, r.error?.message);
+  const kr = await kiran.from('thread').update({ status: 'resolved' }).eq('id', t.data.id).select('id');
+  check('Threads: a non-participant cannot resolve', !!kr.error || !(kr.data || []).length, JSON.stringify(kr));
+  const sr = await suresh.from('thread').update({ status: 'resolved' }).eq('id', t.data.id).select('status, resolved_by').single();
+  check('Threads: a mentioned person can resolve (resolver recorded by the database)', sr.data?.status === 'resolved' && sr.data?.resolved_by === ids.suresh, JSON.stringify(sr));
+  const e1 = await suresh.from('thread_reply').update({ body: 'SECTEST checked (edit)' }).eq('id', r.data.id).select('edited_at').single();
+  await service.from('thread_reply').update({ created_at: new Date(Date.now() - 20 * 60000).toISOString() }).eq('id', r.data.id);
+  const e2 = await suresh.from('thread_reply').update({ body: 'SECTEST late edit' }).eq('id', r.data.id);
+  const e3 = await kiran.from('thread_reply').update({ body: 'SECTEST hijack' }).eq('id', r.data.id).select('id');
+  check('Threads: author can edit within 15 minutes, not after; others never', !e1.error && !!e1.data?.edited_at && !!e2.error && !(e3.data || []).length, JSON.stringify([e1.error, e2.error, e3.data]));
+  const d1 = await suresh.from('thread_reply').delete().eq('id', r.data.id).select('id');
+  const d2 = await suresh.from('thread_reply').update({ deleted_at: new Date().toISOString() }).eq('id', r.data.id);
+  check('Threads: no deletes; only Admin can hide a reply', !(d1.data || []).length && !!d2.error);
+  const au = (await service.from('audit_log').select('id').eq('table_name', 'thread').eq('row_id', t.data.id).limit(5)).data || [];
+  check('Threads: discussions are in the audit trail', au.length > 0);
+  await service.from('notification').delete().ilike('title', '%discussion%').gte('created_at', startedAt);
+  await service.from('thread').delete().eq('id', t.data.id);
+}
+// Student feedback (migration 078): students rate only their own items, once; trainers never see hidden names; telecallers see nothing
+{ const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const tag = String(Date.now()).slice(-6), email = `fb${tag}@example.com`, pw = 'Student-fb-12345';
+  const kiranId = (await svc.from('staff').select('id').eq('email', 'kiran@demo.stint.local').single()).data.id;
+  const b = (await svc.from('batch').select('id').eq('trainer_id', kiranId).limit(1).single()).data;
+  const c = (await svc.from('candidate').insert({ code: 'STA-FB-' + tag, full_name: 'Feedback Student ' + tag, stage: 'Training', batch_id: b.id }).select('id').single()).data;
+  const other = (await svc.from('candidate').insert({ code: 'STA-FO-' + tag, full_name: 'Other Student ' + tag, stage: 'Training', batch_id: b.id }).select('id').single()).data;
+  const [m1, m2] = (await svc.from('mock_session').insert([{ candidate_id: c.id, trainer_id: kiranId, status: 'Passed' }, { candidate_id: other.id, trainer_id: kiranId, status: 'Passed' }]).select('id,candidate_id')).data.sort((x) => (x.candidate_id === c.id ? -1 : 1));
+  const u = (await svc.auth.admin.createUser({ email, password: pw, email_confirm: true })).data.user;
+  await svc.from('student_account').insert({ user_id: u.id, candidate_id: c.id, must_change_password: false });
+  const st = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  await st.auth.signInWithPassword({ email, password: pw });
+  try {
+    const pend = await st.rpc('portal_feedback_pending');
+    check('Feedback: a student is asked to rate their finished mock and this week', (pend.data || []).some((x) => x.ref === m1.id) && (pend.data || []).some((x) => x.subject === 'module') && !(pend.data || []).some((x) => x.ref === m2.id), pend.error?.message || JSON.stringify(pend.data));
+    const ok = await st.rpc('portal_feedback_submit', { p_subject: 'mock', p_ref: m1.id, p_rating: 4, p_comment: 'Secret-' + tag, p_anonymous: true });
+    check('Feedback: a student can rate their own mock', !ok.error, ok.error?.message);
+    const twice = await st.rpc('portal_feedback_submit', { p_subject: 'mock', p_ref: m1.id, p_rating: 1, p_comment: null, p_anonymous: false });
+    check('Feedback: a student cannot rate the same mock twice', !!twice.error);
+    const theirs = await st.rpc('portal_feedback_submit', { p_subject: 'mock', p_ref: m2.id, p_rating: 1, p_comment: null, p_anonymous: true });
+    check('Feedback: a student cannot rate another student’s mock', !!theirs.error);
+    const course = await st.rpc('portal_feedback_submit', { p_subject: 'overall', p_ref: 'course', p_rating: 5, p_comment: null, p_anonymous: true });
+    check('Feedback: the course cannot be rated while still in Training', !!course.error);
+    const direct = await st.from('student_feedback').insert({ candidate_id: other.id, batch_id: b.id, subject: 'mock', subject_ref: m2.id, rating: 1 });
+    check('Feedback: a student cannot write the table directly', !!direct.error);
+    const staffSubmit = await hr.rpc('portal_feedback_submit', { p_subject: 'mock', p_ref: m2.id, p_rating: 5, p_comment: null, p_anonymous: true });
+    check('Feedback: staff cannot rate as a student', !!staffSubmit.error);
+    const kv = (await trainer.from('feedback_for_trainer').select('student_name,comment').eq('comment', 'Secret-' + tag)).data || [];
+    const kt = (await trainer.from('student_feedback').select('id').eq('subject_ref', m1.id)).data || [];
+    check('Feedback: trainer sees the comment but not the hidden name', kv.length === 1 && kv[0].student_name === null && kt.length === 0, JSON.stringify([kv, kt]));
+    const av = (await admin.from('feedback_for_trainer').select('student_name').eq('comment', 'Secret-' + tag)).data || [];
+    check('Feedback: admin sees who wrote it', av.length === 1 && av[0].student_name === 'Feedback Student ' + tag, JSON.stringify(av));
+    const tv = (await tele.from('feedback_for_trainer').select('id')).data || [], tt = (await tele.from('student_feedback').select('id')).data || [];
+    check('Feedback: telecaller reads no feedback', tv.length + tt.length === 0);
+    const nikhil = (await svc.from('staff').select('id').eq('email', 'nikhil@demo.stint.local').maybeSingle()).data;
+    if (nikhil) { const nb = (await svc.from('batch').select('id').eq('trainer_id', nikhil.id).limit(1).maybeSingle()).data;
+      if (nb) { const oc = (await svc.from('candidate').insert({ code: 'STA-FN-' + tag, full_name: 'Elsewhere ' + tag, stage: 'Training', batch_id: nb.id }).select('id').single()).data;
+        await svc.from('student_feedback').insert({ candidate_id: oc.id, batch_id: nb.id, trainer_id: nikhil.id, subject: 'module', subject_ref: '2026-W01', rating: 2, comment: 'Elsewhere-' + tag });
+        const kx = (await trainer.from('feedback_for_trainer').select('id').eq('comment', 'Elsewhere-' + tag)).data || [];
+        check('Feedback: trainer does not see other trainers’ batches', kx.length === 0, JSON.stringify(kx));
+        await svc.from('candidate').delete().eq('id', oc.id); } }
+  } finally {
+    await svc.from('student_account').delete().eq('user_id', u.id); await svc.auth.admin.deleteUser(u.id);
+    await svc.from('candidate').delete().in('id', [c.id, other.id]);
+  }
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

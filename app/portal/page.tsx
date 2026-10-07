@@ -21,6 +21,7 @@ import { IdleGuard } from '@/components/kit/IdleGuard';
 import { HelpList } from '@/components/kit/HelpList';
 import { STUDENT_HELP_FOOTER, STUDENT_TOPICS } from '@/components/kit/studentHelp';
 import { CheckIn } from '@/components/portal/CheckIn';
+import { FeedbackAsk } from '@/components/portal/FeedbackAsk';
 import { PortalPhoto } from '@/components/kit/PhotoUpload';
 
 // Student portal: the student's own details, documents, fees and schedule. Everything goes through portal_* functions.
@@ -37,7 +38,7 @@ const PRIVATE: Record<string, [string, [string, string][]]> = {
 const TABS = ['Overview', 'My details', 'Documents', 'Fees', 'My progress', 'My resumes', 'My files', 'Alerts', 'Help'] as const;
 type Tab = (typeof TABS)[number];
 const LINK_TAB: Record<string, Tab> = { 'portal:resumes': 'My resumes', 'portal:files': 'My files', 'portal:progress': 'My progress', 'portal:fees': 'Fees' };
-const mapLinkToTab = (link: string): Tab => LINK_TAB[link] || 'Alerts';
+const mapLinkToTab = (link: string): Tab => LINK_TAB[link] || (link?.startsWith('portal:feedback') ? 'Overview' : 'Alerts');
 const pollMs = () => (typeof window !== 'undefined' && (window as unknown as { __stintAlertPollMs?: number }).__stintAlertPollMs) || 30000;
 type Note = { id: string; kind: string; title: string; body: string | null; link: string | null; read_at: string | null; created_at: string };
 const EDU: [string, string][] = [['level', 'Level'], ['institution', 'Institution'], ['course', 'Course'], ['years', 'Years'], ['marks', 'Marks %']];
@@ -117,6 +118,7 @@ function Portal() {
             </div>
           </div>
           <NextUp me={me} go={go} />
+          <FeedbackAsk onAlert={loadNotes} />
           {c.batch && <CheckIn />}
           <div className="border-t border-line pt-3">
             <Stepper label="Your joining steps" steps={[
@@ -227,7 +229,7 @@ function NextUp({ me, go }: { me: Me; go: (t: Tab) => void }) {
   return (
     <section aria-label="Next up">
       <h2 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Next up</h2>
-      {top.length === 0 ? <p className="text-[13.5px] text-goodText">You’re all caught up. Nothing to do right now.</p> : (
+      {top.length === 0 ? <p className="text-[13.5px] text-goodText">Nothing urgent right now.</p> : (
         <ul>
           {top.map((t) => (
             <li key={t.key} data-testid={'next-' + t.key} className="flex items-center justify-between gap-3 border-t border-line py-2 first:border-0">

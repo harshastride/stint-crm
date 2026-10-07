@@ -62,7 +62,7 @@ test('resume editor compares two versions side by side', async ({ page }) => {
 test('Candidate 360 documents tab shows a file tree', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/candidate/' + cid);
-  await page.getByRole('button', { name: 'Documents', exact: true }).click();
+  await page.getByRole('group', { name: 'Candidate sections' }).getByRole('button', { name: 'Documents', exact: true }).click();
   const tree = page.getByRole('tree', { name: 'Candidate files' });
   await expect(tree.getByText('Identity & education')).toBeVisible();
   await expect(tree.getByText('Resumes')).toBeVisible();

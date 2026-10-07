@@ -15,10 +15,12 @@ const field = 'h-11 w-full rounded-lg border border-line2 bg-surface px-2.5 text
 /** The person's stage: the 9-step track, where they are, the allowed next stages with what each still needs,
  *  and (for Admin) an override with a reason. Used by the quick panel and the full profile.
  *  The database (stage rules, migration 073) refuses any move that is not allowed or not ready. */
-export function StageControl({ kind, id, stage, changedAt, onMoved, compact, request, onRequestSeen }: {
+export function StageControl({ kind, id, stage, changedAt, onMoved, compact, request, onRequestSeen, trackHiddenFrom }: {
   kind: Kind; id: string; stage: string; changedAt?: string | null; onMoved: (stage: string, message?: string) => void; compact?: boolean;
   /** a move asked for elsewhere (e.g. the "Convert to student" next step): it goes through the same checks and error handling */
   request?: string | null; onRequestSeen?: () => void;
+  /** 'md': the page shows its own journey from 768px, so the bar and its text are kept only for screen readers there */
+  trackHiddenFrom?: 'md';
 }) {
   const s = useSession();
   const toast = useToast();
@@ -94,7 +96,7 @@ export function StageControl({ kind, id, stage, changedAt, onMoved, compact, req
 
   return (
     <div className={cx('flex flex-col', compact ? 'gap-1.5' : 'gap-2')} data-testid="stage-control">
-      <div>
+      <div className={trackHiddenFrom === 'md' ? 'md:sr-only' : undefined}>
         <div className="flex gap-0.5" role="img" aria-label={`Journey step ${pos.index + 1} of ${pos.total}: ${pos.step}`}>
           {STAGES.map((n, i) => <span key={n} className={cx('h-1.5 flex-1 rounded-full transition-colors duration-200', i < pos.index ? 'bg-accent' : i === pos.index ? 'bg-coral' : 'bg-line2')} />)}
         </div>

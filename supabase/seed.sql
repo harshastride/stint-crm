@@ -447,3 +447,6 @@ insert into public.role_page_access (role, page_id, mode) values
 on conflict do nothing;
 -- Stage rules (migration 073): Admin-only settings page (Admin sees every page; grant more roles in Roles & permissions)
 insert into public.page (id, grp, title, sort) values ('stage_rules', 'Admin settings', 'Stage rules', 41) on conflict (id) do nothing;
+-- Student feedback (migration 078): Training page; Trainers see only their own batches, without names of anonymous ratings
+insert into public.page (id, grp, title, sort) values ('feedback', 'Training', 'Student feedback', 19) on conflict (id) do nothing;
+insert into public.role_page_access (role, page_id, mode) select name, 'feedback', 'r' from public.app_role where name in ('HR / Counsellor', 'SME', 'Trainer') on conflict do nothing;

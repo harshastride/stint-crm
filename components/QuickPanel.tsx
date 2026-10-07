@@ -14,6 +14,7 @@ import { trackRecent } from '@/lib/recent';
 import { QuickDate } from './QuickDate';
 import { useToast } from './Toasts';
 import { MentionInput } from './kit/MentionInput';
+import { Threads } from './kit/Threads';
 import { VoiceInput, appendText } from './kit/VoiceInput';
 import { useRouter } from 'next/navigation';
 import { stepForFollowUp, stepsForStage, type Step } from '@/lib/nextSteps';
@@ -329,6 +330,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
         <div className="flex flex-1 flex-col gap-2 px-3 py-2.5">
           {tab === 'Log' && (
             <div className="anim-fade flex flex-col gap-1">
+              <div className="border-b border-line pb-1"><Threads kind={isLead ? 'lead' : 'candidate'} id={person.id} compact /></div>
               {timeline.length === 0 && <div className="text-[13px] text-muted">Nothing logged yet. Use the box below.</div>}
               <ul className="flex flex-col divide-y divide-line">
                 {[...timeline].sort((a, b) => +new Date(b.at) - +new Date(a.at)).slice(0, 5).map((t, i) => (
