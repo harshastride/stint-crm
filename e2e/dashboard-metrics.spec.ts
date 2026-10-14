@@ -10,7 +10,9 @@ async function tileMatchesList(page: Page, id: string) {
   await expect(tile).toBeVisible({ timeout: 20_000 });
   const n = Number((await tile.getByTestId('tile-value').innerText()).replace(/[^\d]/g, ''));
   await tile.getByTestId('tile-link').click();
-  await expect(listCount(page, n)).toBeVisible({ timeout: 20_000 });
+  // an empty list shows its "nothing here" message instead of a "0 shown" count
+  if (n === 0) await expect(page.getByTestId('empty-state')).toBeVisible({ timeout: 20_000 });
+  else await expect(listCount(page, n)).toBeVisible({ timeout: 20_000 });
 }
 
 test('Admin: tile numbers equal the drill-through list counts', async ({ page }) => {
@@ -32,7 +34,8 @@ test('Telecaller: own numbers match, no fee or enrolment tiles, needs-attention 
 test('Dashboard does not download lead or candidate rows to count them', async ({ page }) => {
   await login(page, 'harsha');
   const bulk: string[] = [];
-  page.on('request', (r) => { if (/\/rest\/v1\/(lead|lead_list|candidate|fee_payment)\?/.test(r.url())) bulk.push(r.url()); });
+  // count-only requests (HEAD) download no rows and are fine; any GET of these tables would pull rows
+  page.on('request', (r) => { if (r.method() !== 'HEAD' && /\/rest\/v1\/(lead|lead_list|candidate|fee_payment)\?/.test(r.url())) bulk.push(r.method() + ' ' + r.url()); });
   await page.goto('/');
   await expect(page.locator('[data-tile="leads_month"]')).toBeVisible({ timeout: 20_000 });
   expect(bulk).toEqual([]);
