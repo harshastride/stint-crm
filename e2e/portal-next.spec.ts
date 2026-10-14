@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { login, service } from './helpers';
+import { login, service, freshDemoStudent } from './helpers';
 
 const SHOT = '/private/tmp/claude-501/-Users-kanalaharshareddy-Applications-stint-crm/44af8995-f50d-49d2-96fc-b1698d4bcbd0/scratchpad/pe-portal-';
 
@@ -7,6 +7,7 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
   test(`student portal shows Next up first (${w}px)`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await page.goto('/login');
+    await freshDemoStudent();
     await page.getByLabel('Email').fill('priya@demo.stint.local');
     await page.getByLabel('Password').fill('stint-demo-1234');
     await page.getByRole('button', { name: 'Sign in' }).click();

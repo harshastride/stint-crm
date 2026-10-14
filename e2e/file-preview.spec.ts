@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { login, service, PASSWORD } from './helpers';
+import { login, service, PASSWORD, freshDemoStudent } from './helpers';
 
 // 1x1 PNG
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
@@ -50,6 +50,7 @@ test('portal: receipt and an uploaded photo preview in place', async ({ page, co
 
     await page.context().clearCookies();
     await page.goto('/login');
+    await freshDemoStudent();
     await page.getByLabel('Email').fill('priya@demo.stint.local');
     await page.getByLabel('Password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();

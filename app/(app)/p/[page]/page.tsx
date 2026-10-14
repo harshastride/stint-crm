@@ -17,10 +17,11 @@ import { ReportBuilder } from '@/components/special/ReportBuilder';
 import { StageRules } from '@/components/special/StageRules';
 import { Reminders } from '@/components/special/Reminders';
 import { AuditLog } from '@/components/special/AuditLog';
+import { RecycleBin } from '@/components/special/RecycleBin';
 import { Feedback } from '@/components/special/Feedback';
 import { PageSkeleton } from '@/components/Skeletons';
 
-const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, stage_rules: StageRules, audit: AuditLog, reports_builder: ReportBuilder, feedback: Feedback };
+const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, stage_rules: StageRules, audit: AuditLog, recycle: RecycleBin, reports_builder: ReportBuilder, feedback: Feedback };
 
 export default function Page({ params }: { params: Promise<{ page: string }> }) {
   const { page } = use(params);

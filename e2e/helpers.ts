@@ -15,3 +15,13 @@ export async function login(page: Page, who: string) {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('button', { name: /^Account menu/ })).toBeVisible({ timeout: 20_000 });
 }
+
+/** Before a test signs in as the demo student: put the demo password back and clear any sign-in lockout,
+ *  so one earlier test (or a stray wrong try) cannot lock Priya out for the rest of the run. */
+export async function freshDemoStudent() {
+  const db = service();
+  const { data } = await db.auth.admin.listUsers({ page: 1, perPage: 500 });
+  const u = data.users.find((x) => x.email === 'priya@demo.stint.local');
+  if (u) await db.auth.admin.updateUserById(u.id, { password: PASSWORD });
+  await db.from('login_attempt').delete().eq('email', 'priya@demo.stint.local');
+}

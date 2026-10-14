@@ -23,7 +23,7 @@ import { Watermark } from './kit/Watermark';
 
 /** Admin settings sub-groups in the sidebar (labels only; links unchanged). */
 const ADMIN_SUBGROUPS: [string, string[]][] = [
-  ['People & access', ['users', 'roles', 'accesslog', 'audit']],
+  ['People & access', ['users', 'roles', 'accesslog', 'audit', 'recycle']],
   ['Data', ['fields', 'dropdowns', 'duplicates', 'imports']],
   ['Automation', ['assign', 'stage_rules', 'followrules', 'automations', 'builder', 'deliveries', 'connections']],
   ['Messaging', ['reminders', 'templates', 'announcement']],

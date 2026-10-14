@@ -1,11 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
-import { login, service, PASSWORD } from './helpers';
+import { login, service, PASSWORD, freshDemoStudent } from './helpers';
 
 const SHOT = '/private/tmp/claude-501/-Users-kanalaharshareddy-Applications-stint-crm/44af8995-f50d-49d2-96fc-b1698d4bcbd0/scratchpad/pe-qr-';
 
 async function student(page: Page) {
   await page.context().clearCookies();
   await page.goto('/login');
+  await freshDemoStudent();
   await page.getByLabel('Email').fill('priya@demo.stint.local');
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { env, login, PASSWORD, service } from './helpers';
+import { env, login, PASSWORD, service, freshDemoStudent } from './helpers';
 
 const SHOT = '/private/tmp/claude-501/-Users-kanalaharshareddy-Applications-stint-crm/44af8995-f50d-49d2-96fc-b1698d4bcbd0/scratchpad/pe-feedback-';
 
@@ -18,6 +18,7 @@ test('student rates a mock once; admin sees the average; trainer sees the commen
     // 1. Priya rates her mock with the keyboard, name hidden (default)
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/login');
+    await freshDemoStudent();
     await page.getByLabel('Email').fill('priya@demo.stint.local');
     await page.getByLabel('Password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in' }).click();
@@ -39,6 +40,7 @@ test('student rates a mock once; admin sees the average; trainer sees the commen
 
     // 2. Rating the same mock again is refused by the database
     const st = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+    await freshDemoStudent();
     await st.auth.signInWithPassword({ email: 'priya@demo.stint.local', password: PASSWORD });
     const again = await st.rpc('portal_feedback_submit', { p_subject: 'mock', p_ref: mock.id, p_rating: 1, p_comment: null, p_anonymous: false });
     expect(again.error?.message).toMatch(/already rated/);

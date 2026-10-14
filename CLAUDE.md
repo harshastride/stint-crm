@@ -41,6 +41,7 @@ Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita 
 9. Do not put real people's ID, bank or contact details in seeds, tests or fixtures.
 10. Job papers (`job_record`, `job_paper`) track documents for a job the candidate actually holds; the checklist is derived from the real joining and leaving dates. Do not add features that produce or back-date employment documents.
 11. Lead `mobile`/`email` are not selectable by signed-in users: read `lead_list` / `mobile_masked` and use `reveal_contact` (logged in `data_access_log`). Time limits come from settings `old_data_days`, `alumni_lock_days`, `idle_signout_minutes`, `reveal_seconds`.
+12. Deletes are recoverable: a `before delete` trigger (`aa_bin`) copies every business row to `recycle_bin` (Admin-only page Recycle bin, `restore_deleted(grp)`, kept `bin_keep_days`). New business tables need the `aa_bin` trigger too (see migration 081).
 
 ## Where to look next
 Integrations: `docs/activepieces/` (events, incoming leads), recordings need `DEEPGRAM_API_KEY` and `GEMINI_API_KEY` (server only).

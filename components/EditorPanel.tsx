@@ -126,7 +126,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     const { error } = await supabase().from(cfg.table).delete().eq('id', row!.id);
     setBusy(false);
     if (error) { setMsg({ tone: 'bad', text: friendlyError(error) }); return; }
-    onSaved(cfg.kind + ' deleted.');
+    onSaved(cfg.kind + ' deleted. Admin can restore it from the Recycle bin.');
   };
 
   return (
@@ -229,7 +229,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       {!readOnly && (
         <Toolbar className="mt-auto pt-2"
           start={!isNew && s.staff.role === 'Admin' && !['users', 'branding'].includes(cfg.id) ? (
-            <Confirm disabled={busy} align="left" onYes={remove} title={'Delete this ' + cfg.kind.toLowerCase() + '?'} body={cfg.rowTitle(row!) + ' will be removed for good. This cannot be undone.'} yes="Delete for good"
+            <Confirm disabled={busy} align="left" onYes={remove} title={'Delete this ' + cfg.kind.toLowerCase() + '?'} body={cfg.rowTitle(row!) + ' moves to the Recycle bin. Admin can restore it for a year.'} yes="Delete"
               className="btn inline-flex h-10 items-center rounded-[10px] border border-transparent px-3 text-[13.5px] font-medium text-badText hover:bg-badBg disabled:opacity-50">Delete</Confirm>
           ) : undefined}
           primary={<Button variant="primary" loading={busy} onClick={save}>{isNew ? cfg.id === 'users' ? 'Send invite' : 'Save' : 'Save changes'}</Button>}>

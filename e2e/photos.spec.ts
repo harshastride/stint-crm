@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import zlib from 'node:zlib';
-import { login, service, PASSWORD } from './helpers';
+import { login, service, PASSWORD, freshDemoStudent } from './helpers';
 
 test.setTimeout(90_000);
 const SHOTS = '/private/tmp/claude-501/-Users-kanalaharshareddy-Applications-stint-crm/44af8995-f50d-49d2-96fc-b1698d4bcbd0/scratchpad/';
@@ -74,6 +74,7 @@ test('student portal: student sets and removes own photo; telecaller has no chan
   await db.from('candidate').update({ photo_path: null }).eq('id', cand.id);
   await page.context().clearCookies();
   await page.goto('/login');
+  await freshDemoStudent();
   await page.getByLabel('Email').fill('priya@demo.stint.local');
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();

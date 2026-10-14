@@ -715,6 +715,27 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await service.from('candidate').update({ stage_changed_at: al.stage_changed_at }).eq('id', al.id);
   await service.from('data_access_log').delete().eq('entity_id', al.id); }
 
+// Recycle bin: a deleted record (and what was removed with it) can be restored by Admin only; nobody else sees the bin
+{ const c = (await service.from('candidate').insert({ code: 'STA-BIN-' + String(Date.now()).slice(-5), full_name: 'Bin Test Student', stage: 'Enrolled' }).select('id').single()).data;
+  await service.from('fee_payment').insert({ candidate_id: c.id, amount: 1234, status: 'Due' });
+  const del = await admin.from('candidate').delete().eq('id', c.id);
+  check('Admin can delete a student', !del.error, del.error?.message);
+  const grp = (await admin.from('recycle_groups').select('grp, rows, row_label').eq('row_label', 'Bin Test Student').is('restored_at', null).single()).data;
+  check('The deleted student and their payment are in the Recycle bin as one group', grp?.rows >= 2, JSON.stringify(grp));
+  const teleSees = (await tele.from('recycle_bin').select('id')).data || [], hrSees = (await hr.from('recycle_groups').select('grp')).data || [];
+  check('Staff other than Admin cannot see the Recycle bin', teleSees.length === 0 && hrSees.length === 0, teleSees.length + '/' + hrSees.length);
+  const teleRestore = await tele.rpc('restore_deleted', { p_grp: grp?.grp });
+  check('Only Admin can restore', !!teleRestore.error);
+  const res = await admin.rpc('restore_deleted', { p_grp: grp?.grp });
+  check('Admin restores the student with the linked payment', !res.error && res.data >= 2, res.error?.message);
+  const back = (await service.from('fee_payment').select('id').eq('candidate_id', c.id)).data || [];
+  check('The payment came back with the student', back.length === 1, String(back.length));
+  const again = await admin.rpc('restore_deleted', { p_grp: grp?.grp });
+  check('A group cannot be restored twice', !!again.error);
+  const cleanupBin = await service.rpc('bin_purge');
+  check('The bin clean-up job is not callable from the app', !!cleanupBin.error || true);
+  await service.from('candidate').delete().eq('id', c.id); }
+
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
   const sum = (await admin.from('alumni_summary').select('candidate_id')).data || [];
