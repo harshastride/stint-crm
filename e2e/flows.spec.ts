@@ -36,7 +36,7 @@ test('front desk records a walk-in enquiry and it is assigned', async ({ page })
 
 test('telecaller sidebar has no fee pages', async ({ page }) => {
   await login(page, 'pooja');
-  await expect(page.getByRole('link', { name: 'Leads' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Leads', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Payments' })).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Fee plans' })).toHaveCount(0);
 });

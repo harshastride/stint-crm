@@ -3,6 +3,8 @@ import type { Config } from 'tailwindcss';
 const v = (n: string) => `var(--${n})`;
 export default {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}', './lib/**/*.{ts,tsx}'],
+  // dark: follows the app's own theme switch (data-theme on <html>), not the laptop's setting
+  darkMode: ['class', "[data-theme='dark']"],
   theme: {
     extend: {
       colors: {

@@ -17,7 +17,7 @@ test('funnel steps never grow, show scope and percent, and open the same leads',
   await expect(f.getByTestId('funnel-scope')).toContainText(/Leads created \d+ \w+ \d{4} – /);
   await expect(f.getByTestId('funnel-step')).toHaveCount(5);
   const base = Number(await f.getByTestId('funnel-step').first().getAttribute('data-n'));
-  await f.getByTestId('funnel-step').first().getByRole('link').click();
+  await f.getByRole('link', { name: 'Open these leads', exact: true }).click();   // the bar list is for phones; desktop shows the shape + this link
   await expect(page).toHaveURL(/\/p\/lead\?from=\d{4}-\d{2}-\d{2}&to=/);
   await expect(page.getByText(new RegExp(`^(${base} shown|\\d+–\\d+ of ${base})`))).toBeVisible({ timeout: 20_000 });
 });

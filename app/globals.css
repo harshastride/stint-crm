@@ -100,3 +100,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .ui-card[aria-selected='true'] { box-shadow: 0 0 0 2px var(--accent); }
 .ui-count { border-radius: 999px; padding: 0 6px; font-size: 11px; font-weight: 700; background: var(--accentSoft); color: var(--accentText); font-variant-numeric: tabular-nums; }
 .ui-count[data-tone='bad'] { background: var(--coral); color: #fff; }
+
+/* funnel shape: segments fade and grow in once, left to right */
+@keyframes funnel-in { from { opacity: 0; transform: scaleY(0.6); } to { opacity: 1; transform: none; } }
+.funnel-seg { transform-box: fill-box; transform-origin: left center; animation: funnel-in 420ms cubic-bezier(.2,.8,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .funnel-seg { animation: none; } }
