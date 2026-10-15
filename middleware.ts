@@ -35,6 +35,12 @@ function secure(res: NextResponse, req: NextRequest, policy: string) {
   return res;
 }
 
+/** Same-site redirect. Behind a proxy (nginx) request.url is the app's internal address (localhost:3100),
+ *  so use the public NEXT_PUBLIC_SITE_URL when set (Next.js only accepts absolute redirect URLs). */
+function redirectTo(path: string, req: NextRequest) {
+  return NextResponse.redirect(new URL(path, process.env.NEXT_PUBLIC_SITE_URL || req.url));
+}
+
 // Adds security headers, keeps the login fresh and sends visitors who are not logged in to /login.
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -73,8 +79,8 @@ export async function middleware(request: NextRequest) {
     },
   });
   const { data } = await supabase.auth.getUser();
-  if (!data.user && path !== '/login') return secure(NextResponse.redirect(new URL('/login', request.url)), request, policy);
-  if (data.user && path === '/login') return secure(NextResponse.redirect(new URL('/', request.url)), request, policy);
+  if (!data.user && path !== '/login') return secure(redirectTo('/login', request), request, policy);
+  if (data.user && path === '/login') return secure(redirectTo('/', request), request, policy);
   return secure(response, request, policy);
 }
 
