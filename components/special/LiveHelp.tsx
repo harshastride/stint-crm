@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Button, Notice, Pill, cx, fmtDuration } from '../ui';
 import { PageHeader } from '../kit/PageHeader';
 import { Confirm } from '../kit/Confirm';
+import { SoundBars, useSoundLevel } from '../kit/SoundBars';
 
 // Live help: the telecaller calls a lead from their own phone on speaker; this page listens through the laptop mic,
 // turns speech into text live (Deepgram, straight from the browser) and asks /api/live/tips for fresh tips each time
@@ -15,7 +16,9 @@ import { Confirm } from '../kit/Confirm';
 // The audio is never stored. Nothing is saved on the server here except through the summary and the logged call.
 
 type Seg = { speaker: string; text: string };
-type Tips = { they_said: string; say_this: string; still_to_cover: string[]; ask_for: string; careful: string | null };
+type Source = { kind: string; title: string };
+type Tips = { they_said: string; say_this: string; still_to_cover: string[]; ask_for: string; careful: string | null; sources: Source[] };
+const KIND_TAG: Record<string, string> = { 'Selling point': 'Selling point', 'Fact we can quote': 'Fact', 'Doubt and answer': 'Answer to a doubt', 'Never say': 'Never say' };
 type Summary = { summary: string; outcome: string | null; follow_up: string | null; follow_up_when: string | null };
 type Lead = { id: string; full_name: string; stage: string | null; program: { name: string } | { name: string }[] | null };
 type Phase = 'idle' | 'starting' | 'live' | 'lost' | 'summarising' | 'done';
@@ -74,6 +77,9 @@ export function LiveHelp({ leadId }: { leadId: string }) {
   const [result, setResult] = useState<Summary | null>(null);
   const [resultErr, setResultErr] = useState<string | null>(null);
   const [scrolledUp, setScrolledUp] = useState(false);
+  // the live microphone, for the sound meter (proof the laptop hears the call)
+  const [micStream, setMicStream] = useState<MediaStream | null>(null);
+  const { level, heardAt } = useSoundLevel(micStream);
 
   // live connection
   const phaseRef = useRef<Phase>('idle');
@@ -170,7 +176,7 @@ export function LiveHelp({ leadId }: { leadId: string }) {
     if (keepAlive.current) { clearInterval(keepAlive.current); keepAlive.current = null; }
     const r = rec.current; rec.current = null;
     if (r) { r.ondataavailable = null; r.onstop = null; r.onerror = null; if (r.state !== 'inactive') { try { r.stop(); } catch {} } }
-    stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null;
+    stream.current?.getTracks().forEach((t) => t.stop()); stream.current = null; setMicStream(null);
     const w = ws.current; ws.current = null;
     if (w) {
       w.onopen = null; w.onmessage = null; w.onerror = null; w.onclose = null;
@@ -236,6 +242,7 @@ export function LiveHelp({ leadId }: { leadId: string }) {
           they_said: String(j.they_said || ''), say_this: j.say_this,
           still_to_cover: Array.isArray(j.still_to_cover) ? j.still_to_cover.filter((x: unknown): x is string => typeof x === 'string' && !!x.trim()) : [],
           ask_for: String(j.ask_for || ''), careful: typeof j.careful === 'string' && j.careful.trim() ? j.careful : null,
+          sources: Array.isArray(j.sources) ? j.sources.filter((x: unknown): x is Source => !!x && typeof (x as Source).title === 'string').slice(0, 3) : [],
         });
         setTipsNote(null);
       } else {
@@ -267,7 +274,7 @@ export function LiveHelp({ leadId }: { leadId: string }) {
       return;
     }
     if (!alive.current) { mic.getTracks().forEach((t) => t.stop()); return; }
-    stream.current = mic;
+    stream.current = mic; setMicStream(mic);
     // 2. a fresh 30-second key, right before opening
     let token = '', url = '';
     try {
@@ -342,7 +349,7 @@ export function LiveHelp({ leadId }: { leadId: string }) {
       const t = setTimeout(finish, 2500);
       if (w) { w.onclose = finish; w.onerror = null; } // onmessage stays on for the last results
       const closeStream = () => {
-        stream.current?.getTracks().forEach((tr) => { tr.onended = null; tr.stop(); });
+        stream.current?.getTracks().forEach((tr) => { tr.onended = null; tr.stop(); }); setMicStream(null);
         try { if (w && w.readyState === 1) w.send(JSON.stringify({ type: 'CloseStream' })); else finish(); } catch { finish(); }
       };
       if (r && r.state !== 'inactive') { r.onerror = null; r.onstop = closeStream; try { r.stop(); } catch { closeStream(); } }
@@ -418,6 +425,9 @@ export function LiveHelp({ leadId }: { leadId: string }) {
     </Link>
   );
 
+  // secs ticks every second while on a call, so these refresh on their own
+  const hearing = !!heardAt && Date.now() - heardAt < 1500;
+  const silent = phase === 'live' && secs >= 12 && (!heardAt || Date.now() - heardAt > 10_000);
   const onCall = phase === 'live' || phase === 'lost' || (phase === 'starting' && callStart.current !== null);
 
   return (
@@ -458,12 +468,15 @@ export function LiveHelp({ leadId }: { leadId: string }) {
         <>
           <div className="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-card bg-surface p-3 shadow-2">
             {phase === 'live' ? (
-              <span className="flex items-center gap-2 text-[13.5px] font-semibold text-goodText" role="status">
-                <span className="relative flex h-2.5 w-2.5" aria-hidden>
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-goodText opacity-60 motion-safe:animate-ping" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-goodText" />
-                </span>
-                Listening
+              <span className="flex items-center gap-2 text-[13.5px] font-semibold text-goodText">
+                <SoundBars level={level} />
+                <span role="status">Listening</span>
+                {/* changes many times a minute while people talk, so it is not announced */}
+                <span aria-hidden className="text-[12.5px] font-medium text-muted">{hearing ? '· hearing the call' : '· quiet'}</span>
+              </span>
+            ) : phase === 'starting' ? (
+              <span className="flex items-center gap-2 text-[13.5px] font-semibold text-text2" role="status">
+                <Loader2 size={14} className="btn-spin" aria-hidden /> Connecting…
               </span>
             ) : (
               <span className="flex items-center gap-2 text-[13.5px] font-semibold text-badText" role="status">
@@ -482,6 +495,10 @@ export function LiveHelp({ leadId }: { leadId: string }) {
               )}
             </div>
           </div>
+
+          {silent && (
+            <Notice tone="bad">Can’t hear the call. Put the phone on speaker, close to the laptop, and turn the volume up.</Notice>
+          )}
 
           {phase === 'lost' && (
             <Notice tone="bad">{err || 'Lost the connection — tap Start to continue.'} What was said so far is kept.</Notice>
@@ -508,6 +525,19 @@ export function LiveHelp({ leadId }: { leadId: string }) {
                     <div className="rounded-card border-2 border-accent p-4">
                       <h3 className="text-[12px] font-semibold uppercase tracking-wide text-accentText">Say this</h3>
                       <p className="mt-1.5 text-[21px] font-semibold leading-snug md:text-[24px]">{tips.say_this}</p>
+                      {/* where the tip came from: only real Sales playbook items (checked on the server) */}
+                      {tips.sources.length ? (
+                        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="From the Sales playbook">
+                          {tips.sources.map((src) => (
+                            <li key={src.kind + src.title} className="flex max-w-full items-center gap-1 rounded-full bg-accentSoft px-2.5 py-1 text-[12px] text-accentText">
+                              <span className="shrink-0 font-semibold">From playbook · {KIND_TAG[src.kind] || src.kind}:</span>
+                              <span className="truncate">{src.title}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-3 text-[12.5px] text-muted">No playbook point used here, so don’t quote fees, offers or numbers.</p>
+                      )}
                     </div>
                     {tips.careful && (
                       <div className="flex gap-3 rounded-card bg-warnBg p-4 text-warnText">
@@ -622,21 +652,28 @@ export function LiveHelp({ leadId }: { leadId: string }) {
 
 function Transcript({ segments, interim, empty }: { segments: Seg[]; interim: Seg | null; empty: string }) {
   if (!segments.length && !interim) return empty ? <p className="text-[14px] text-muted">{empty}</p> : null;
+  // Words still being heard are grey and sit where they will land: at the end of the same person's line,
+  // or as a new line. When they are confirmed they turn solid in place, so nothing jumps.
+  const last = segments[segments.length - 1];
+  const inline = !!interim && !!last && last.speaker === interim.speaker;
+  const who = (sp: string) => <span className={cx('text-[12px] font-semibold', sp === 'Speaker 1' ? 'text-accentText' : 'text-text2')}>{sp}</span>;
   return (
-    <>
-      <ol aria-live="polite" aria-relevant="additions text" className="flex flex-col gap-3">
-        {segments.map((sg, i) => (
-          <li key={i}>
-            <span className={cx('text-[12px] font-semibold', sg.speaker === 'Speaker 1' ? 'text-accentText' : 'text-text2')}>{sg.speaker}</span>
-            <p className="text-[14px] leading-relaxed">{sg.text}</p>
-          </li>
-        ))}
-      </ol>
-      {interim && (
-        <p className="mt-3 text-[14px] italic leading-relaxed text-muted" aria-hidden>
-          <span className="mr-1.5 text-[12px] font-semibold not-italic">{interim.speaker}</span>{interim.text}
-        </p>
+    <ol aria-live="polite" aria-relevant="additions text" className="flex flex-col gap-3">
+      {segments.map((sg, i) => (
+        <li key={i} className={i === segments.length - 1 ? 'anim-fade' : undefined}>
+          {who(sg.speaker)}
+          <p className="text-[14px] leading-relaxed">
+            {sg.text}
+            {inline && i === segments.length - 1 && <span className="text-muted" aria-hidden> {interim!.text}</span>}
+          </p>
+        </li>
+      ))}
+      {interim && !inline && (
+        <li aria-hidden>
+          {who(interim.speaker)}
+          <p className="text-[14px] leading-relaxed text-muted">{interim.text}</p>
+        </li>
       )}
-    </>
+    </ol>
   );
 }

@@ -4,10 +4,11 @@ import { leadContext, liveCaller, playbookText, tooOften, transcriptText } from 
 
 export const maxDuration = 30;
 
-type Tips = { they_said: string; say_this: string; still_to_cover: string[]; ask_for: string; careful: string | null };
+type Tips = { they_said: string; say_this: string; say_this_sources: string[]; still_to_cover: string[]; ask_for: string; careful: string | null };
 
 const SCHEMA = obj({
   they_said: str, say_this: str,
+  say_this_sources: { type: 'array', items: str },
   still_to_cover: { type: 'array', items: str },
   ask_for: str,
   careful: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -26,6 +27,7 @@ Rules:
 - say_this: the best next thing to say, 1–2 sentences, warm and honest, using a doubt-and-answer or selling point that fits.
 - still_to_cover: up to 3 short playbook points not yet discussed that matter for this lead.
 - ask_for: the one next step to ask for now (for example booking a free counselling session or a demo class), in under 15 words.
+- say_this_sources: the [P…] references of the playbook items say_this is based on, for example ["P3"]; an empty list if say_this does not use the playbook.
 - careful: a short warning only if the telecaller said something risky or against the playbook, else null.`;
 
 export async function POST(request: Request) {
@@ -42,11 +44,17 @@ export async function POST(request: Request) {
       feature: 'live_tips', staffId: who.user.id, model: MODEL_FAST, effort: 'low', maxTokens: 1500, system: SYSTEM, schema: SCHEMA,
       prompt: `Lead details:\n${lead.text}\n\nSales playbook:\n${playbook.text}\n\nCall so far (newest last):\n${transcript}`,
     });
+    // which playbook items the main tip came from: only references that really exist, shown as small tags
+    const known = new Map(playbook.refs.map((r) => [r.ref, r]));
+    const sources = [...new Set((Array.isArray(out.say_this_sources) ? out.say_this_sources : []).map((x) => String(x).replace(/[^A-Za-z0-9]/g, '').toUpperCase()))]
+      .map((ref) => known.get(ref)).filter((r): r is NonNullable<typeof r> => !!r).slice(0, 3)
+      .map((r) => ({ kind: r.kind, title: String(r.title).slice(0, 80) }));
     const line = (s: unknown, n = 240) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
     return NextResponse.json({
       they_said: line(out.they_said, 160), say_this: line(out.say_this, 400), ask_for: line(out.ask_for, 160),
       still_to_cover: (Array.isArray(out.still_to_cover) ? out.still_to_cover : []).map((x) => line(x, 120)).filter(Boolean).slice(0, 3),
       careful: out.careful ? line(out.careful, 200) : null,
+      sources,
       playbook_items: playbook.count,
     });
   } catch (e) {

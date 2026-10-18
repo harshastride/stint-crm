@@ -60,20 +60,24 @@ export async function leadContext(caller: Awaited<ReturnType<typeof asCaller>>, 
 
 /** The Sales playbook for this course (and for every course), live items only. Read with the service client:
  *  telecallers may read it anyway, and Live help must work for any role that may log calls. */
+export type PlaybookRef = { ref: string; kind: string; title: string };
+
 export async function playbookText(programId: string | null) {
-  let q = service().from('playbook_item').select('kind, title, answer, program_id').eq('status', 'Live').order('kind').limit(120);
+  let q = service().from('playbook_item').select('id, kind, title, answer, program_id').eq('status', 'Live').order('kind').order('created_at').limit(120);
   q = programId ? q.or(`program_id.is.null,program_id.eq.${programId}`) : q.is('program_id', null);
   const { data } = await q;
-  const items = data || [];
+  // each item gets a short reference (P1, P2 …) so a tip can say which playbook items it used
+  const items = (data || []).map((i, n) => ({ ...i, ref: 'P' + (n + 1) }));
   const by = (k: string) => items.filter((i) => i.kind === k);
   const sec = (title: string, rows: string[]) => (rows.length ? `${title}:\n${rows.map((r) => '- ' + r).join('\n')}` : `${title}: (none written yet)`);
   return {
     count: items.length,
+    refs: items.map((i) => ({ ref: i.ref, kind: i.kind, title: i.title })) as PlaybookRef[],
     text: [
-      sec('Selling points', by('Selling point').map((i) => i.title)),
-      sec('Facts we can quote', by('Fact we can quote').map((i) => i.title)),
-      sec('Doubts and approved answers', by('Doubt and answer').map((i) => `If they say "${i.title}" → ${i.answer}`)),
-      sec('Never say', by('Never say').map((i) => i.title)),
+      sec('Selling points', by('Selling point').map((i) => `[${i.ref}] ${i.title}`)),
+      sec('Facts we can quote', by('Fact we can quote').map((i) => `[${i.ref}] ${i.title}`)),
+      sec('Doubts and approved answers', by('Doubt and answer').map((i) => `[${i.ref}] If they say "${i.title}" → ${i.answer}`)),
+      sec('Never say', by('Never say').map((i) => `[${i.ref}] ${i.title}`)),
     ].join('\n\n'),
   };
 }

@@ -2,6 +2,7 @@
 import { plainMessage } from '@/lib/plainMessage';
 import { useEffect, useRef, useState } from 'react';
 import { cx } from '../ui';
+import { SoundBars } from './SoundBars';
 
 export type DictationResult = { clean_text: string; summary: string; outcome: string | null; follow_up: string | null; follow_up_when: string | null; transcript: string };
 type State = 'idle' | 'recording' | 'processing' | 'done' | 'error';
@@ -106,6 +107,7 @@ export function VoiceInput({ context, onText, label = 'Speak instead of typing',
               <span aria-hidden className="absolute inset-0 rounded-full bg-coral opacity-40 transition-transform" style={{ transform: `scale(${1 + level * 0.45})` }} />
               <span aria-hidden className="relative h-3.5 w-3.5 rounded-[3px] bg-white" />
             </button>
+            <SoundBars level={level} />
             <span className="text-[13px] font-medium tabular-nums" aria-live="polite">Listening… {mmss}</span>
             <button type="button" onClick={cancel} className="min-h-[44px] rounded-lg px-3 text-[13px] text-text2 hover:bg-surface2">Cancel (Esc)</button>
           </>
