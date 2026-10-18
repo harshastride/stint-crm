@@ -716,7 +716,8 @@ const mobile = '9' + String(Date.now()).slice(-9);
   await service.from('data_access_log').delete().eq('entity_id', al.id); }
 
 // Recycle bin: a deleted record (and what was removed with it) can be restored by Admin only; nobody else sees the bin
-{ const c = (await service.from('candidate').insert({ code: 'STA-BIN-' + String(Date.now()).slice(-5), full_name: 'Bin Test Student', stage: 'Enrolled' }).select('id').single()).data;
+{ await service.from('recycle_bin').delete().in('grp', ((await service.from('recycle_bin').select('grp').eq('row_label', 'Bin Test Student')).data || []).map((r) => r.grp)); // leftovers from earlier runs (the whole delete group)
+  const c = (await service.from('candidate').insert({ code: 'STA-BIN-' + String(Date.now()).slice(-5), full_name: 'Bin Test Student', stage: 'Enrolled' }).select('id').single()).data;
   await service.from('fee_payment').insert({ candidate_id: c.id, amount: 1234, status: 'Due' });
   const del = await admin.from('candidate').delete().eq('id', c.id);
   check('Admin can delete a student', !del.error, del.error?.message);
@@ -734,7 +735,8 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('A group cannot be restored twice', !!again.error);
   const cleanupBin = await service.rpc('bin_purge');
   check('The bin clean-up job is not callable from the app', !!cleanupBin.error || true);
-  await service.from('candidate').delete().eq('id', c.id); }
+  await service.from('candidate').delete().eq('id', c.id);
+  await service.from('recycle_bin').delete().in('grp', ((await service.from('recycle_bin').select('grp').eq('row_label', 'Bin Test Student')).data || []).map((r) => r.grp)); } // the clean-up delete above is binned too
 
 // Alumni page lists everyone in the Alumni stage, contacted or not
 { const al = (await admin.from('candidate').select('id').eq('stage', 'Alumni')).data || [];
