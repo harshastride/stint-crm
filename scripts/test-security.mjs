@@ -328,6 +328,13 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('The person who recorded can play it', !!own.data?.signedUrl, own.error?.message);
   const stray = await tele.storage.from('recordings').upload(`${crypto.randomUUID()}.webm`, new Blob(['x']));
   check('Audio cannot be stored without its recording row', !!stray.error);
+  // migration 087: a saved processing problem never names an outside service or a server setting
+  await svc.from('recording').update({ process_error: 'DEEPGRAM_API_KEY is not set on the server.' }).eq('id', r.id);
+  const pe = (await tele.from('recording').select('process_error').eq('id', r.id).single()).data;
+  check('Recording problem is saved in plain words, without service names', !!pe?.process_error && !/deepgram|api_key/i.test(pe.process_error), pe?.process_error);
+  await svc.from('recording').update({ process_error: 'Could not read the audio: missing' }).eq('id', r.id);
+  check('Recording problem in plain words is kept as written', (await svc.from('recording').select('process_error').eq('id', r.id).single()).data?.process_error === 'Could not read the audio: missing');
+  await svc.from('recording').update({ process_error: null }).eq('id', r.id);
 
   // clean-up: audio past the retention period is removed, transcript kept
   await svc.from('recording').update({ created_at: '2020-01-01', transcript_text: 'kept' }).eq('id', r.id);
@@ -1329,13 +1336,13 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     await svc.from('candidate').delete().in('id', [c.id, other.id]);
   }
 }
-// Claude features (migration 083): usage log, saved briefs, weekly numbers
+// AI features (migration 083): usage log, saved briefs, weekly numbers
 {
   const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   const ids = Object.fromEntries(((await svc.from('staff').select('id,email').in('email', ['teja@demo.stint.local', 'manish@demo.stint.local'])).data || []).map((s) => [s.email.split('@')[0], s.id]));
   const day = '2001-01-0' + (Date.now() % 9 + 1);
   try {
-    const u = await svc.from('ai_usage').insert({ feature: 'test', staff_id: ids.teja, model: 'claude-haiku-5-5', input_tokens: 10, output_tokens: 5, cost_usd: 0.00001 }).select('id').single();
+    const u = await svc.from('ai_usage').insert({ feature: 'test', staff_id: ids.teja, model: 'test-model', input_tokens: 10, output_tokens: 5, cost_usd: 0.00001 }).select('id').single();
     check('AI usage: the server can log a call', !u.error, u.error?.message);
     check('AI usage: Admin reads the log', ((await admin.from('ai_usage').select('id').eq('id', u.data?.id)).data || []).length === 1);
     check('AI usage: a telecaller cannot read it', ((await tele.from('ai_usage').select('id')).data || []).length === 0);
@@ -1353,6 +1360,9 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     check('AI brief: staff cannot write briefs', !!(await tele.from('ai_brief').insert(mk('call_brief', ids.teja))).error);
     const dup = await svc.from('ai_brief').insert(mk('owner_week', null));
     check('AI brief: one owner summary per week', !!dup.error);
+    // migration 087: the model id (it names the AI vendor) is not readable from the browser
+    check('AI brief: staff cannot read the model name', !!(await tele.from('ai_brief').select('model').eq('period_start', day)).error);
+    check('AI usage: Admin cannot read the model name', !!(await admin.from('ai_usage').select('model').limit(1)).error);
 
     const f = await svc.rpc('owner_week_facts', { p_end: new Date().toISOString().slice(0, 10) });
     check('Weekly numbers: counted for the server', !f.error && typeof f.data?.leads?.new === 'number' && Array.isArray(f.data?.calls?.by_caller), f.error?.message);

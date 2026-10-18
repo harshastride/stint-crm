@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from './supabase';
 import { ChangePassword } from '@/components/ChangePassword';
@@ -64,7 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (student) { window.location.replace('/portal'); return; }
     }
     if (me.error || !me.data?.staff) {
-      setError(me.error?.message || 'Your login is not set up as a staff member yet. Ask an admin to add you under Users & staff.');
+      setError(me.error ? plainMessage(me.error.message, 'Could not load your account. Please try again.') : 'Your login is not set up as a staff member yet. Ask an admin to add you under Users & staff.');
       return;
     }
     if (me.data.staff.must_change_password) { setMustChange(true); return; }

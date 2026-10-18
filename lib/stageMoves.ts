@@ -1,6 +1,7 @@
 // Stage moves for one lead or candidate, shared by the quick panel and the full profile.
 // The database decides what is allowed (row security per page, and stage rules: migration 073); this file loads the rules,
 // says which moves need a second look, and turns a database refusal into plain words with a fix.
+import { plainMessage } from '@/lib/plainMessage';
 import { useEffect, useState } from 'react';
 import { STAGE_INDEX, STAGE_OWNER, STAGES } from './journey';
 import { supabase } from './supabase';
@@ -69,7 +70,7 @@ export function explainStageError(e: { code?: string; message?: string } | null,
   const owner = STAGE_OWNER[STAGE_INDEX[stage] ?? 0];
   if (e?.code === '42501' || /row-level security|permission denied/i.test(m)) return { text: `Your role (${role}) can’t move this record to ${stage}.`, fix: `Ask ${owner} or an Admin to make the move.` };
   if (/fetch|network|Failed to/i.test(m)) return { text: 'Could not reach the server, so the stage did not change.', fix: 'Check the connection and try again.' };
-  if (e?.code === '23514' || e?.code === 'P0001') return { text: m.replace(/^ERROR:\s*/, '') || 'This move is not allowed yet.', fix: /isn.t allowed/.test(m) ? 'Pick one of the allowed stages.' : 'Complete the missing steps, then try again.' };
+  if (e?.code === '23514' || e?.code === 'P0001') return { text: plainMessage(m, 'This move is not allowed yet.'), fix: /isn.t allowed/.test(m) ? 'Pick one of the allowed stages.' : 'Complete the missing steps, then try again.' };
   if (e?.code === 'PGRST116' || /0 rows/.test(m)) return { text: 'The record was not changed. It may have moved out of your view.', fix: 'Reload the page to see its current stage.' };
-  return { text: m || 'The stage did not change.', fix: 'Try again. If it keeps failing, tell an Admin.' };
+  return { text: plainMessage(m, 'The stage did not change.'), fix: 'Try again. If it keeps failing, tell an Admin.' };
 }

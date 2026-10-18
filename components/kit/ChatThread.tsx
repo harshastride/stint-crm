@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { Phone, Play, StickyNote, MessageCircle, Mail, Check, CheckCheck, Clock, AlertCircle, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +17,7 @@ function Ticks({ status, error }: { status?: string; error?: string | null }) {
   if (!status) return null;
   const label = { queued: 'Waiting to send', sent: 'Sent', delivered: 'Delivered', read: 'Read', failed: 'Not sent', received: 'Received' }[status] || status;
   const Icon = status === 'queued' ? Clock : status === 'failed' ? AlertCircle : status === 'sent' ? Check : CheckCheck;
-  return <span data-status={status} title={error ? label + ': ' + error : label} aria-label={label} className={cx('inline-flex items-center', status === 'read' && 'text-sky-200')}><Icon size={12} aria-hidden /></span>;
+  return <span data-status={status} title={error ? label + ': ' + plainMessage(error, 'not delivered') : label} aria-label={label} className={cx('inline-flex items-center', status === 'read' && 'text-sky-200')}><Icon size={12} aria-hidden /></span>;
 }
 
 const INBOUND = /whatsapp|message|sms|inbound|reply/i;
@@ -127,7 +128,7 @@ function Composer({ kind, id, initial, onSent }: { kind: 'lead' | 'candidate'; i
     const j = r ? await r.json().catch(() => ({})) : { error: 'No connection. Please try again.' };
     setBusy(false);
     if (r?.ok) { setText(''); setTpl(''); setSubject(''); setNote({ bad: false, text: 'Sent.' }); }
-    else setNote({ bad: true, text: j.notSetUp ? j.error + ' The message is saved and will go out once it is set up.' : j.error || 'Could not send.' });
+    else setNote({ bad: true, text: j.notSetUp ? plainMessage(j.error, 'This isn’t switched on yet.') + ' The message is saved and will go out once it is set up.' : plainMessage(j.error, 'Could not send.') });
     if (j.id) onSent();
   };
   const seg = (c: ChatChannel, label: string, Icon: typeof Mail) => (
@@ -139,7 +140,7 @@ function Composer({ kind, id, initial, onSent }: { kind: 'lead' | 'candidate'; i
   return (
     <form data-testid="chat-composer" className="flex shrink-0 flex-col gap-2 rounded-[10px] border border-line bg-surface p-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
       <div role="radiogroup" aria-label="Send by" className="flex gap-1 rounded-[10px] bg-surface2 p-1">{seg('whatsapp', 'WhatsApp', MessageCircle)}{seg('email', 'Email', Mail)}</div>
-      {ready && !ready[channel] && <p role="note" className="rounded-[8px] bg-warnBg px-2 py-1 text-[12px] text-warnText">{channel === 'whatsapp' ? 'WhatsApp' : 'Email'} is not set up yet. Messages are saved and sent once the admin adds the keys.</p>}
+      {ready && !ready[channel] && <p role="note" className="rounded-[8px] bg-warnBg px-2 py-1 text-[12px] text-warnText">{channel === 'whatsapp' ? 'WhatsApp' : 'Email'} is not set up yet. Messages are saved and sent once the admin switches it on.</p>}
       {list.length > 0 && (
         <select aria-label="Template" value={tpl} onChange={(e) => pick(e.target.value)} className="min-h-[44px] rounded-[8px] border border-line bg-surface px-2 text-[13px] text-text">
           <option value="">{channel === 'whatsapp' ? 'Template (needed after 24 hours without a reply)' : 'Template (optional)'}</option>

@@ -1,4 +1,6 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
+import { plainMessage } from '@/lib/plainMessage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ImageUp, RotateCw, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -129,14 +131,14 @@ export function PhotoDialog({ kind, id, name, photo, onClose, onChange }: {
       if (set.error) { await db.storage.from('photos').remove([path]); throw set.error; }
       if (photo) await db.storage.from('photos').remove([photo]);
       onChange(path); onClose();
-    } catch (e) { setErr((e as Error).message || 'Could not save the photo.'); setBusy(''); }
+    } catch (e) { setErr(plainMessage((e as Error)?.message, 'Could not save the photo.')); setBusy(''); }
   };
 
   const remove = async () => {
     setBusy('remove'); setErr('');
     const db = supabase();
     const set = await db.rpc('set_photo', { p_kind: kind, p_id: id, p_path: null });
-    if (set.error) { setErr(set.error.message); setBusy(''); return; }
+    if (set.error) { setErr(friendlyError(set.error, 'this photo', 'Could not save the photo.')); setBusy(''); return; }
     if (photo) await db.storage.from('photos').remove([photo]);
     onChange(null); onClose();
   };

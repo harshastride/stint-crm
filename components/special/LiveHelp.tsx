@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -41,7 +42,7 @@ function speakerOf(words: DGWord[] | undefined, fallback: string): string {
 
 const shortError = (j: unknown, fallback: string) => {
   const e = (j as { error?: unknown } | null)?.error;
-  return typeof e === 'string' && e.length > 0 && e.length < 200 ? e : fallback;
+  return typeof e === 'string' && e.length < 200 ? plainMessage(e, fallback) : fallback;
 };
 
 function micProblem(e: unknown): string {

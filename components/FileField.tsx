@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useState } from 'react';
 import { Download, Eye, Paperclip, X } from 'lucide-react';
 import { useFilePreview } from './kit/FilePreview';
@@ -24,14 +25,14 @@ export function FileField({ page, candidateId, value, onChange, disabled }: { pa
     const target = `${candidateId}/${page}/${crypto.randomUUID()}-${safe}`;
     const { error } = await supabase().storage.from(BUCKET).upload(target, f, { contentType: f.type || undefined });
     setBusy(false);
-    if (error) { setErr(/row-level|security|403|Unauthorized/i.test(error.message) ? 'Your role can’t attach files here.' : error.message); return; }
+    if (error) { setErr(/row-level|security|403|Unauthorized/i.test(error.message) ? 'Your role can’t attach files here.' : friendlyError(error, 'files here', 'Could not attach the file. Please try again.')); return; }
     onChange(target);
   };
 
   const download = async () => {
     if (!path) return;
     const { data, error } = await supabase().storage.from(BUCKET).createSignedUrl(path, 60, { download: fileName(path) });
-    if (error || !data) { setErr('Could not open the file. ' + (error?.message || '')); return; }
+    if (error || !data) { setErr('Could not open the file. Please try again.'); return; }
     window.location.href = data.signedUrl;
   };
 

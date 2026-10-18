@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -41,7 +42,7 @@ export function JobPapers({ job, canWrite }: { job: Row; canWrite: boolean }) {
   const setStatus = async (paper: string, status: string) => {
     setSaved((old) => ({ ...old, [paper]: status }));
     const { error } = await supabase().from('job_paper').upsert({ job_record_id: job.id, paper, status, updated_at: new Date().toISOString() });
-    setError(error ? error.message : null);
+    setError(error ? friendlyError(error, 'job papers') : null);
   };
   const got = papers.filter((p) => ['Received', 'Verified'].includes(saved[key(p.paper)] || p.def)).length;
 

@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -89,7 +90,7 @@ export function ImportPage() {
     for (let i = 0; i < check.ready.length; i += 200) {
       const chunk = check.ready.slice(i, i + 200);
       const { error } = await db.from('lead').insert(chunk);
-      if (error) chunk.forEach((c) => failed.push([c.full_name, c.mobile, error.message])); else ok += chunk.length;
+      if (error) chunk.forEach((c) => failed.push([c.full_name, c.mobile, friendlyError(error, 'leads', 'Could not add this row.')])); else ok += chunk.length;
     }
     await db.from('import_run').insert({ file, into_table: 'Leads', total_rows: grid.length - 1, ok_rows: ok, failed_rows: failed.length, duplicate_rows: check.dupes.length, by_id: s.staff.id });
     setBusy(false); setStep(0); setGrid([]); setCheck(null);

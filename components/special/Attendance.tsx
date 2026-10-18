@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -78,7 +79,7 @@ export function Attendance() {
     const r2 = !r1.error && dels.length ? await db.from('attendance').delete().eq('day', day).in('candidate_id', dels) : { error: null };
     const err = r1.error || r2.error;
     savingRef.current = false; setSaving(false);
-    if (err) { setMsg({ tone: 'bad', text: 'Not saved: ' + err.message + '. Your marks are kept on this phone. Tap Save register to try again.' }); return; }
+    if (err) { setMsg({ tone: 'bad', text: 'Not saved: ' + friendlyError(err, 'attendance', 'Something went wrong').replace(/\.$/, '') + '. Your marks are kept on this phone. Tap Save register to try again.' }); return; }
     writeDraft(draftKey(batch, day), null);
     await load();
     setMsg({ tone: 'good', text: `Saved ${ups.length + dels.length} mark${ups.length + dels.length === 1 ? '' : 's'}.` });

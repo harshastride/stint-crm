@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -29,7 +30,7 @@ export function FeedbackAsk({ onAlert }: { onAlert?: () => void }) {
     setBusy(true); setErr(null);
     const { error } = await supabase().rpc('portal_feedback_submit', { p_subject: cur.subject, p_ref: cur.ref, p_rating: stars, p_comment: comment.trim() || null, p_anonymous: hidden });
     setBusy(false);
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(friendlyError(error, 'this', 'Could not send your rating. Please try again.')); return; }
     setThanks(true); setStars(0); setComment(''); setHidden(true);
     setAsks((a) => (a || []).slice(1));
     onAlert?.();

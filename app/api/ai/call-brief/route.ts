@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { crossSite } from '@/lib/server/guard';
 import { asCaller, service } from '@/lib/server/recordings';
-import { askJson, claudeReady, MODEL_FAST, obj, scrub, str } from '@/lib/server/ai';
+import { askJson, claudeReady, MODEL_FAST, obj, SafeError, scrub, str } from '@/lib/server/ai';
 
 export const maxDuration = 120;
 
@@ -49,9 +49,6 @@ const clip = (s: string | null | undefined, max = 300) => line(s, max);
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 const earliest = (a: string | null, b: string | null) => (!a ? b : !b ? a : a < b ? a : b);
 
-/** Known friendly messages thrown by askJson; anything else becomes the generic message. */
-const FRIENDLY = /^(The Claude key|Claude is busy|Claude failed|Claude declined|The answer was too long|Claude returned nothing)/;
-
 class Step extends Error {}
 const must = <T>(kind: string, r: { data: T | null; error: { code?: string } | null }): T => {
   if (r.error) throw new Step(`${kind}${r.error.code ? ' (' + r.error.code + ')' : ''}`);
@@ -85,7 +82,7 @@ export async function POST(request: Request) {
     const now = Date.now(), recent = (hits.get(user.id) || []).filter((t) => now - t < 3_600_000);
     if (recent.length >= PER_HOUR) return NextResponse.json({ error: 'You have refreshed the brief many times this hour. Please try again a little later.' }, { status: 429 });
 
-    if (!claudeReady()) return NextResponse.json({ error: 'The call brief is not set up yet. Ask the admin to add the Claude key.' }, { status: 503 });
+    if (!claudeReady()) { console.error('ai/call-brief: ANTHROPIC_API_KEY is not set'); return NextResponse.json({ error: 'The call brief isn’t switched on yet. Ask the admin.' }, { status: 503 }); }
 
     recent.push(now); hits.set(user.id, recent);
     if (hits.size > 5000) for (const k of hits.keys()) { hits.delete(k); if (hits.size < 4000) break; }
@@ -170,9 +167,9 @@ export async function POST(request: Request) {
     try {
       out = await askJson<ModelOut>({ feature: 'call_brief', staffId: user.id, model: MODEL_FAST, system: SYSTEM, prompt, schema: SCHEMA, maxTokens: 8000, effort: 'low' });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '';
-      if (FRIENDLY.test(msg)) return NextResponse.json({ error: msg }, { status: 502 });
-      throw new Step(e instanceof SyntaxError ? 'model json' : 'model call');
+      // askJson throws only SafeErrors (plain messages; the reason is already in the server log)
+      if (e instanceof SafeError) return NextResponse.json({ error: e.message }, { status: 502 });
+      throw new Step('model call');
     }
 
     // 5. Trust only the text: known lead ids, no repeats; name, stage and due come from our own data.

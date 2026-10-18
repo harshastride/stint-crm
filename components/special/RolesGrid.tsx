@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useCallback, useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -45,7 +46,7 @@ export function RolesGrid() {
     setPendingRemove(null);
     const db = supabase();
     const { error } = next ? await db.from('role_page_access').upsert({ role, page_id: page, mode: next }) : await db.from('role_page_access').delete().eq('role', role).eq('page_id', page);
-    if (error) { setMsg({ tone: 'bad', text: error.message }); return; }
+    if (error) { setMsg({ tone: 'bad', text: friendlyError(error, 'roles') }); return; }
     setPageAccess((m) => { const n = { ...m }; if (next) n[key] = next; else delete n[key]; return n; });
     setMsg({ tone: 'good', text: `${role} · ${title}: ${next ? PAGE_LABEL[next] : 'no access'}. It applies the next time they open the app.` });
   };
@@ -53,7 +54,7 @@ export function RolesGrid() {
     if (!canWrite) return;
     const key = role + '|' + g, next = FIELD_NEXT[fieldAccess[key] || 'h'];
     const { error } = await supabase().from('role_field_access').upsert({ role, field_group: g, mode: next });
-    if (error) { setMsg({ tone: 'bad', text: error.message }); return; }
+    if (error) { setMsg({ tone: 'bad', text: friendlyError(error, 'roles') }); return; }
     setFieldAccess((m) => ({ ...m, [key]: next }));
     setMsg({ tone: 'good', text: `${role} · ${label}: ${FIELD_LABEL[next]}.` });
   };
@@ -61,7 +62,7 @@ export function RolesGrid() {
   const saveRule = async (role: string, key: keyof RoleRules, value: string[] | null, text: string) => {
     if (!canWrite) return;
     const { error } = await supabase().from('app_role').update({ [key]: value }).eq('name', role);
-    if (error) { setMsg({ tone: 'bad', text: error.message }); return; }
+    if (error) { setMsg({ tone: 'bad', text: friendlyError(error, 'roles') }); return; }
     setRules((m) => ({ ...m, [role]: { ...m[role], [key]: value } }));
     setMsg({ tone: 'good', text: role + ': ' + text + '. It applies straight away.' });
   };

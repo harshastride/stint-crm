@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { askJson, claudeReady, MODEL_FAST, obj, str } from '@/lib/server/ai';
+import { askJson, claudeReady, MODEL_FAST, obj, SafeError, str } from '@/lib/server/ai';
 import { leadContext, liveCaller, playbookText, tooOften, transcriptText } from '@/lib/server/live';
 
 export const maxDuration = 30;
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const who = await liveCaller(request, body.lead_id); if ('error' in who) return who.error;
   const slow = tooOften('live-tips:' + who.user.id, 20, 60_000); if (slow) return slow;
-  if (!claudeReady()) return NextResponse.json({ error: 'Live help is not set up yet.' }, { status: 503 });
+  if (!claudeReady()) { console.error('live/tips: ANTHROPIC_API_KEY is not set'); return NextResponse.json({ error: 'Live help isn’t switched on yet. Ask the admin.' }, { status: 503 }); }
   const transcript = transcriptText(body.transcript);
   if (!transcript) return NextResponse.json({ error: 'Nothing was said yet.' }, { status: 400 });
   try {
@@ -51,6 +51,6 @@ export async function POST(request: Request) {
     });
   } catch (e) {
     console.error('live/tips failed:', e instanceof Error ? e.message.slice(0, 80) : 'unknown');
-    return NextResponse.json({ error: e instanceof Error && e.constructor === Error ? e.message : 'Could not get tips. Keep talking; they will try again.' }, { status: 502 });
+    return NextResponse.json({ error: e instanceof SafeError ? e.message : 'Couldn’t get tips. Keep talking; they will try again.' }, { status: 502 });
   }
 }

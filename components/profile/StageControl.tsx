@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, Check, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -78,7 +79,7 @@ export function StageControl({ kind, id, stage, changedAt, onMoved, compact, req
     setErr(null); setBusy(true);
     const { error } = await supabase().rpc('force_stage', { p_kind: kind, p_id: id, p_to: to, p_reason: override || '' });
     setBusy(false);
-    if (error) { setErr({ text: error.message, fix: 'Check the reason and try again.' }); return; }
+    if (error) { setErr({ text: friendlyError(error, 'this stage', 'The stage did not change.'), fix: 'Check the reason and try again.' }); return; }
     done(to, 'Moved to ' + to + ' by Admin override. The reason is in status history.');
   };
   /** Ready routine moves happen at once; anything with a question, a missing step or a field opens the checklist. */

@@ -2,7 +2,7 @@ import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { askJson, claudeReady, MODEL_FAST, obj, oneOfOrNull, scrub, str, strOrNull } from './ai';
+import { askJson, BUSY, claudeReady, MODEL_FAST, NOT_ON, obj, oneOfOrNull, SafeError, scrub, str, strOrNull } from './ai';
 
 // Server-side helpers for recordings. API keys are read here only and never sent to the browser.
 export const service = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -38,7 +38,7 @@ export const aiReady = () => !!process.env.DEEPGRAM_API_KEY && claudeReady();
 /** Deepgram pre-recorded transcription: one call, speakers separated, English mixed with Indian languages. */
 export async function transcribe(audio: Blob, filename: string): Promise<{ text: string; segments: Segment[] }> {
   const key = process.env.DEEPGRAM_API_KEY;
-  if (!key) throw new Error('DEEPGRAM_API_KEY is not set on the server.');
+  if (!key) { console.error('[voice] transcribe: DEEPGRAM_API_KEY is not set'); throw new SafeError(NOT_ON); }
   const q = new URLSearchParams({
     model: process.env.DEEPGRAM_MODEL || 'nova-3', language: process.env.DEEPGRAM_LANGUAGE || 'multi',
     diarize: 'true', utterances: 'true', smart_format: 'true', punctuate: 'true',
@@ -47,9 +47,17 @@ export async function transcribe(audio: Blob, filename: string): Promise<{ text:
   const type = audio.type || (ext === 'webm' ? 'audio/webm' : ext === 'ogg' ? 'audio/ogg' : ext === 'mp3' ? 'audio/mpeg' : 'audio/mp4');
   const res = await fetch(`https://api.deepgram.com/v1/listen?${q}`, {
     method: 'POST', headers: { Authorization: `Token ${key}`, 'Content-Type': type }, body: audio,
-  });
-  if (!res.ok) throw new Error(`Deepgram failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-  const out = await res.json();
+  }).catch((e) => { console.error('[voice] transcribe: could not reach Deepgram:', e instanceof Error ? e.message.slice(0, 120) : 'unknown'); return null; });
+  if (!res) throw new SafeError('Couldn’t reach the voice service. Please try again.');
+  if (!res.ok) {
+    // the upstream error body describes the request, not the audio; keep only its start, in the server log
+    console.error(`[voice] transcribe: Deepgram failed (${res.status}):`, (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 120));
+    if (res.status === 401 || res.status === 402 || res.status === 403) throw new SafeError(NOT_ON);
+    if (res.status === 429) throw new SafeError(BUSY);
+    throw new SafeError('Couldn’t turn the audio into text. Please try again.');
+  }
+  const out = await res.json().catch(() => null);
+  if (!out) { console.error('[voice] transcribe: Deepgram reply was not JSON'); throw new SafeError('Couldn’t turn the audio into text. Please try again.'); }
   const segments: Segment[] = [];
   for (const u of out?.results?.utterances || []) {
     const sp = String((u.speaker ?? 0) + 1), text = String(u.transcript || '').trim();
@@ -86,7 +94,10 @@ export async function processRecording(db: SupabaseClient, id: string) {
   await db.from('recording').update({ status: 'Transcribing', process_error: null }).eq('id', id);
   try {
     const file = await db.storage.from('recordings').download(rec.audio_path);
-    if (file.error || !file.data) throw new Error('Could not read the audio: ' + (file.error?.message || 'missing'));
+    if (file.error || !file.data) {
+      console.error('[recordings] process: audio download failed:', (file.error?.message || 'missing').slice(0, 120));
+      throw new SafeError('Couldn’t read the audio. Please try again.');
+    }
     const { text, segments } = await transcribe(file.data, rec.audio_path.split('/').pop()!);
     await db.from('recording').update({ transcript: segments, transcript_text: text }).eq('id', id);
     const { data: vals } = await db.from('dropdown_value').select('value').eq('list_id', 'call_outcome').eq('active', true).order('sort');
@@ -97,7 +108,9 @@ export async function processRecording(db: SupabaseClient, id: string) {
     await db.from('recording').update({ draft, status: matched ? 'Waiting to confirm' : 'Unmatched' }).eq('id', id);
     return { ok: true, draft };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    // process_error is shown on the Recordings page: only plain SafeError messages go there; the detail goes to the server log
+    if (!(e instanceof SafeError)) console.error('[recordings] process failed:', e instanceof Error ? e.name + ': ' + e.message.slice(0, 120) : 'unknown');
+    const msg = e instanceof SafeError ? e.message : 'Couldn’t process this recording. Please try again.';
     await db.from('recording').update({ status: rec.lead_id || rec.candidate_id ? 'Recorded' : 'Unmatched', process_error: msg }).eq('id', id);
     return { ok: false, error: msg };
   }

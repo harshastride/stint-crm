@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -30,7 +31,7 @@ export function RecordingExtras({ row, values, setValue, onDone }: { row: Row; v
     setBusy(true); setMsg({ tone: 'good', text: 'Transcribing… this can take a minute or two.' });
     const res = await fetch('/api/recordings/process', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id }) });
     const out = await res.json(); setBusy(false);
-    if (out.ok) onDone('Transcript and draft summary ready.'); else setMsg({ tone: 'bad', text: out.error || 'Could not transcribe.' });
+    if (out.ok) onDone('Transcript and draft summary ready.'); else setMsg({ tone: 'bad', text: plainMessage(out.error, 'Could not transcribe.') });
   };
   const confirm = async () => {
     if (!values.lead_id && !values.candidate_id) { setMsg({ tone: 'bad', text: 'Attach it to a lead or candidate first.' }); return; }

@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { supabase } from '@/lib/supabase';
@@ -20,13 +21,13 @@ export function CheckinScreen({ batchId, batchCode, onClose }: { batchId: string
   useEffect(() => {
     if (opened.current) return; // open exactly one session (React may run effects twice in development)
     opened.current = true;
-    supabase().rpc('open_checkin', { p_batch: batchId }).then(({ data, error }) => (error ? setErr(error.message) : setSid(data as string)));
+    supabase().rpc('open_checkin', { p_batch: batchId }).then(({ data, error }) => (error ? setErr(friendlyError(error, 'this', 'Could not open the check-in. Please try again.')) : setSid(data as string)));
   }, [batchId]);
 
   const poll = useCallback(async () => {
     if (!sid) return;
     const { data, error } = await supabase().rpc('current_checkin_token', { p_session: sid });
-    if (error) { setErr(error.message); return; }
+    if (error) { setErr(friendlyError(error, 'this', 'Could not show the check-in code. Please try again.')); return; }
     const d = data as Live;
     setLive(d); setLeft(d.seconds_left);
     if (d.code && d.code !== shownCode.current) {

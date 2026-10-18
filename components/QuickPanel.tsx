@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import Link from 'next/link';
 import { CalendarPlus, PanelRightClose, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, Sparkles, X } from 'lucide-react';
 import { Avatar } from './kit/Avatar';
@@ -386,7 +387,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
                     const res = await fetch('/api/portal/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate_id: person.id }) });
                     const out = await res.json(); setBusy(false);
                     if (res.ok) setInvite({ email: out.email, password: out.password, url: window.location.origin + '/login', reset: !!out.reset });
-                    else setMsg({ tone: 'bad', text: out.error || 'Could not invite.' });
+                    else setMsg({ tone: 'bad', text: plainMessage(out.error, 'Could not invite.') });
                   }} title="Creates the student's login, or gives them a new temporary password if they already have one">Invite or reset portal login</Button>
                 )}
               </>

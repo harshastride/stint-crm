@@ -9,7 +9,7 @@ export async function POST(request: Request) {
   const caller = await asCaller();
   const [{ data: canC }, { data: canE }] = await Promise.all([caller.rpc('can_page', { p: 'candidate', need: 'w' }), caller.rpc('can_page', { p: 'enrolform', need: 'w' })]);
   if (!canC && !canE) return NextResponse.json({ error: 'Your role can’t invite students.' }, { status: 403 });
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set on the server.' }, { status: 500 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('portal/invite: SUPABASE_SERVICE_ROLE_KEY is not set'); return NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }); }
   const { candidate_id } = await request.json().catch(() => ({}));
   if (!isUuid(candidate_id)) return NextResponse.json({ error: 'Pick the student.' }, { status: 400 });
   const { data: visible } = await caller.from('candidate').select('id, full_name').eq('id', candidate_id).maybeSingle();

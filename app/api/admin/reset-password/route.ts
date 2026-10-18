@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   });
   const { data: allowed } = await asCaller.rpc('can_page', { p: 'users', need: 'w' });
   if (!allowed) return NextResponse.json({ error: 'Only an admin can reset passwords.' }, { status: 403 });
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set on the server.' }, { status: 500 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('admin/reset-password: SUPABASE_SERVICE_ROLE_KEY is not set'); return NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }); }
 
   const { staff_id } = await request.json().catch(() => ({}));
   if (!isUuid(staff_id)) return NextResponse.json({ error: 'Pick the person.' }, { status: 400 });

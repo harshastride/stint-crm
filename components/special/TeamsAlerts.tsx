@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, ChevronDown, Link2, RefreshCw, RotateCcw, Send, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -33,7 +34,8 @@ const btn = 'h-11 md:h-9';
 /** A failure from Teams, in words a founder can act on. */
 function failText(e: string | null) {
   if (!e) return 'Teams did not accept it';
-  return /\b(400|401|403|404)\b/.test(e) && !/link/i.test(e) ? `${e} — check the link` : e;
+  if (/\b(400|401|403|404)\b/.test(e)) return 'Teams did not accept it — check the link';
+  return plainMessage(e, 'Teams did not accept it');
 }
 
 const STATUS: Record<Msg['status'], { word: string; tone: string }> = {
@@ -169,7 +171,7 @@ export function TeamsAlerts() {
       else {
         const fallback = res.status === 401 ? 'Please sign in again.' : res.status === 403 ? 'Only Admin can send a test.' : res.status === 404 ? 'Save a channel link for this role first.'
           : res.status === 429 ? 'Too many tests. Wait a minute and try again.' : res.status === 502 ? 'Teams did not accept the test. Check the link.' : 'The test could not be sent.';
-        toast(body.error || fallback, { tone: 'bad' });
+        toast(plainMessage(body.error, fallback), { tone: 'bad' });
       }
     } catch {
       toast('Could not reach the CRM. Check the internet connection and try again.', { tone: 'bad' });

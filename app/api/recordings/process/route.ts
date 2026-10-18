@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const caller = await asCaller();
   const { data: visible } = await caller.from('recording').select('id').eq('id', id).maybeSingle();
   if (!visible) return NextResponse.json({ error: 'You can’t see that recording.' }, { status: 403 });
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set on the server.' }, { status: 500 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('recordings/process: SUPABASE_SERVICE_ROLE_KEY is not set'); return NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }); }
   const out = await processRecording(service(), id);
   return NextResponse.json(out, { status: out.ok ? 200 : 502 });
 }

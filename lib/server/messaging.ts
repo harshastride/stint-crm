@@ -11,6 +11,9 @@ export type MessageRow = { id: string; channel: Channel; lead_id: string | null;
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
+/** Upstream error text for the server log: first 120 chars, emails and numbers removed. */
+const forLog = (v: unknown) => String(v ?? '').replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '[email]').replace(/(?:\+?\d[\s-]?){7,}/g, '[number]').replace(/\s+/g, ' ').slice(0, 120);
+
 export const whatsappReady = () => !!(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID);
 export const emailReady = () => {
   const p = (process.env.EMAIL_PROVIDER || '').toLowerCase();
@@ -58,7 +61,7 @@ export async function insideWindow(svc: SupabaseClient, row: { lead_id: string |
 }
 
 async function sendWhatsApp(to: string, body: string, template: string | null, freeText: boolean): Promise<SendResult> {
-  if (!whatsappReady()) return { ok: false, notSetUp: true, error: 'WhatsApp is not set up yet. Ask the admin to add the WhatsApp keys.' };
+  if (!whatsappReady()) return { ok: false, notSetUp: true, error: 'WhatsApp isn’t switched on yet. Ask the admin.' };
   const payload = freeText || !template
     ? { messaging_product: 'whatsapp', to: waNumber(to), type: 'text', text: { body } }
     : { messaging_product: 'whatsapp', to: waNumber(to), type: 'template', template: { name: template, language: { code: process.env.WHATSAPP_TEMPLATE_LANG || 'en' }, components: [{ type: 'body', parameters: [{ type: 'text', text: body.slice(0, 1000) }] }] } };
@@ -66,31 +69,47 @@ async function sendWhatsApp(to: string, body: string, template: string | null, f
   try {
     const r = await fetch(`${GRAPH}/${process.env.WHATSAPP_PHONE_ID}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const j = (await r.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { message?: string } };
-    if (!r.ok) return { ok: false, error: 'WhatsApp refused: ' + String(j.error?.message || r.status).slice(0, 160) };
+    if (!r.ok) {
+      // message.error is shown to staff: keep it plain; the upstream reason goes to the server log only
+      console.error('[messaging] WhatsApp send failed', r.status, forLog(j.error?.message));
+      return { ok: false, error: r.status === 429 ? 'WhatsApp is busy. Please try again in a minute.' : 'WhatsApp didn’t accept this message. Check the number, or pick an approved template.' };
+    }
     return { ok: true, providerId: j.messages?.[0]?.id || null };
-  } catch { return { ok: false, error: 'Could not reach WhatsApp. Will retry.' }; }
+  } catch (e) {
+    console.error('[messaging] WhatsApp unreachable:', e instanceof Error ? forLog(e.message) : 'unknown');
+    return { ok: false, error: 'Couldn’t reach WhatsApp. Please try again.' };
+  }
 }
 
 async function sendEmail(to: string, subject: string, body: string): Promise<SendResult> {
-  if (!emailReady()) return { ok: false, notSetUp: true, error: 'Email is not set up yet. Ask the admin to add the email keys.' };
+  if (!emailReady()) return { ok: false, notSetUp: true, error: 'Email isn’t switched on yet. Ask the admin.' };
   const from = process.env.EMAIL_FROM!;
   if ((process.env.EMAIL_PROVIDER || '').toLowerCase() === 'resend') {
     try {
       const r = await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from, to: [to], subject, text: body }) });
       const j = (await r.json().catch(() => ({}))) as { id?: string; message?: string };
-      if (!r.ok) return { ok: false, error: 'Email refused: ' + String(j.message || r.status).slice(0, 160) };
+      if (!r.ok) {
+        console.error('[messaging] email send failed', r.status, forLog(j.message));
+        return { ok: false, error: r.status === 429 ? 'The service is busy. Please try again in a minute.' : 'Couldn’t send the email. Check the address and try again.' };
+      }
       return { ok: true, providerId: j.id || null };
-    } catch { return { ok: false, error: 'Could not reach the email service. Will retry.' }; }
+    } catch (e) {
+      console.error('[messaging] email service unreachable:', e instanceof Error ? forLog(e.message) : 'unknown');
+      return { ok: false, error: 'Couldn’t reach the email service. Please try again.' };
+    }
   }
   // SMTP uses nodemailer if it is installed (optional; not a dependency by default).
   try {
     const mod = 'nodemailer';
     const nm = (await import(/* webpackIgnore: true */ mod).catch(() => null)) as { createTransport: (o: unknown) => { sendMail: (m: unknown) => Promise<{ messageId?: string }> } } | null;
-    if (!nm) return { ok: false, notSetUp: true, error: 'SMTP needs the "nodemailer" package. Use EMAIL_PROVIDER=resend or install it.' };
+    if (!nm) { console.error('[messaging] SMTP needs the "nodemailer" package (or use EMAIL_PROVIDER=resend)'); return { ok: false, notSetUp: true, error: 'Email isn’t switched on yet. Ask the admin.' }; }
     const t = nm.createTransport({ host: process.env.SMTP_HOST, port: Number(process.env.SMTP_PORT || 587), secure: Number(process.env.SMTP_PORT) === 465, auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined });
     const info = await t.sendMail({ from, to, subject, text: body });
     return { ok: true, providerId: info.messageId || null };
-  } catch { return { ok: false, error: 'The SMTP server refused the email.' }; }
+  } catch (e) {
+    console.error('[messaging] SMTP send failed:', e instanceof Error ? forLog(e.message) : 'unknown');
+    return { ok: false, error: 'Couldn’t send the email. Please try again.' };
+  }
 }
 
 /** Send one queued row (service-role client). Updates the row; never throws. */

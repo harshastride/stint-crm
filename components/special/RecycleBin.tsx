@@ -47,7 +47,7 @@ export function RecycleBin() {
     setBusy(r.grp);
     const { data, error } = await supabase().rpc('restore_deleted', { p_grp: r.grp });
     setBusy(null);
-    if (error) { toast(error.message, { tone: 'bad' }); return; }
+    if (error) { toast(friendlyError(error, 'the Recycle bin', 'Could not restore. Please try again.'), { tone: 'bad' }); return; }
     toast(`Restored ${label(r)}${data > 1 ? ` with ${data - 1} linked record${data > 2 ? 's' : ''}` : ''}.`);
     load();
   };

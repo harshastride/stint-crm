@@ -57,7 +57,7 @@ export function Recorder({ person, onSaved }: { person: PersonRef; onSaved: (msg
     const ext = mime.includes('mp4') ? 'm4a' : 'webm';
     const path = `${row.id}.${ext}`;
     const up = await db.storage.from('recordings').upload(path, blob, { contentType: mime });
-    if (up.error) { await db.from('recording').delete().eq('id', row.id); setState('idle'); setErr('Could not save the audio: ' + up.error.message); return; }
+    if (up.error) { await db.from('recording').delete().eq('id', row.id); setState('idle'); setErr(friendlyError(up.error, 'recordings', 'Could not save the audio. Please try again.')); return; }
     await db.from('recording').update({ audio_path: path }).eq('id', row.id);
     setState('idle'); setConsent(false);
     onSaved(`Recording saved (${fmt(length)}). The transcript and summary will appear on the Recordings page to confirm.`);

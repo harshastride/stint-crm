@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { useEffect, useRef, useState } from 'react';
 import { cx } from '../ui';
 
@@ -43,7 +44,7 @@ export function VoiceInput({ context, onText, label = 'Speak instead of typing',
       fd.append('context', context);
       const r = await fetch('/api/voice/dictate', { method: 'POST', body: fd });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setState('error'); setMsg(j.error || 'Could not turn that into text.'); return; }
+      if (!r.ok) { setState('error'); setMsg(plainMessage(j.error, 'Could not turn that into text.')); return; }
       if (j.empty || !String(j.clean_text || '').trim()) { setState('error'); setMsg('Couldn’t hear that. Try again a little closer to the mic.'); setRaw(null); return; }
       setRaw(j.transcript || null); setShowRaw(false);
       onText(j.clean_text, j as DictationResult);

@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ArrowRight, Info } from 'lucide-react';
@@ -97,7 +98,7 @@ export function Dashboard() {
   useEffect(() => {
     const db = supabase();
     let live = true;
-    db.rpc('dashboard_metrics').then(({ data, error }) => { if (!live) return; if (error) setErr(error.message); else setM(data as Metrics); });
+    db.rpc('dashboard_metrics').then(({ data, error }) => { if (!live) return; if (error) setErr(friendlyError(error, 'this', 'Something went wrong')); else setM(data as Metrics); });
     Promise.all([
       db.from('follow_up').select('*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name)').eq('status', 'Open').order('due_at').limit(7),
       s.can('alert') ? db.from('alert').select('*, lead:lead_id(full_name), candidate:candidate_id(full_name)').eq('status', 'Open').order('raised_at', { ascending: false }).limit(14) : Promise.resolve({ data: [] }),
@@ -115,7 +116,7 @@ export function Dashboard() {
 
   const [title, sub] = TITLES[s.staff.role] || TITLES.Admin;
   const header = <PageHeader title={title} description={sub} />;
-  if (err) return <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">{header}<p className="text-badText">Could not load the dashboard numbers: {err}. Refresh to try again.</p></main>;
+  if (err) return <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">{header}<p className="text-badText">Could not load the dashboard numbers. {err.replace(/\.$/, '')}. Refresh to try again.</p></main>;
   if (!m || !lists) return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">
       {header}

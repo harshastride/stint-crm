@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw, Sparkles } from 'lucide-react';
@@ -52,8 +53,8 @@ export function CallBrief() {
       const res = await fetch('/api/ai/call-brief', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh }) });
       const j = await res.json().catch(() => ({}));
       if (res.ok && j?.brief?.body) setBrief(j.brief as Brief);
-      else if (res.status === 503) setProblem({ kind: 'setup', message: j?.error || 'The call brief is not set up yet. Ask the admin to add the Claude key.' });
-      else setProblem({ kind: 'error', message: typeof j?.error === 'string' && j.error.length < 160 ? j.error : 'Could not prepare the brief. Please try again.' });
+      else if (res.status === 503) setProblem({ kind: 'setup', message: plainMessage(j?.error, 'The call brief isn’t switched on yet. Ask the admin.') });
+      else setProblem({ kind: 'error', message: plainMessage(typeof j?.error === 'string' && j.error.length < 160 ? j.error : '', 'Could not prepare the brief. Please try again.') });
     } catch {
       setProblem({ kind: 'error', message: 'Could not reach the server. Check your connection and try again.' });
     } finally {

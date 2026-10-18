@@ -6,7 +6,10 @@ import { NextResponse } from 'next/server';
 // Shared by the /api/integrations/* routes used by Activepieces (and the Stint CRM block).
 // Every call needs header  x-api-key: <incoming API key from Admin settings → Automation log>.
 export async function withKey(request: Request): Promise<{ db: SupabaseClient } | { error: NextResponse }> {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return { error: NextResponse.json({ error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 }) };
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('integrations: SUPABASE_SERVICE_ROLE_KEY is not set');
+    return { error: NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }) };
+  }
   const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const key = request.headers.get('x-api-key') || '';
   const { data: cfg } = await db.from('integration_config').select('value').eq('key', 'incoming_api_key').single();

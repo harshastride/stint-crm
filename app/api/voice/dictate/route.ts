@@ -21,7 +21,10 @@ export async function POST(request: Request) {
   if (recent.length >= 20) return NextResponse.json({ error: 'Too many voice notes in a minute. Please wait a moment.' }, { status: 429 });
   recent.push(now); hits.set(user.id, recent);
 
-  if (!aiReady()) return NextResponse.json({ error: 'Voice input is not set up yet. Please type for now and ask the admin to add the voice keys.' }, { status: 503 });
+  if (!aiReady()) {
+    console.error('voice/dictate: not set up (DEEPGRAM_API_KEY or ANTHROPIC_API_KEY missing)');
+    return NextResponse.json({ error: 'Voice input isn’t switched on yet. Please type for now and ask the admin.' }, { status: 503 });
+  }
 
   const form = await request.formData().catch(() => null);
   const audio = form?.get('audio');

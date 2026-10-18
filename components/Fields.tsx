@@ -1,6 +1,7 @@
 'use client';
 import { TagPicker } from './kit/Tags';
 import { likeExact } from '@/lib/pgrst';
+import { plainMessage } from '@/lib/plainMessage';
 import { RadioCards } from './kit/RadioCards';
 import { Slider } from './kit/Slider';
 import { useEffect, useRef, useState } from 'react';
@@ -181,15 +182,17 @@ export function FieldInput({ field, value, onChange, disabled, invalid, errorId 
     onChange={(e) => onChange(field.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value || null)} />;
 }
 
-/** Turns a database error into words a person can act on. */
-export function friendlyError(e: { code?: string; message?: string } | null, what = 'this'): string {
+/** Turns a database error into words a person can act on. Technical or outside-service wording never shows: `fallback` is used instead. */
+export function friendlyError(e: { code?: string; message?: string } | null, what = 'this', fallback = 'Something went wrong. Please try again.'): string {
   if (!e) return '';
-  if (e.code === '23505') return /mobile/.test(e.message || '') ? 'A lead with this mobile number already exists.' : 'That already exists.';
-  if (e.code === '42501' && e.message && !/row-level security|permission denied/.test(e.message)) return e.message;
-  if (e.code === '42501' || /row-level security/.test(e.message || '')) return 'Your role can’t change ' + what + '.';
+  const msg = (e.message || '').replace(/\s*\((?:duplicate key|Key \()[^]*\)\.?$/, '.');
+  if (e.code === '23505') return /^Cannot restore/.test(msg) ? plainMessage(msg, 'That already exists.') : /mobile/.test(msg) ? 'A lead with this mobile number already exists.' : 'That already exists.';
+  if (e.code === '42501' && msg && !/row-level security|permission denied/.test(msg)) return plainMessage(msg, 'Your role can’t change ' + what + '.');
+  if (e.code === '42501' || /row-level security|permission denied/.test(msg)) return 'Your role can’t change ' + what + '.';
   if (e.code === '23503') return 'This is still used by other records, so it can’t be removed.';
-  if (e.code === '23502') { const col = /column "([^"]+)"/.exec(e.message || '')?.[1]; return (col ? 'Please choose a ' + col.replace(/_/g, ' ') : 'A required field is empty') + ' before saving.'; }
-  if (e.code === '23514' && e.message && !/violates check constraint/.test(e.message)) return e.message;
+  if (e.code === '23502') { const col = /column "([^"]+)"/.exec(msg)?.[1]; return (col ? 'Please choose a ' + col.replace(/_/g, ' ') : 'A required field is empty') + ' before saving.'; }
+  if (e.code === '23514' && msg && !/violates check constraint/.test(msg)) return plainMessage(msg, 'One of the values is not allowed. Check the dates and numbers.');
   if (e.code === '23514') return 'One of the values is not allowed. Check the dates and numbers.';
-  return e.message || 'Something went wrong.';
+  if (e.code === '22P02' || e.code === '22007' || e.code === '22008') return 'One of the values is not in the right format. Check it and try again.';
+  return plainMessage(msg, fallback);
 }

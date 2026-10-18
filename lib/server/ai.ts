@@ -38,9 +38,21 @@ type Ask = {
   schema: Record<string, unknown>; maxTokens?: number; effort?: 'low' | 'medium' | 'high';
 };
 
-/** Ask Claude for JSON that matches `schema` (structured outputs), log the cost, and return the parsed object. */
+/** An error whose message is plain and safe to show staff (no service names, keys or status codes).
+ *  Routes may pass `message` of a SafeError straight to the browser; any other error gets the route's own generic sentence. */
+export class SafeError extends Error { name = 'SafeError'; }
+
+export const NOT_ON = 'This isn’t switched on yet. Ask the admin.';
+export const BUSY = 'The service is busy. Please try again in a minute.';
+
+/** Log the real reason on the server only: feature, step, upstream status and the first ~120 chars of the upstream message. */
+const logAi = (feature: string, step: string, status?: number | string, detail?: string) =>
+  console.error(`[ai] ${feature}: ${step}${status !== undefined ? ' (' + status + ')' : ''}${detail ? ': ' + detail.replace(/\s+/g, ' ').slice(0, 120) : ''}`);
+
+/** Ask Claude for JSON that matches `schema` (structured outputs), log the cost, and return the parsed object.
+ *  Every error thrown here is a SafeError with a plain message; the specific reason goes to the server log. */
 export async function askJson<T>({ feature, staffId, model, system, prompt, schema, maxTokens = 4000, effort = 'low' }: Ask): Promise<T> {
-  if (!claudeReady()) throw new Error('ANTHROPIC_API_KEY is not set on the server.');
+  if (!claudeReady()) { logAi(feature, 'ANTHROPIC_API_KEY is not set'); throw new SafeError(NOT_ON); }
   let res: Anthropic.Message;
   try {
     res = await claude().messages.create({
@@ -50,17 +62,22 @@ export async function askJson<T>({ feature, staffId, model, system, prompt, sche
     });
   } catch (e) {
     await logUsage(feature, staffId, model, 0, 0, false);
-    if (e instanceof Anthropic.AuthenticationError) throw new Error('The Claude key is wrong or switched off.');
-    if (e instanceof Anthropic.RateLimitError) throw new Error('Claude is busy right now. Please try again in a minute.');
-    if (e instanceof Anthropic.APIError) throw new Error(`Claude failed (${e.status ?? 'network'}).`);
-    throw e;
+    if (e instanceof Anthropic.AuthenticationError || e instanceof Anthropic.PermissionDeniedError) {
+      logAi(feature, 'Anthropic key rejected', e.status, e.message); throw new SafeError(NOT_ON);
+    }
+    if (e instanceof Anthropic.RateLimitError) { logAi(feature, 'Anthropic rate limit', e.status, e.message); throw new SafeError(BUSY); }
+    if (e instanceof Anthropic.APIError && e.status === 529) { logAi(feature, 'Anthropic overloaded', e.status, e.message); throw new SafeError(BUSY); }
+    if (e instanceof Anthropic.APIError) { logAi(feature, 'Anthropic call failed', e.status ?? 'network', e.message); throw new SafeError('The AI assistant couldn’t answer. Please try again.'); }
+    logAi(feature, 'call failed', undefined, e instanceof Error ? e.name + ': ' + e.message : 'unknown');
+    throw new SafeError('The AI assistant couldn’t answer. Please try again.');
   }
   await logUsage(feature, staffId, model, res.usage.input_tokens + (res.usage.cache_read_input_tokens || 0), res.usage.output_tokens, res.stop_reason === 'end_turn');
-  if (res.stop_reason === 'refusal') throw new Error('Claude declined to write this one.');
-  if (res.stop_reason === 'max_tokens') throw new Error('The answer was too long and got cut off.');
+  if (res.stop_reason === 'refusal') { logAi(feature, 'model refused'); throw new SafeError('The AI assistant couldn’t write this one.'); }
+  if (res.stop_reason === 'max_tokens') { logAi(feature, 'hit max_tokens', maxTokens); throw new SafeError('The answer was too long and got cut off. Please try again.'); }
   const text = res.content.find((b): b is Anthropic.TextBlock => b.type === 'text')?.text;
-  if (!text) throw new Error('Claude returned nothing.');
-  return JSON.parse(text) as T;
+  if (!text) { logAi(feature, 'empty reply', res.stop_reason ?? undefined); throw new SafeError('The AI assistant returned nothing. Please try again.'); }
+  try { return JSON.parse(text) as T; }
+  catch { logAi(feature, 'reply was not valid JSON'); throw new SafeError('The AI assistant’s answer could not be read. Please try again.'); }
 }
 
 /** JSON schema helpers: structured outputs need every key listed in `required` and no extra keys. */

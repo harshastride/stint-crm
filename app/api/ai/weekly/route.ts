@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { askJson, claudeReady, MODEL_SMART, obj, str } from '@/lib/server/ai';
+import { askJson, claudeReady, MODEL_SMART, obj, SafeError, str } from '@/lib/server/ai';
 import { crossSite, limited } from '@/lib/server/guard';
 import { cronAllowed } from '@/lib/server/messaging';
 import { asCaller, service } from '@/lib/server/recordings';
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     adminId = user.id;
   }
 
-  if (!claudeReady()) return NextResponse.json({ error: 'The weekly summary is not set up yet. Add the Claude key on the server.' }, { status: 503 });
+  if (!claudeReady()) { console.error('ai/weekly: ANTHROPIC_API_KEY is not set'); return NextResponse.json({ error: 'The weekly summary isn’t switched on yet. Ask the admin.' }, { status: 503 }); }
 
   // 2. The week: the 7 India days ending yesterday (on Monday morning that is Monday to Sunday).
   const pEnd = isoDay(new Date(Date.parse(indiaToday() + 'T00:00:00Z') - DAY));
@@ -123,12 +123,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ brief: { period_start: week.from, period_end: week.to, body, facts, created_at } });
   } catch (e) {
     // log only where it failed and the error kind, never the numbers or the text
-    const kind = e instanceof Error ? e.name + (stage === 'ai' && !(e instanceof SyntaxError) ? ': ' + e.message.slice(0, 80) : '') : 'unknown';
+    const kind = e instanceof Error ? e.name + (stage === 'ai' ? ': ' + e.message.slice(0, 80) : '') : 'unknown';
     console.error(`ai/weekly failed at ${stage}:`, kind);
     const message = stage === 'facts' ? 'Could not count last week’s numbers. Please try again.'
       : stage === 'save' ? 'The summary was written but could not be saved. Please try again.'
-      : e instanceof Error && !(e instanceof SyntaxError) && e.constructor === Error ? e.message
-      : 'Could not write the summary. Please try again.';
+      : e instanceof SafeError ? e.message
+      : 'Couldn’t write the summary. Please try again.';
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

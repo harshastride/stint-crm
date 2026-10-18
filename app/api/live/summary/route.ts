@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const who = await liveCaller(request, body.lead_id); if ('error' in who) return who.error;
   const slow = tooOften('live-summary:' + who.user.id, 10, 10 * 60_000); if (slow) return slow;
-  if (!claudeReady()) return NextResponse.json({ error: 'Live help is not set up yet.' }, { status: 503 });
+  if (!claudeReady()) { console.error('live/summary: ANTHROPIC_API_KEY is not set'); return NextResponse.json({ error: 'Live help isn’t switched on yet. Ask the admin.' }, { status: 503 }); }
   const transcript = transcriptText(body.transcript, 20000);
   if (!transcript) return NextResponse.json({ summary: 'Nothing was heard during the call.', outcome: null, follow_up: null, follow_up_when: null });
   try {

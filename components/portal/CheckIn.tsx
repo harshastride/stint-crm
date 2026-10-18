@@ -1,4 +1,6 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
+import { plainMessage } from '@/lib/plainMessage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QrCode, ScanLine } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -30,7 +32,7 @@ export function CheckIn() {
     busyRef.current = true; setBusy(true); setMsg(null);
     const { data, error } = await supabase().rpc('student_checkin', { p_code: c });
     busyRef.current = false; setBusy(false);
-    if (error || data?.status === 'invalid') { setMsg({ tone: 'bad', text: error?.message || data.message }); return; }
+    if (error || data?.status === 'invalid') { setMsg({ tone: 'bad', text: error ? friendlyError(error, 'this', 'Could not check you in. Please try again.') : plainMessage(data.message, 'That code did not work. Please try again.') }); return; }
     stop(); setCode('');
     setMsg({ tone: 'good', text: data?.status === 'already' ? `You are already marked present today${data?.batch ? ' in ' + data.batch : ''}.` : `Checked in. You are marked present${data?.batch ? ' in ' + data.batch : ''}.` });
   }, [stop]);
