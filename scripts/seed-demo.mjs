@@ -215,4 +215,16 @@ await must(db.from('note').insert([
   { candidate_id: C['Priya Reddy'], kind: 'Resume', body: 'Resume sent to vendor', by_id: S.Praveen },
   { candidate_id: C['Lavanya G'], kind: 'Training', body: 'Asked for extra Spark session', by_id: S.Kiran },
 ]), 'candidate notes');
+// Sales playbook: what Live help may suggest during a call (demo wording only; real facts are written by the Admin)
+await must(db.from('playbook_item').insert([
+  { kind: 'Selling point', title: 'Live projects on real company data in every course' },
+  { kind: 'Selling point', title: 'Weekend and evening batches for working people' },
+  { kind: 'Selling point', title: 'Free counselling session before joining' },
+  { kind: 'Fact we can quote', title: 'Fees can be paid in 3 instalments' },
+  { kind: 'Doubt and answer', title: 'The fee is too high', answer: 'You can pay in 3 instalments, and the course includes live projects and placement support.' },
+  { kind: 'Doubt and answer', title: 'I am working and have no time', answer: 'We have weekend and evening batches made for working people.' },
+  { kind: 'Doubt and answer', title: 'Is it online or classroom?', answer: 'Both: you can join in the classroom or live online.' },
+  { kind: 'Never say', title: 'Guaranteed job or 100% placement' },
+  { kind: 'Never say', title: 'Any discount above 10% without approval' },
+]), 'playbook');
 console.log(`Sample data ready: ${LEADS.length} leads, ${CANDS.length} candidates.`);

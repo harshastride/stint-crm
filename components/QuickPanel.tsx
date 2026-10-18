@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { CalendarPlus, PanelRightClose, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, X } from 'lucide-react';
+import { CalendarPlus, PanelRightClose, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, Sparkles, X } from 'lucide-react';
 import { Avatar } from './kit/Avatar';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -124,6 +124,17 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   }, [person.kind, person.id, isLead, idCol]);
 
   useEffect(() => { setP(null); setMsg(null); setAction(null); setForm({}); setStageAsk(null); setInvite(null); load(); }, [load]);
+  // back from Live help: open Log call filled with the call summary (kept in this tab only, never in the address)
+  useEffect(() => {
+    if (!p || p.id !== person.id || !isLead || !canCall) return;   // after the lead has loaded, so the panel reset does not wipe it
+    const k = 'stint-live-draft:' + person.id;
+    let d: { outcome?: string | null; body?: string; duration?: number } | null = null;
+    try { d = JSON.parse(sessionStorage.getItem(k) || 'null'); sessionStorage.removeItem(k); } catch { d = null; }
+    if (!d) return;
+    const outcome = d.outcome && (s.lists.call_outcome || []).includes(d.outcome) ? d.outcome : undefined;
+    setAction('call'); setForm({ outcome, body: d.body || '', duration: Number(d.duration || 0) });
+    setMsg({ tone: 'good', text: 'Filled in from Live help. Check the outcome and notes, then press Save call.' });
+  }, [p, person.id, isLead, canCall, s.lists.call_outcome]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -398,6 +409,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
             ))}
           </div>
           {mode && <button type="button" aria-label="Close the box" title="Close (keeps nothing)" onClick={() => { setAction(null); setForm({}); }} className={iconBtn}><X size={16} strokeWidth={1.8} /></button>}
+          {canCall && <Link href={'/live/' + person.id} aria-label="Live help during a call" title="Live help: tips while you talk (phone on speaker)" className={iconBtn}><Sparkles size={16} strokeWidth={1.8} /></Link>}
           {canRecord && <button type="button" aria-label="Record" title="Record a talk" aria-pressed={mode === 'record'} onClick={() => pick('record')} className={cx(iconBtn, mode === 'record' && 'bg-accentSoft text-accentText')}><Mic size={16} strokeWidth={1.8} /></button>}
         </div>
         {mode === 'record' && <Recorder person={person} onSaved={(t) => { setMsg({ tone: 'good', text: t }); setAction(null); }} />}

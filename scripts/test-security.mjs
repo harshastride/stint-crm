@@ -1420,5 +1420,21 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   }
 }
 
+// Sales playbook (migration 086): Admin writes it, telecallers and sales read it, nobody else sees it
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const tag = 'PB-' + Date.now();
+  const add = await admin.from('playbook_item').insert({ kind: 'Doubt and answer', title: 'Too costly ' + tag, answer: 'We have instalments.' }).select('id').single();
+  check('Playbook: Admin adds a doubt with its answer', !add.error, add.error?.message);
+  check('Playbook: a doubt without an answer is refused', !!(await admin.from('playbook_item').insert({ kind: 'Doubt and answer', title: 'No answer ' + tag })).error);
+  check('Playbook: an unknown type is refused', !!(await admin.from('playbook_item').insert({ kind: 'Rumour', title: 'x ' + tag })).error);
+  check('Playbook: a telecaller can read it', ((await tele.from('playbook_item').select('id').eq('id', add.data?.id)).data || []).length === 1);
+  check('Playbook: sales can read it', ((await sales.from('playbook_item').select('id').eq('id', add.data?.id)).data || []).length === 1);
+  check('Playbook: a telecaller cannot change it', ((await tele.from('playbook_item').update({ answer: 'Hacked' }).eq('id', add.data?.id).select('id')).data || []).length === 0
+    && !!(await tele.from('playbook_item').insert({ kind: 'Selling point', title: 'x ' + tag })).error);
+  check('Playbook: a trainer cannot see it', ((await trainer.from('playbook_item').select('id')).data || []).length === 0);
+  if (add.data?.id) await svc.from('playbook_item').delete().eq('id', add.data.id);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
