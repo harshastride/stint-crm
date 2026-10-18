@@ -16,6 +16,8 @@ import { Leaderboard } from '../kit/Leaderboard';
 import { Funnel } from '../kit/Funnel';
 import { TargetRing } from '../kit/TargetRing';
 import { PageHeader } from '../kit/PageHeader';
+import { CallBrief } from './CallBrief';
+import { OwnerSummary } from './OwnerSummary';
 
 const TITLES: Record<string, [string, string]> = {
   Admin: ['Whole CRM at a glance', 'What needs attention, then how the month is going.'], 'Front desk': ['Today at the desk', 'Who walked in, and whose data sheet is still open?'],
@@ -204,8 +206,10 @@ export function Dashboard() {
       {header}
       <Checklist />
       <Tiles label="Needs attention" tiles={attention} compact />
+      {['Telecaller', 'Sales'].includes(s.staff.role) && s.can('lead') && <CallBrief />}
       <Tiles label={`This month so far · ${monthSpan}`} tiles={month} />
       {ring}
+      {s.staff.role === 'Admin' && <OwnerSummary />}
       <div className="gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid" style={{ columnWidth: 380, columnGap: 12 }}>
         {workLists}
         {showFunnel && <Funnel />}

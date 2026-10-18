@@ -1,6 +1,6 @@
 # Stint Notes (Android)
 
-Records conversations on the phone's mic, like a voice-notes app. The CRM makes the transcript (Deepgram) and summary (Gemini).
+Records conversations on the phone's mic, like a voice-notes app. The CRM makes the transcript (Deepgram) and summary (Claude).
 
 | Step | What happens |
 |---|---|
@@ -20,4 +20,4 @@ Records conversations on the phone's mic, like a voice-notes app. The CRM makes 
 The app signs in to https://crm.skillxen.com. For testing against a computer running the CRM, tap "Use a different CRM address" on the sign-in screen (emulator: `http://10.0.2.2:3100`; phone on the same Wi-Fi: the computer's address, port 3100; only the debug APK allows plain http).
 
 ## CRM side
-`POST /api/mobile/login`, `/api/mobile/refresh`, `GET /api/mobile/notes`, `POST /api/recordings/upload` (Bearer token). Server needs `DEEPGRAM_API_KEY` and `GEMINI_API_KEY`.
+`POST /api/mobile/login`, `/api/mobile/refresh`, `GET /api/mobile/notes`, `POST /api/recordings/upload` (Bearer token). Server needs `DEEPGRAM_API_KEY` and `ANTHROPIC_API_KEY`.

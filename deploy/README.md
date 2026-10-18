@@ -48,7 +48,7 @@ Nothing here has been run on a real server yet. Fresh Ubuntu 24.04 server, 4 GB 
 
 | # | Do | Command / note |
 |---|---|---|
-| 1 | Put every key in Infisical **prod** | Names as in `deploy/app.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DEEPGRAM_API_KEY`, `GEMINI_API_KEY`, `COACH_URL`, `COACH_SSO_SECRET`, messaging keys) + `BACKUP_PASSPHRASE` |
+| 1 | Put every key in Infisical **prod** | Names as in `deploy/app.env.example` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY`, `COACH_URL`, `COACH_SSO_SECRET`, messaging keys) + `BACKUP_PASSPHRASE` |
 | 2 | Sync to Coolify (pick one) | **a)** Infisical → Integrations → Coolify (native sync, keeps Coolify updated) **or b)** on your laptop: `infisical export --env=prod --format=dotenv` and paste into Coolify → Environment Variables (Developer view). Do not save that file to disk |
 | 3 | Service key stays server-only | `SUPABASE_SERVICE_ROLE_KEY` must **not** be a Build Variable and never `NEXT_PUBLIC_` |
 | 4 | After changing a key | Redeploy in Coolify (build variables need a rebuild, runtime ones a restart) |
@@ -84,7 +84,7 @@ Tested locally (5 Oct 2026): backup 388 KB, restore into a throwaway DB matched 
 
 | ✓ | Check |
 |---|---|
-| ☐ | All keys are new for prod (Supabase JWT/anon/service/Postgres/dashboard, Deepgram, Gemini, Coach SSO, WhatsApp, email, backup passphrase). None equal to dev in Infisical |
+| ☐ | All keys are new for prod (Supabase JWT/anon/service/Postgres/dashboard, Deepgram, Claude, Coach SSO, WhatsApp, email, backup passphrase). None equal to dev in Infisical |
 | ☐ | Demo data never seeded: `select count(*) from auth.users where email like '%@demo.stint.local'` returns 0 |
 | ☐ | First Admin made with `scripts/create-admin.mjs` (section 8), temporary password changed |
 | ☐ | Ports: only 22/80/443 open from outside (`nmap <server>`) |
@@ -104,7 +104,7 @@ Tested locally (5 Oct 2026): backup 388 KB, restore into a throwaway DB matched 
 | 4 | Existing leads | Admin settings → Import / export (CSV; duplicates skipped) |
 | 5 | Existing students | `node scripts/import-candidates.mjs students.csv` (dry run) then `--apply` |
 | 6 | Activepieces | Automation log → paste the webhook URL; give the incoming API key to the lead flows (`docs/activepieces/`) |
-| 7 | Recordings | Put `DEEPGRAM_API_KEY` and `GEMINI_API_KEY` in `deploy/app.env`, restart the app, record a test call and check the Recordings page |
+| 7 | AI | Put `DEEPGRAM_API_KEY` and `ANTHROPIC_API_KEY` in `deploy/app.env`, restart the app, record a test call and check the Recordings page. Set a monthly spend limit in the Claude Console. The weekly owner summary runs Mondays 08:00 IST (needs `app_url` and `cron_secret` in `integration_config`, like the message sender) |
 
 
 ## Alternative: plain docker compose (no Coolify)

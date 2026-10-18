@@ -15,6 +15,7 @@
     "test:secure": "infisical run --env=dev -- npm test"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "@expo-google-fonts/poppins": "^0.4.1",
     "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/ssr": "^0.5.2",

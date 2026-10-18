@@ -1327,5 +1327,40 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     await svc.from('candidate').delete().in('id', [c.id, other.id]);
   }
 }
+// Claude features (migration 083): usage log, saved briefs, weekly numbers
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const ids = Object.fromEntries(((await svc.from('staff').select('id,email').in('email', ['teja@demo.stint.local', 'manish@demo.stint.local'])).data || []).map((s) => [s.email.split('@')[0], s.id]));
+  const day = '2001-01-0' + (Date.now() % 9 + 1);
+  try {
+    const u = await svc.from('ai_usage').insert({ feature: 'test', staff_id: ids.teja, model: 'claude-haiku-5-5', input_tokens: 10, output_tokens: 5, cost_usd: 0.00001 }).select('id').single();
+    check('AI usage: the server can log a call', !u.error, u.error?.message);
+    check('AI usage: Admin reads the log', ((await admin.from('ai_usage').select('id').eq('id', u.data?.id)).data || []).length === 1);
+    check('AI usage: a telecaller cannot read it', ((await tele.from('ai_usage').select('id')).data || []).length === 0);
+    check('AI usage: staff cannot write it', !!(await tele.from('ai_usage').insert({ feature: 'x', model: 'x' })).error);
+
+    const mk = (kind, staff_id) => ({ kind, staff_id, period_start: day, period_end: day, body: { overview: 'test' }, model: 'test' });
+    const b = await svc.from('ai_brief').insert([mk('call_brief', ids.teja), mk('call_brief', ids.manish), mk('owner_week', null)]).select('id');
+    check('AI brief: the server can save briefs', !b.error, b.error?.message);
+    const tb = (await tele.from('ai_brief').select('kind,staff_id').eq('period_start', day)).data || [];
+    check('AI brief: a telecaller sees only their own call brief', tb.length === 1 && tb[0].staff_id === ids.teja && tb[0].kind === 'call_brief', JSON.stringify(tb));
+    const ab = (await admin.from('ai_brief').select('kind').eq('kind', 'owner_week').eq('period_start', day)).data || [];
+    check('AI brief: Admin reads the owner summary', ab.length === 1);
+    check('AI brief: Sales cannot read the owner summary', ((await sales.from('ai_brief').select('id').eq('kind', 'owner_week')).data || []).length === 0);
+    check('AI brief: a trainer (no Leads page) sees no briefs', ((await trainer.from('ai_brief').select('id')).data || []).length === 0);
+    check('AI brief: staff cannot write briefs', !!(await tele.from('ai_brief').insert(mk('call_brief', ids.teja))).error);
+    const dup = await svc.from('ai_brief').insert(mk('owner_week', null));
+    check('AI brief: one owner summary per week', !!dup.error);
+
+    const f = await svc.rpc('owner_week_facts', { p_end: new Date().toISOString().slice(0, 10) });
+    check('Weekly numbers: counted for the server', !f.error && typeof f.data?.leads?.new === 'number' && Array.isArray(f.data?.calls?.by_caller), f.error?.message);
+    check('Weekly numbers: Admin cannot call the function from the browser', !!(await admin.rpc('owner_week_facts', { p_end: '2026-01-01' })).error);
+    check('Weekly numbers: a telecaller cannot call it', !!(await tele.rpc('owner_week_facts', { p_end: '2026-01-01' })).error);
+  } finally {
+    await svc.from('ai_brief').delete().eq('period_start', day);
+    await svc.from('ai_usage').delete().eq('feature', 'test');
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

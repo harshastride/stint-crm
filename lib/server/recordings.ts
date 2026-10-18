@@ -2,6 +2,7 @@ import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { askJson, claudeReady, MODEL_FAST, obj, oneOfOrNull, scrub, str, strOrNull } from './ai';
 
 // Server-side helpers for recordings. API keys are read here only and never sent to the browser.
 export const service = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -31,8 +32,8 @@ export async function staffFromBearer(request: Request) {
 
 export type Segment = { speaker: string; start_ms: number; end_ms: number; text: string };
 
-/** Both AI keys are on the server, so uploads can be transcribed straight away. */
-export const aiReady = () => !!(process.env.DEEPGRAM_API_KEY && process.env.GEMINI_API_KEY);
+/** Deepgram (speech to text) and Claude (summary) keys are both on the server, so uploads can be transcribed straight away. */
+export const aiReady = () => !!process.env.DEEPGRAM_API_KEY && claudeReady();
 
 /** Deepgram pre-recorded transcription: one call, speakers separated, English mixed with Indian languages. */
 export async function transcribe(audio: Blob, filename: string): Promise<{ text: string; segments: Segment[] }> {
@@ -64,37 +65,15 @@ export async function transcribe(audio: Blob, filename: string): Promise<{ text:
 
 export type Draft = { summary: string; outcome: string | null; follow_up: string | null; follow_up_when: string | null };
 
-/** Gemini: a short draft the staff member confirms. Outcome is limited to the CRM's call outcomes. */
-export async function summarise(transcript: string, outcomes: string[], about: string): Promise<Draft> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY is not set on the server.');
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: 'You summarise calls and talks for staff at Stint Academy, a training and placement institute in India. Write plain, short English that a busy counsellor can read in ten seconds. Do not invent facts that are not in the transcript. Never include ID, bank or card numbers.' }] },
-      contents: [{ role: 'user', parts: [{ text: `Person: ${about}\n\nTranscript (speaker numbers are from automatic diarisation; the conversation may mix English, Hindi, Telugu or Kannada):\n${transcript}\n\nReturn: summary (2–4 sentences), outcome (one of the allowed values, or null if unclear), follow_up (the next action, or null), follow_up_when (e.g. "tomorrow 11 am", or null).` }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            summary: { type: 'STRING' },
-            outcome: { type: 'STRING', enum: outcomes, nullable: true },
-            follow_up: { type: 'STRING', nullable: true },
-            follow_up_when: { type: 'STRING', nullable: true },
-          },
-          required: ['summary'],
-        },
-      },
-    }),
+/** Claude (fast model): a short draft the staff member confirms. Outcome is limited to the CRM's call outcomes. */
+export async function summarise(transcript: string, outcomes: string[], about: string, staffId: string | null = null): Promise<Draft> {
+  const d = await askJson<Draft>({
+    feature: 'call_summary', staffId, model: MODEL_FAST, maxTokens: 2000,
+    system: 'You summarise calls and talks for staff at Stint Academy, a training and placement institute in India. Write plain, short English that a busy counsellor can read in ten seconds. Do not invent facts that are not in the transcript. Never include ID, bank or card numbers.',
+    prompt: `Person: ${about}\n\nTranscript (speaker numbers are from automatic diarisation; the conversation may mix English, Hindi, Telugu or Kannada):\n${scrub(transcript)}\n\nReturn: summary (2–4 sentences), outcome (one of the allowed values, or null if unclear), follow_up (the next action, or null), follow_up_when (e.g. "tomorrow 11 am", or null).`,
+    schema: obj({ summary: str, outcome: oneOfOrNull(outcomes), follow_up: strOrNull, follow_up_when: strOrNull }),
   });
-  if (!res.ok) throw new Error(`Gemini failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned no summary.');
-  const d = JSON.parse(text);
-  return { summary: String(d.summary || '').trim(), outcome: outcomes.includes(d.outcome) ? d.outcome : null, follow_up: d.follow_up || null, follow_up_when: d.follow_up_when || null };
+  return { summary: String(d.summary || '').trim(), outcome: d.outcome && outcomes.includes(d.outcome) ? d.outcome : null, follow_up: d.follow_up || null, follow_up_when: d.follow_up_when || null };
 }
 
 export const asText = (segments: Segment[]) =>
@@ -111,8 +90,8 @@ export async function processRecording(db: SupabaseClient, id: string) {
     const { text, segments } = await transcribe(file.data, rec.audio_path.split('/').pop()!);
     await db.from('recording').update({ transcript: segments, transcript_text: text }).eq('id', id);
     const { data: vals } = await db.from('dropdown_value').select('value').eq('list_id', 'call_outcome').eq('active', true).order('sort');
-    const about = rec.lead?.full_name ? 'lead ' + rec.lead.full_name : rec.candidate?.full_name ? 'candidate ' + rec.candidate.full_name : 'unknown caller' + (rec.number ? ' ' + rec.number : '');
-    const draft = text.trim() ? await summarise(asText(segments), (vals || []).map((v: { value: string }) => v.value), about)
+    const about = rec.lead?.full_name ? 'lead ' + rec.lead.full_name : rec.candidate?.full_name ? 'candidate ' + rec.candidate.full_name : 'unknown caller';
+    const draft = text.trim() ? await summarise(asText(segments), (vals || []).map((v: { value: string }) => v.value), about, rec.captured_by || null)
       : { summary: 'No speech was heard in this recording.', outcome: null, follow_up: null, follow_up_when: null };
     const matched = !!(rec.lead_id || rec.candidate_id);
     await db.from('recording').update({ draft, status: matched ? 'Waiting to confirm' : 'Unmatched' }).eq('id', id);
@@ -130,33 +109,13 @@ const DICTATION_CONTEXT: Record<string, string> = {
   enquiry: 'notes taken at the front desk about a walk-in enquiry', field: 'text for a form field',
 };
 
-/** Gemini: turn a staff member's spoken dictation into clean English text. Staff review it before saving. */
-export async function cleanDictation(transcript: string, context: string): Promise<Dictation> {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY is not set on the server.');
-  const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: 'You clean up dictated notes for staff at Stint Academy, a training and placement institute in India (courses such as Data Analytics, Data Science, Full Stack, Python, Power BI, SQL, Azure, AWS, Testing). The speech may mix English, Telugu and Hindi. Fix transcription mistakes, names and course terms, add punctuation, and translate everything into clear, plain English in the first person as the staff member said it. Keep every fact; do not add facts. Never include ID, bank or card numbers.' }] },
-      contents: [{ role: 'user', parts: [{ text: `This is ${DICTATION_CONTEXT[context] || DICTATION_CONTEXT.field}.\n\nRaw transcript:\n${transcript}\n\nReturn: clean_text (the cleaned note), summary (1–2 lines), outcome (the call outcome if one is clearly said, else null), follow_up (next action if one is said, else null), follow_up_when (when, e.g. "tomorrow 11 am", else null).` }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: 'OBJECT',
-          properties: {
-            clean_text: { type: 'STRING' }, summary: { type: 'STRING' },
-            outcome: { type: 'STRING', nullable: true }, follow_up: { type: 'STRING', nullable: true }, follow_up_when: { type: 'STRING', nullable: true },
-          },
-          required: ['clean_text', 'summary'],
-        },
-      },
-    }),
+/** Claude (fast model): turn a staff member's spoken dictation into clean English text. Staff review it before saving. */
+export async function cleanDictation(transcript: string, context: string, staffId: string | null = null): Promise<Dictation> {
+  const d = await askJson<Dictation>({
+    feature: 'voice_note', staffId, model: MODEL_FAST, maxTokens: 3000,
+    system: 'You clean up dictated notes for staff at Stint Academy, a training and placement institute in India (courses such as Data Analytics, Data Science, Full Stack, Python, Power BI, SQL, Azure, AWS, Testing). The speech may mix English, Telugu and Hindi. Fix transcription mistakes, names and course terms, add punctuation, and translate everything into clear, plain English in the first person as the staff member said it. Keep every fact; do not add facts. Never include ID, bank or card numbers.',
+    prompt: `This is ${DICTATION_CONTEXT[context] || DICTATION_CONTEXT.field}.\n\nRaw transcript:\n${scrub(transcript)}\n\nReturn: clean_text (the cleaned note), summary (1–2 lines), outcome (the call outcome if one is clearly said, else null), follow_up (next action if one is said, else null), follow_up_when (when, e.g. "tomorrow 11 am", else null).`,
+    schema: obj({ clean_text: str, summary: str, outcome: strOrNull, follow_up: strOrNull, follow_up_when: strOrNull }),
   });
-  if (!res.ok) throw new Error(`Gemini failed (${res.status})`);
-  const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini returned nothing.');
-  const d = JSON.parse(text);
   return { clean_text: String(d.clean_text || '').trim(), summary: String(d.summary || '').trim(), outcome: d.outcome || null, follow_up: d.follow_up || null, follow_up_when: d.follow_up_when || null };
 }

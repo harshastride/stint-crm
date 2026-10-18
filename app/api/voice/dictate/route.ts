@@ -8,7 +8,7 @@ const CONTEXTS = ['note', 'call', 'enquiry', 'field'];
 // Light per-staff rate limit (in memory, per server process): 20 dictations a minute.
 const hits = new Map<string, number[]>();
 
-// Voice input: transcribe (Deepgram) then clean up (Gemini). The audio is never stored and nothing is saved; staff review the draft.
+// Voice input: transcribe (Deepgram) then clean up (Claude). The audio is never stored and nothing is saved; staff review the draft.
 export async function POST(request: Request) {
   const bad = crossSite(request); if (bad) return bad;
   const caller = await asCaller();
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const name = audio instanceof File && audio.name ? audio.name : 'dictation.webm';
     const { text } = await transcribe(audio, name);
     if (!text.trim()) return NextResponse.json({ empty: true, transcript: '' });
-    const out = await cleanDictation(text, context);
+    const out = await cleanDictation(text, context, user.id);
     return NextResponse.json({ ...out, transcript: text });
   } catch (e) {
     // log only the error kind, never the audio or transcript

@@ -4,7 +4,7 @@ import { asCaller, processRecording, service } from '@/lib/server/recordings';
 
 export const maxDuration = 300;
 
-// Transcribe (Deepgram) and summarise (Gemini) a recording the caller is allowed to see.
+// Transcribe (Deepgram) and summarise (Claude) a recording the caller is allowed to see.
 export async function POST(request: Request) {
   const bad = crossSite(request); if (bad) return bad;
   const { id } = await request.json().catch(() => ({}));
