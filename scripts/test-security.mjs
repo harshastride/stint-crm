@@ -1362,5 +1362,61 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   }
 }
 
+// Teams alerts (migration 084): Admin-only settings, queue per role channel, no contact details, new events
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const URL1 = 'https://prod-01.westindia.logic.azure.com:443/workflows/test' + Date.now() + '/triggers/manual/paths/invoke?sig=abc';
+  const made = [];
+  // set aside channels that already exist for these roles, and put them back afterwards
+  const kept = (await svc.from('teams_channel').select('*').in('audience', ['Finance', 'Admin'])).data || [];
+  if (kept.length) await svc.from('teams_channel').delete().in('id', kept.map((k) => k.id));
+  try {
+    const bad = await admin.from('teams_channel').insert({ audience: 'Finance', name: 'Finance team', webhook_url_secret: 'https://evil.example.com/hook' });
+    check('Teams: a non-Teams link is refused', !!bad.error);
+    const badRole = await admin.from('teams_channel').insert({ audience: 'Nobody', name: 'x', webhook_url_secret: URL1 });
+    check('Teams: an unknown role is refused', !!badRole.error);
+    const ch = await admin.from('teams_channel').insert([
+      { audience: 'Finance', name: 'Finance team', webhook_url_secret: URL1 },
+      { audience: 'Admin', name: 'Owner', webhook_url_secret: URL1 }]).select('id, audience');
+    check('Teams: Admin can add role channels', !ch.error && ch.data.length === 2, ch.error?.message);
+    made.push(...(ch.data || []).map((c) => c.id));
+    check('Teams: Finance cannot read channel links', ((await fin.from('teams_channel').select('id')).data || []).length === 0);
+    check('Teams: a telecaller cannot add a channel', !!(await tele.from('teams_channel').insert({ audience: 'Telecaller', name: 'x', webhook_url_secret: URL1 })).error);
+    const r = await sales.from('teams_rule').update({ active: false }).eq('event', 'payment.recorded').select('id');
+    check('Teams: Sales cannot change who hears what', (r.data || []).length === 0);
+
+    // a fee received → queued for Finance and Admin, without mobile or email
+    const pay = (await svc.from('fee_payment').select('id, candidate_id').eq('status', 'Due').limit(1).single()).data;
+    const before = new Date().toISOString();
+    await svc.from('fee_payment').update({ status: 'Received', paid_on: new Date().toISOString().slice(0, 10), mode: 'UPI' }).eq('id', pay.id);
+    const q = (await svc.from('teams_message').select('audience, payload, status').eq('event', 'payment.recorded').gte('created_at', before)).data || [];
+    check('Teams: a fee received is queued for the Finance and owner channels', q.length === 2 && q.every((m) => m.status === 'Pending') && q.map((m) => m.audience).sort().join() === 'Admin,Finance', JSON.stringify(q.map((m) => m.audience)));
+    check('Teams: queued messages carry no mobile or email', q.every((m) => !/"(mobile|email|owner_email)"/.test(JSON.stringify(m.payload))));
+    check('Teams: Admin sees the send log, Finance does not', ((await admin.from('teams_message').select('id').gte('created_at', before)).data || []).length >= 2
+      && ((await fin.from('teams_message').select('id')).data || []).length === 0);
+    const one = (await admin.from('teams_message').select('id').gte('created_at', before).limit(1).single()).data;
+    check('Teams: the log cannot be rewritten, only retried', !!(await admin.from('teams_message').update({ payload: { x: 1 } }).eq('id', one.id)).error
+      && !(await admin.from('teams_message').update({ status: 'Pending', attempts: 0 }).eq('id', one.id)).error);
+    check('Teams: staff cannot add to the log', !!(await admin.from('teams_message').insert({ event: 'x', audience: 'Admin', payload: {} })).error);
+
+    // new events: a student joins, a High alert
+    const c = (await svc.from('candidate').insert({ code: 'STA-TM-' + Date.now(), full_name: 'Teams Test Student', stage: 'Enrolled' }).select('id').single()).data;
+    const ev = (await svc.from('integration_event').select('event').eq('entity_id', c.id).eq('event', 'candidate.created')).data || [];
+    check('Teams: a new student raises “candidate.created”', ev.length >= 1);
+    const tm = (await svc.from('teams_message').select('audience').eq('event', 'candidate.created').gte('created_at', before)).data || [];
+    check('Teams: a new student is queued only for roles with a channel (Admin, Finance)', tm.map((m) => m.audience).sort().join() === 'Admin,Finance', JSON.stringify(tm));
+    const al = (await svc.from('alert').insert({ title: 'Teams test alert', priority: 'High', candidate_id: c.id }).select('id').single()).data;
+    const ah = (await svc.from('integration_event').select('person_name').eq('entity_id', al.id).eq('event', 'alert.high')).data || [];
+    check('Teams: a High alert raises “alert.high”', ah.length === 1 && ah[0].person_name === 'Teams Test Student', JSON.stringify(ah));
+    await svc.from('alert').delete().eq('id', al.id);
+    await svc.from('candidate').delete().eq('id', c.id);
+    await svc.from('fee_payment').update({ status: 'Due', paid_on: null }).eq('id', pay.id);
+  } finally {
+    await svc.from('teams_message').delete().gte('created_at', startedAt);
+    if (made.length) await svc.from('teams_channel').delete().in('id', made);
+    if (kept.length) await svc.from('teams_channel').insert(kept);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

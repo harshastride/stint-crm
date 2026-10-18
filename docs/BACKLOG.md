@@ -37,14 +37,15 @@ Each item: do it, add tests, run `npm run typecheck`, `node scripts/test-securit
 4.2 ✅*: built and wired; not yet run against the live Deepgram and Claude APIs (needs `DEEPGRAM_API_KEY`, `ANTHROPIC_API_KEY` in `.env.local`).
 4.4 ✅: `android/README.md`. Reading call recordings saved by the phone dialer is not built (see `docs/android-companion.md`).
 
-## Slice 6 — AI
+## Slice 6 — AI and Teams
 | # | Task | Done when |
 |---|---|---|
 | 6.1 ✅* | Claude for summaries and voice notes | Haiku 5.5 via `lib/server/ai.ts`; contact numbers removed before sending; every call logged with cost in `ai_usage` (Admin) |
 | 6.2 ✅* | Daily call brief | Telecaller/Sales dashboard card; one saved brief per person per day (`ai_brief`) |
 | 6.3 ✅* | Weekly owner summary | Monday 08:00 IST; numbers counted by `owner_week_facts`, words by Sonnet 5.5; Admin dashboard |
+| 6.4 ✅* | Teams alerts | Admin page: one channel per role, events → roles, send log with retry; new events `candidate.created`, `alert.high`, `summary.weekly` |
 
-6.x ✅*: built and tested locally (security tests, screens with a stand-in Claude); not yet run against the live Claude API.
+6.x ✅*: built and tested locally (security tests, screens with a stand-in Claude); not yet run against the live Claude API or a real Teams channel.
 
 ## Slice 5 — go live
 | # | Task | Done when |

@@ -114,6 +114,12 @@ export async function POST(request: Request) {
     }, { onConflict: 'kind,staff_id,period_start' });
     if (saveErr) throw new Error('save');
 
+    // The Monday run (not a manual Rewrite) also goes out as an event, so Teams alerts can post it to the owner's channel.
+    if (!adminId) {
+      const { error: evErr } = await db.rpc('emit_event', { ev: 'summary.weekly', ent: 'report', eid: null, who: null, data: { week: { from: week.from, to: week.to }, ...body } });
+      if (evErr) console.error('ai/weekly: could not queue the Teams post:', evErr.code);
+    }
+
     return NextResponse.json({ brief: { period_start: week.from, period_end: week.to, body, facts, created_at } });
   } catch (e) {
     // log only where it failed and the error kind, never the numbers or the text

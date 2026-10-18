@@ -105,6 +105,7 @@ Tested locally (5 Oct 2026): backup 388 KB, restore into a throwaway DB matched 
 | 5 | Existing students | `node scripts/import-candidates.mjs students.csv` (dry run) then `--apply` |
 | 6 | Activepieces | Automation log → paste the webhook URL; give the incoming API key to the lead flows (`docs/activepieces/`) |
 | 7 | AI | Put `DEEPGRAM_API_KEY` and `ANTHROPIC_API_KEY` in `deploy/app.env`, restart the app, record a test call and check the Recordings page. Set a monthly spend limit in the Claude Console. The weekly owner summary runs Mondays 08:00 IST (needs `app_url` and `cron_secret` in `integration_config`, like the message sender) |
+| 8 | Teams alerts | Admin → Teams alerts: paste each role channel’s Workflows link, press Send test. Sending uses the same `app_url` and `cron_secret` (job `teams-sender`, every minute) |
 
 
 ## Alternative: plain docker compose (no Coolify)

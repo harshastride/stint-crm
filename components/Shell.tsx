@@ -26,7 +26,7 @@ const ADMIN_SUBGROUPS: [string, string[]][] = [
   ['People & access', ['users', 'roles', 'accesslog', 'audit', 'recycle']],
   ['Data', ['fields', 'dropdowns', 'duplicates', 'imports']],
   ['Automation', ['assign', 'stage_rules', 'followrules', 'automations', 'builder', 'deliveries', 'connections']],
-  ['Messaging', ['reminders', 'templates', 'announcement']],
+  ['Messaging', ['reminders', 'templates', 'announcement', 'teams']],
   ['Branding', ['branding']],
   ['Other', []],
 ];
