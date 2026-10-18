@@ -1,8 +1,16 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { login } from './helpers';
 
-// Quick panel layout: fixed header and composer, sticky tabs, only the middle scrolls.
-test('quick panel: header, sticky tabs, composer at the bottom, Chat has height, J/K', async ({ page }) => {
+/** Open a card of the quick panel by clicking its header, only if it is closed (what is open at the start depends on the role). */
+async function openCard(panel: Locator, id: string) {
+  const card = panel.getByTestId('card-' + id);
+  if ((await card.getAttribute('data-open')) === 'false') await card.getByRole('button').first().click();
+  await expect(card).toHaveAttribute('data-open', 'true');
+  return card;
+}
+
+// Quick panel layout: fixed header and composer, a stack of cards, only the middle scrolls.
+test('quick panel: header, cards, composer at the bottom, Messages has height, J/K', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 760 });
   await login(page, 'harsha');
   await page.goto('/p/lead');
@@ -11,6 +19,7 @@ test('quick panel: header, sticky tabs, composer at the bottom, Chat has height,
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
   const name = panel.getByTestId('qp-name');
   await expect(name).not.toBeEmpty();
+  await expect(name).toBeInViewport();
   const first = await name.innerText();
 
   const composer = panel.getByTestId('composer');
@@ -19,19 +28,43 @@ test('quick panel: header, sticky tabs, composer at the bottom, Chat has height,
   await expect(composer.getByLabel('Note', { exact: true })).toBeVisible();
   await composer.getByRole('button', { name: 'Close the box' }).click();
 
-  // scroll the middle; the tab bar stays visible
-  await panel.getByRole('tab', { name: 'Timeline', exact: true }).click();
+  // clicking a card header toggles it
+  const stage = panel.getByTestId('card-stage');
+  const stageHead = stage.getByRole('button').first();
+  const was = await stageHead.getAttribute('aria-expanded');
+  await stageHead.click();
+  await expect(stageHead).toHaveAttribute('aria-expanded', was === 'true' ? 'false' : 'true');
+  await expect(stage).toHaveAttribute('data-open', was === 'true' ? 'false' : 'true');
+  await stageHead.click();
+  await expect(stageHead).toHaveAttribute('aria-expanded', was!);
+
+  // scroll the middle; the header and the composer stay in view
+  await openCard(panel, 'activity');
   const scroller = panel.getByTestId('panel-scroll');
   await scroller.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-  await expect(panel.getByRole('tablist')).toBeInViewport();
+  await expect(name).toBeInViewport();
   await expect(composer).toBeInViewport();
 
-  await panel.getByRole('tab', { name: 'Chat', exact: true }).click();
+  await openCard(panel, 'chat');
   const box = await panel.getByTestId('chat').boundingBox();
   expect(box!.height).toBeGreaterThan(100);
+  await expect(composer).toBeInViewport();
+
+  // "Close all" closes every card
+  await panel.getByRole('button', { name: 'Close all' }).click();
+  await expect(panel.locator('[data-card][data-open="true"]')).toHaveCount(0);
+  await expect(panel.locator('[data-card] > h3 > button[aria-expanded="true"]')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Close all' })).toHaveCount(0);
 
   await page.keyboard.press('j');
   await expect(name).not.toHaveText(first);
   await page.keyboard.press('k');
   await expect(name).toHaveText(first);
+
+  // hide the panel, then bring it back from the list
+  await panel.getByRole('button', { name: 'Hide panel (Esc)' }).click();
+  await expect(panel).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show panel' }).click();
+  await expect(page.getByRole('complementary', { name: 'Quick panel' })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Quick panel' }).getByTestId('qp-name')).toHaveText(first);
 });

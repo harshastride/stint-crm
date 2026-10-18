@@ -1,6 +1,14 @@
 import { expect, test } from '@playwright/test';
 import { env, login, service } from './helpers';
 
+/** Open a card of the quick panel by clicking its header, only if it is closed (what starts open depends on the role). */
+async function openPanelCard(panel: import('@playwright/test').Locator, id: string) {
+  const card = panel.getByTestId('card-' + id);
+  if ((await card.getAttribute('data-open')) === 'false') await card.getByRole('button').first().click();
+  await expect(card).toHaveAttribute('data-open', 'true');
+  return card;
+}
+
 const mobile = '7' + String(Date.now()).slice(-9);
 
 test.afterAll(async () => {
@@ -558,10 +566,10 @@ test('timelines: icon history with filters, and the journey on the full profile'
   await login(page, 'harsha');
   await page.goto('/p/candidate?person=candidate:' + c!.id);
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
-  await panel.getByRole('tab', { name: 'Timeline' }).click();
-  await expect(panel.getByRole('button', { name: 'All', pressed: true })).toBeVisible();
-  await panel.getByRole('button', { name: 'Fees' }).click();
-  await expect(panel.getByText(/Payment ₹/).first()).toBeVisible();
+  const activity = await openPanelCard(panel, 'activity');
+  await expect(activity.getByRole('button', { name: 'All', pressed: true })).toBeVisible();
+  await activity.getByRole('button', { name: /^Fees/ }).click();
+  await expect(activity.getByText(/Payment ₹/).first()).toBeVisible();
   await page.goto('/candidate/' + c!.id);
   const j = page.getByRole('list', { name: 'Journey' });
   await expect(j.locator('li')).toHaveCount(9);
@@ -579,8 +587,8 @@ test('toasts: a change shows Undo, and Undo puts it back', async ({ page }) => {
   await login(page, 'harsha');
   await page.goto('/p/candidate?person=candidate:' + fu!.candidate_id);
   const panel = page.getByRole('complementary', { name: 'Quick panel' });
-  await panel.getByRole('button', { name: /follow-up/, expanded: false }).click();   // follow-ups fold into a count chip
-  await panel.locator('div').filter({ hasText: f!.title }).getByRole('button', { name: 'Done' }).first().click();
+  const follow = await openPanelCard(panel, 'follow');
+  await follow.locator('div').filter({ hasText: f!.title }).getByRole('button', { name: 'Done' }).first().click();
   await expect(page.getByRole('status').filter({ hasText: 'Done: ' + f!.title })).toBeVisible();
   expect((await db.from('follow_up').select('status').eq('id', f!.id).single()).data!.status).toBe('Done');
   await page.getByRole('button', { name: 'Undo' }).click();

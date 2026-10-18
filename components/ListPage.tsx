@@ -1,7 +1,7 @@
 'use client';
 import { Board } from './kit/Board';
 import { Funnel } from './kit/Funnel';
-import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, KanbanSquare, Lock, Minus, Pencil, RotateCw, Search, Settings2, Table2, X, Phone, CalendarPlus, NotebookPen } from 'lucide-react';
+import { ArrowDown, ArrowUp, Bookmark, BookmarkPlus, Check, ListFilter, ChevronLeft, ChevronRight, Columns3, KanbanSquare, Lock, Minus, Pencil, RotateCw, Search, Settings2, Table2, X, Phone, CalendarPlus, NotebookPen, PanelRightOpen } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -791,7 +791,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
         <PageHeader group={meta?.grp || ''} title={meta?.title || cfg.id} purpose={cfg.purpose}
           scope={s.staff.role === 'Admin' ? 'Admin · all records' : s.staff.role + (canWrite ? ' · can edit' : ' · view only')}>
           {cfg.csv && canExport && <Button variant="quiet" onClick={exportCsv}>Export</Button>}
-          {cfg.person && person && !panelOpen && <Button variant="quiet" className="max-md:hidden" onClick={() => setPanelOpen(true)}>Show panel</Button>}
+          {cfg.person && person && !panelOpen && <Button variant="quiet" className="max-md:hidden" leftIcon={<PanelRightOpen size={15} aria-hidden />} onClick={() => setPanelOpen(true)}>Show panel</Button>}
           {canWrite && cfg.fields && !cfg.noCreate && cfg.cta && <Button variant="cta" onClick={onCta}>{cfg.cta}</Button>}
         </PageHeader>
 
