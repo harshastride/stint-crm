@@ -9,6 +9,7 @@ import { Button, Notice, Toolbar } from '../ui';
 import { PageHeader } from '../kit/PageHeader';
 import { PhoneInput, phoneProblem } from '../PhoneInput';
 import { VoiceInput, appendText } from '../kit/VoiceInput';
+import { ReferrerPicker, type Referrer } from '../kit/ReferrerPicker';
 
 const blank = { full_name: '', mobile: '', email: '', city: '', program_id: '', course_other: '', preferred_mode: '', preferred_start: '', currently: '', source_id: '', referred_by: '', notes: '', consent: false };
 const ctl = 'h-11 w-full px-3 text-sm aria-[invalid=true]:ring-2 aria-[invalid=true]:ring-badText';
@@ -28,9 +29,14 @@ export function EnquiryForm() {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [err, setErr] = useState<Record<string, string>>({});
+  const [referrer, setReferrer] = useState<Referrer | null>(null);
+  const [pickerKey, setPickerKey] = useState(0); // a fresh picker for the next enquiry
+  // a source of type Referral (e.g. "Alumni referral link") needs to know who referred them
+  const src = s.refs.lead_source.find((x) => x.id === v.source_id);
+  const isReferral = src?.extra?.type === 'Referral' || /referr/i.test(src?.label || '');
   const saving = useRef(false);
   const formRef = useRef<HTMLDivElement>(null);
-  const dirty = !!(String(v.full_name).trim() || String(v.mobile).trim() || v.program_id || String(v.notes).trim());
+  const dirty = !!(String(v.full_name).trim() || String(v.mobile).trim() || v.program_id || String(v.notes).trim() || referrer);
   // leaving the page half-way asks the browser to confirm
   useEffect(() => {
     if (!dirty) return;
@@ -64,7 +70,8 @@ export function EnquiryForm() {
     if (!String(v.full_name).trim()) missing.push('full name');
     if (mobile.length !== 10 || phoneProblem(mobile)) missing.push('a 10-digit mobile starting with 6–9');
     if (!v.program_id && !String(v.course_other).trim()) missing.push('the course they want');
-    if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); return; }
+    if (isReferral && !referrer) missing.push('who referred them (search, or add a new referrer)');
+    if (missing.length) { setMsg({ tone: 'bad', text: 'Still needed: ' + missing.join(', ') + '.' }); if (isReferral && !referrer) setErr((e) => ({ ...e, referrer: 'Search for who referred them, or add them as a new referrer.' })); return; }
     saving.current = true; setBusy(true); setMsg(null);
     const db = supabase();
     const dupe = { data: await findByMobile(mobile) };
@@ -72,7 +79,7 @@ export function EnquiryForm() {
     const row = {
       full_name: String(v.full_name).trim(), mobile, email: v.email || null, city: v.city || null, program_id: v.program_id && v.program_id !== '__other' ? v.program_id : null,
       course_other: v.program_id === '__other' ? String(v.course_other).trim() : null, preferred_mode: v.preferred_mode || null, preferred_start: v.preferred_start || null,
-      currently: v.currently || null, source_id: v.source_id || null, referred_by: v.referred_by || null, notes: v.notes || null, created_by: s.staff.id,
+      currently: v.currently || null, source_id: v.source_id || null, referred_by: referrer?.name || null, referrer_kind: referrer?.kind || null, referrer_id: referrer?.id || null, notes: v.notes || null, created_by: s.staff.id,
       marketing_consent: !!v.consent, consent_at: v.consent ? new Date().toISOString() : null,
     };
     const { data, error } = await db.from('lead').insert(row).select('id, owner:owner_id(full_name)').single();
@@ -80,6 +87,8 @@ export function EnquiryForm() {
     if (error) { setMsg({ tone: 'bad', text: (error.code === '23505' ? 'This mobile is already in the CRM.' : error.message) + ' What you typed is kept.' }); return; }
     setMsg({ tone: 'good', text: `${row.full_name} saved as a new lead${data?.owner?.full_name ? ' and assigned to ' + data.owner.full_name : ''}.`, id: data?.id });
     setV({ ...blank, source_id: walkIn });
+    setReferrer(null);
+    setPickerKey((k) => k + 1);
     setErr({});
     setStep(0);
   };
@@ -149,7 +158,11 @@ export function EnquiryForm() {
             <label className="flex flex-col gap-1 text-xs font-medium text-text2">Source
               <select className={ctl} value={v.source_id} onChange={set('source_id')}><option value="">Select</option>{s.refs.lead_source.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select>
             </label>
-            <label className="flex flex-col gap-1 text-xs font-medium text-text2">Referred by<input className={ctl} value={v.referred_by} onChange={set('referred_by')} placeholder="Name, if any" /></label>
+            <div data-field="referrer" className="flex flex-col gap-1 text-xs font-medium text-text2">
+              <span>Referred by {isReferral ? <span className="text-badText" aria-hidden>*</span> : <span className="font-normal text-muted">(if anyone)</span>}</span>
+              <ReferrerPicker key={pickerKey} value={referrer} required={isReferral} error={err.referrer}
+                onChange={(r) => { setReferrer(r); if (r && err.referrer) setErr((x) => ({ ...x, referrer: '' })); }} />
+            </div>
             <div className="flex flex-col gap-1">
               <label className="flex flex-col gap-1 text-xs font-medium text-text2">Notes<input className={ctl} value={v.notes} onChange={set('notes')} placeholder="Anything they asked about" /></label>
               <VoiceInput context="enquiry" label="Speak the notes" onText={(t) => setV((x) => ({ ...x, notes: appendText(String(x.notes || ''), t) }))} />
@@ -159,7 +172,7 @@ export function EnquiryForm() {
             <input type="checkbox" className="h-5 w-5" checked={!!v.consent} onChange={(e) => setV({ ...v, consent: e.target.checked })} />
             <span>They agree to get course updates and offers on WhatsApp, SMS and email <span className="text-muted">(ask them; leave unticked if not)</span></span>
           </label>
-          <p className="mt-3 truncate rounded-lg bg-surface2 px-3 py-2.5 text-[13px] text-text2"><b className="text-text">{v.full_name}</b> · +91 {String(v.mobile).replace(/(\d{5})(\d{5})/, '$1 $2')}{v.email ? ' · ' + v.email : ''} · wants <b className="text-text">{v.program_id === '__other' ? v.course_other : s.refs.program.find((x) => x.id === v.program_id)?.label}</b></p>
+          <p className="mt-3 truncate rounded-lg bg-surface2 px-3 py-2.5 text-[13px] text-text2"><b className="text-text">{v.full_name}</b> · +91 {String(v.mobile).replace(/(\d{5})(\d{5})/, '$1 $2')}{v.email ? ' · ' + v.email : ''} · wants <b className="text-text">{v.program_id === '__other' ? v.course_other : s.refs.program.find((x) => x.id === v.program_id)?.label}</b>{referrer ? ' · referred by ' + referrer.name : ''}</p>
         </section>}
         {msg && <Notice tone={msg.tone}>{msg.text} {msg.id && s.can('lead') && <Link className="underline" href={'/p/lead?person=lead:' + msg.id}>Open the lead</Link>}</Notice>}
         <div className="sticky bottom-0 z-20 -mx-4 mt-auto border-t border-line bg-bg px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 md:-mx-6 md:px-6"><Toolbar

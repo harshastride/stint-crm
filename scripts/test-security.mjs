@@ -1420,5 +1420,60 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   }
 }
 
+// Referrals (migration 085): look up who referred an enquiry; mobiles stay private; the link is checked in the database
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const made = { leads: [], referrers: [] };
+  try {
+    const priya = (await svc.from('candidate').select('id').eq('full_name', 'Priya Reddy').maybeSingle()).data;
+    const pm = priya ? String((await svc.from('candidate_private').select('contact').eq('candidate_id', priya.id).single()).data?.contact?.mobile || '').replace(/\D/g, '').slice(-10) : '';
+    const found = (await desk.rpc('referrer_search', { p_term: 'Priya' })).data || [];
+    const hitP = found.find((h) => h.kind === 'candidate' && h.id === priya?.id);
+    check('Referral: front desk finds a student by name', !!hitP, JSON.stringify(found));
+    check('Referral: search shows at most the last 4 digits of a mobile', found.every((h) => !h.mobile_last4 || /^•+\d{4}$/.test(h.mobile_last4)) && (!pm || !JSON.stringify(found).includes(pm.slice(0, 6))), JSON.stringify(found.map((h) => h.mobile_last4)));
+    if (pm.length === 10) {
+      check('Referral: the full mobile finds the student', ((await desk.rpc('referrer_search', { p_term: pm })).data || []).some((h) => h.id === priya.id));
+      check('Referral: part of a mobile finds nobody (no digit-by-digit guessing)', ((await desk.rpc('referrer_search', { p_term: pm.slice(-6) })).data || []).every((h) => h.id !== priya.id));
+      const visible = (await desk.rpc('contact_status', { p_kind: 'candidate', p_id: priya.id })).data?.allowed === true;
+      const same = (await desk.rpc('referrer_add', { p_name: 'Someone Else', p_mobile: pm, p_city: 'Hyderabad' })).data;
+      if (same?.kind === 'referrer' && !same.existing) made.referrers.push(same.id);
+      check(visible ? 'Referral: adding a student’s mobile links that student' : 'Referral: adding a hidden student’s mobile does not reveal who it is',
+        visible ? same?.kind === 'candidate' && same?.id === priya.id : same?.kind === 'referrer' && same?.name === 'Someone Else', JSON.stringify(same));
+    }
+    check('Referral: a trainer cannot search referrers', ((await trainer.rpc('referrer_search', { p_term: 'Priya' })).data || []).length === 0);
+    check('Referral: a telecaller cannot search referrers (no back door to other people’s leads)', ((await tele.rpc('referrer_search', { p_term: 'a' + 'a' })).data || []).length === 0
+      && ((await tele.rpc('referrer_search', { p_term: 'Priya' })).data || []).length === 0);
+    const rm = '7' + String(Date.now()).slice(-9);
+    const add = await desk.rpc('referrer_add', { p_name: 'Ref Test Person', p_mobile: rm, p_city: 'Ameerpet' });
+    if (add.data?.id) made.referrers.push(add.data.id);
+    check('Referral: front desk adds a new referrer with name, mobile and city', add.data?.kind === 'referrer' && add.data?.existing === false, add.error?.message);
+    const again = (await desk.rpc('referrer_add', { p_name: 'Ref Test Again', p_mobile: '0' + rm, p_city: 'Ameerpet' })).data;
+    check('Referral: the same mobile is not added twice (even typed with a leading 0)', again?.id === add.data?.id && again?.existing === true, JSON.stringify(again));
+    check('Referral: a referrer needs a city', !!(await desk.rpc('referrer_add', { p_name: 'No City', p_mobile: '9' + String(Date.now()).slice(-9), p_city: ' ' })).error);
+    check('Referral: staff cannot read a referrer’s mobile', !!(await desk.from('referrer').select('mobile')).error);
+    check('Referral: staff can read a referrer’s name and city', ((await desk.from('referrer').select('full_name, city').eq('id', add.data?.id)).data || []).length === 1);
+    const direct = await desk.from('referrer').insert({ full_name: 'x', mobile: '9999999999', city: 'x' }).select('id');
+    if (direct.data?.[0]) made.referrers.push(direct.data[0].id);
+    check('Referral: staff cannot add referrers directly', !!direct.error);
+    const lm = '8' + String(Date.now()).slice(-9);
+    const lead = await desk.from('lead').insert({ full_name: 'Referred Test Lead', mobile: lm, referred_by: 'Wrong Name', referrer_kind: 'referrer', referrer_id: add.data?.id }).select('id').single();
+    if (lead.data) made.leads.push(lead.data.id);
+    const back = lead.data ? (await svc.from('lead').select('referred_by, referrer_kind, referrer_id').eq('id', lead.data.id).single()).data : null;
+    check('Referral: the enquiry keeps who referred them, with the name taken from the link', back?.referrer_kind === 'referrer' && back?.referrer_id === add.data?.id && back?.referred_by === 'Ref Test Person', lead.error?.message || JSON.stringify(back));
+    const bad = await desk.from('lead').insert({ full_name: 'Bad Link Lead', mobile: '6' + String(Date.now()).slice(-9), referrer_kind: 'candidate', referrer_id: '00000000-0000-0000-0000-000000000000' }).select('id');
+    if (bad.data?.[0]) made.leads.push(bad.data[0].id);
+    check('Referral: a link to someone who does not exist is refused', !!bad.error);
+  } finally {
+    if (made.leads.length) {
+      await svc.from('teams_message').delete().in('source_event_id', ((await svc.from('integration_event').select('id').in('entity_id', made.leads)).data || []).map((e) => e.id));
+      await svc.from('integration_event').delete().in('entity_id', made.leads);
+      await svc.from('follow_up').delete().in('lead_id', made.leads);
+      await svc.from('status_history').delete().in('entity_id', made.leads);
+      await svc.from('lead').delete().in('id', made.leads);
+    }
+    if (made.referrers.length) await svc.from('referrer').delete().in('id', made.referrers);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

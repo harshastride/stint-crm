@@ -54,7 +54,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       db.from('batch').select('id,code').order('code'),
       db.from('branch').select('id,name').order('name'),
       db.from('company').select('id,name').order('name'),
-      db.from('lead_source').select('id,name').order('name'),
+      db.from('lead_source').select('id,name,type').order('name'),
       db.from('campaign').select('id,name').order('name'),
       db.from('custom_field').select('*').order('sort').order('created_at'),
     ]);
@@ -84,7 +84,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         batch: (batches.data || []).map((b: { id: string; code: string }) => ({ id: b.id, label: b.code })),
         branch: (branches.data || []).map((b: { id: string; name: string }) => ({ id: b.id, label: b.name })),
         company: (companies.data || []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name })),
-        lead_source: (sources.data || []).map((s: { id: string; name: string }) => ({ id: s.id, label: s.name })),
+        lead_source: (sources.data || []).map((s: { id: string; name: string; type: string }) => ({ id: s.id, label: s.name, extra: { type: s.type } })),
         campaign: (campaigns.data || []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name })),
       },
     });
