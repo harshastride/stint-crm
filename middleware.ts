@@ -53,7 +53,8 @@ export async function middleware(request: NextRequest) {
   }
   if (path.startsWith('/api/') || path.startsWith('/supabase/')) return secure(NextResponse.next(), request, policy);
   // /v/<code>: public receipt/quote check (QR on the PDF); shows only limited, non-personal fields.
-  if (path.startsWith('/v/')) {
+  // /b/<token>: a course brochure sent to a lead as a private link; no staff or contact details on it.
+  if (path.startsWith('/v/') || path.startsWith('/b/')) {
     const h = new Headers(request.headers); h.set('x-nonce', nonce); h.set('Content-Security-Policy', policy);
     const res = secure(NextResponse.next({ request: { headers: h } }), request, policy);
     res.headers.set('X-Robots-Tag', 'noindex, nofollow');

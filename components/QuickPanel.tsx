@@ -1,6 +1,7 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import Link from 'next/link';
-import { CalendarPlus, PanelRightClose, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, X } from 'lucide-react';
+import { CalendarPlus, PanelRightClose, ChevronDown, ChevronUp, Copy, Mail, Maximize2, MessageCircle, Mic, Phone, Sparkles, X } from 'lucide-react';
 import { Avatar } from './kit/Avatar';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -31,6 +32,8 @@ import { FeesCard } from './panel/FeesCard';
 import { AttendanceCard } from './panel/AttendanceCard';
 import { MocksResumeCard } from './panel/MocksResumeCard';
 import { DocumentsCard } from './panel/DocumentsCard';
+import { BrochureCard } from './panel/BrochureCard';
+import { LeadSignalLine } from './kit/ScoreBadge';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 
 /** Cards each role usually needs first (Stage, Next follow-ups, Fees, Attendance, Mocks and resume, Documents, Calls and notes, Activity, Messages, Details). */
@@ -124,6 +127,17 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   }, [person.kind, person.id, isLead, idCol]);
 
   useEffect(() => { setP(null); setMsg(null); setAction(null); setForm({}); setStageAsk(null); setInvite(null); load(); }, [load]);
+  // back from Live help: open Log call filled with the call summary (kept in this tab only, never in the address)
+  useEffect(() => {
+    if (!p || p.id !== person.id || !isLead || !canCall) return;   // after the lead has loaded, so the panel reset does not wipe it
+    const k = 'stint-live-draft:' + person.id;
+    let d: { outcome?: string | null; body?: string; duration?: number } | null = null;
+    try { d = JSON.parse(sessionStorage.getItem(k) || 'null'); sessionStorage.removeItem(k); } catch { d = null; }
+    if (!d) return;
+    const outcome = d.outcome && (s.lists.call_outcome || []).includes(d.outcome) ? d.outcome : undefined;
+    setAction('call'); setForm({ outcome, body: d.body || '', duration: Number(d.duration || 0) });
+    setMsg({ tone: 'good', text: 'Filled in from Live help. Check the outcome and notes, then press Save call.' });
+  }, [p, person.id, isLead, canCall, s.lists.call_outcome]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -268,6 +282,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
               {contact.mobile && isAdmin && <button type="button" aria-label="Copy" disabled={!!lockReason} title={lockReason || 'Copy number'} onClick={() => openContact('mobile', 'copy')} className={cx(pillBtn, 'w-8 justify-center px-0')}><Copy size={14} strokeWidth={1.8} aria-hidden /></button>}
             </div>
           )}
+          {/* score and best time to call; reloads after a new call or note */}
+          {isLead && <LeadSignalLine key={person.id + ':' + (lastLog?.at || '')} leadId={person.id} />}
           {lockReason && <div role="note" className="rounded-[10px] bg-warnBg px-3 py-1.5 text-[12px] font-medium text-warnText">{lockReason.startsWith('Details locked') ? lockReason : 'Details locked: ' + lockReason} — ask Admin</div>}
           <Viewers kind={person.kind} id={person.id} />
         </div>
@@ -318,6 +334,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           )}
           <button type="button" onClick={() => pick('task')} className={cx(rowBtn, 'mt-1 self-start')}><CalendarPlus size={14} strokeWidth={1.8} aria-hidden />New follow-up</button>
         </RailCard>
+
+        {isLead && <BrochureCard leadId={person.id} programId={p.program_id ?? null} {...card} open={card.open('brochure')} />}
 
         {!isLead && <>
           <FeesCard candidateId={person.id} {...card} open={card.open('fees')} reloadKey={tick} />
@@ -375,7 +393,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
                     const res = await fetch('/api/portal/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidate_id: person.id }) });
                     const out = await res.json(); setBusy(false);
                     if (res.ok) setInvite({ email: out.email, password: out.password, url: window.location.origin + '/login', reset: !!out.reset });
-                    else setMsg({ tone: 'bad', text: out.error || 'Could not invite.' });
+                    else setMsg({ tone: 'bad', text: plainMessage(out.error, 'Could not invite.') });
                   }} title="Creates the student's login, or gives them a new temporary password if they already have one">Invite or reset portal login</Button>
                 )}
               </>
@@ -398,6 +416,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
             ))}
           </div>
           {mode && <button type="button" aria-label="Close the box" title="Close (keeps nothing)" onClick={() => { setAction(null); setForm({}); }} className={iconBtn}><X size={16} strokeWidth={1.8} /></button>}
+          {canCall && <Link href={'/live/' + person.id} aria-label="Live help during a call" title="Live help: tips while you talk (phone on speaker)" className={iconBtn}><Sparkles size={16} strokeWidth={1.8} /></Link>}
           {canRecord && <button type="button" aria-label="Record" title="Record a talk" aria-pressed={mode === 'record'} onClick={() => pick('record')} className={cx(iconBtn, mode === 'record' && 'bg-accentSoft text-accentText')}><Mic size={16} strokeWidth={1.8} /></button>}
         </div>
         {mode === 'record' && <Recorder person={person} onSaved={(t) => { setMsg({ tone: 'good', text: t }); setAction(null); }} />}

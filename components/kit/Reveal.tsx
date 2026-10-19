@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { Eye, EyeOff, Lock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -15,7 +16,7 @@ export function contactStatus(kind: RevealKind, id: string, fresh = false): Prom
   if (fresh || !statusCache.has(key)) {
     statusCache.set(key, (async () => {
       const { data, error } = await supabase().rpc('contact_status', { p_kind: kind, p_id: id });
-      if (error || !data) return { allowed: false, reason: error?.message || 'Not available', seconds: 60 };
+      if (error || !data) return { allowed: false, reason: error ? friendlyError(error, 'this', 'Not available') : 'Not available', seconds: 60 };
       return { allowed: !!data.allowed, reason: data.reason ?? null, seconds: Number(data.seconds) || 60 };
     })());
   }
@@ -41,7 +42,7 @@ export async function revealOnce(kind: RevealKind, id: string, field: string): P
 }
 async function revealWithReason(kind: RevealKind, id: string, field: string): Promise<{ value: string | null; reason?: string }> {
   const { data, error } = await supabase().rpc('reveal_contact', { p_kind: kind, p_id: id, p_field: field });
-  if (error) return { value: null, reason: error.message };
+  if (error) return { value: null, reason: friendlyError(error, 'this', 'Could not show it. Please try again.') };
   return { value: data == null ? null : String(data) };
 }
 

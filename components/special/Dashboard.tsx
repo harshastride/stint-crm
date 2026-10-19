@@ -1,7 +1,8 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ArrowRight, Info } from 'lucide-react';
+import { ArrowRight, Info, PhoneCall } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
 import type { Row } from '@/lib/pages';
@@ -18,6 +19,10 @@ import { TargetRing } from '../kit/TargetRing';
 import { PageHeader } from '../kit/PageHeader';
 import { CallBrief } from './CallBrief';
 import { OwnerSummary } from './OwnerSummary';
+import { CollectionsForecast } from './CollectionsForecast';
+import { AskBox } from './AskCrm';
+import { PickupHeatmap } from './PickupHeatmap';
+import { WinBackCard } from './WinBackCard';
 
 const TITLES: Record<string, [string, string]> = {
   Admin: ['Whole CRM at a glance', 'What needs attention, then how the month is going.'], 'Front desk': ['Today at the desk', 'Who walked in, and whose data sheet is still open?'],
@@ -36,6 +41,8 @@ type Metrics = {
   enrolled_month: number | null; enrolled_last: number | null; joining_soon: number | null;
   target: number | null; target_mine: boolean; target_done: number | null; sources: SourceRow[] | null;
 };
+/** capture_counts(): New conversations (people who wrote in or gave a missed call and are not leads yet), with the viewer's rights. */
+type Capture = { new: number; mine: number; unclaimed: number; today: number };
 type Tile = { id: string; label: string; value: string | number; def: string; href: string; tone?: 'bad' | 'good'; note?: string; spark?: SparkPoint[]; sparkMoney?: boolean };
 
 const short = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
@@ -92,30 +99,39 @@ export function Dashboard() {
   const s = useSession();
   const [m, setM] = useState<Metrics | null>(null);
   const [err, setErr] = useState('');
-  const [lists, setLists] = useState<{ tasks: Row[]; alerts: Row[]; trends: Row[] } | null>(null);
+  const [lists, setLists] = useState<{ tasks: Row[]; alerts: Row[]; trends: Row[]; capture: Capture | null } | null>(null);
 
   useEffect(() => {
     const db = supabase();
     let live = true;
-    db.rpc('dashboard_metrics').then(({ data, error }) => { if (!live) return; if (error) setErr(error.message); else setM(data as Metrics); });
+    db.rpc('dashboard_metrics').then(({ data, error }) => { if (!live) return; if (error) setErr(friendlyError(error, 'this', 'Something went wrong')); else setM(data as Metrics); });
     Promise.all([
       db.from('follow_up').select('*, lead:lead_id(id,full_name), candidate:candidate_id(id,full_name)').eq('status', 'Open').order('due_at').limit(7),
       s.can('alert') ? db.from('alert').select('*, lead:lead_id(full_name), candidate:candidate_id(full_name)').eq('status', 'Open').order('raised_at', { ascending: false }).limit(14) : Promise.resolve({ data: [] }),
       db.rpc('kpi_trends', { days: 30 }).then((r) => r, () => ({ data: [] })),
-    ]).then(([tasks, alerts, trends]) => {
+      // a failure here only hides the tile; the rest of the dashboard still shows
+      s.can('inbox') ? db.rpc('capture_counts').then((r) => (r.error ? null : (r.data as Capture)), () => null) : Promise.resolve(null),
+    ]).then(([tasks, alerts, trends, capture]) => {
       if (!live) return;
       const t: Row[] = tasks.data || [];
       // A "followup_missed" alert is about the same person as an overdue follow-up already listed: skip it (matched by reason + person id).
       const shown = new Set(t.filter((f) => new Date(f.due_at).getTime() < Date.now()).map((f) => f.candidate_id || f.lead_id).filter(Boolean));
       const a = ((alerts.data || []) as Row[]).filter((x) => !(x.reason === 'followup_missed' && shown.has(x.candidate_id || x.lead_id))).slice(0, 6);
-      setLists({ tasks: t, alerts: a, trends: (trends.data as Row[]) || [] });
+      setLists({ tasks: t, alerts: a, trends: (trends.data as Row[]) || [], capture });
     });
     return () => { live = false; };
   }, [s]);
 
   const [title, sub] = TITLES[s.staff.role] || TITLES.Admin;
-  const header = <PageHeader title={title} description={sub} />;
-  if (err) return <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">{header}<p className="text-badText">Could not load the dashboard numbers: {err}. Refresh to try again.</p></main>;
+  // Start my calls: the calling queue, for the people who work it. Ask the CRM: a question box under the title.
+  const startCalls = ['Telecaller', 'Sales'].includes(s.staff.role) && s.can('queue') ? (
+    <Link href="/p/queue" data-testid="start-calls"
+      className="btn inline-flex h-11 items-center gap-2 rounded-[10px] border border-transparent bg-accent px-5 text-sm font-semibold text-white hover:brightness-110">
+      <PhoneCall size={16} aria-hidden />Start my calls
+    </Link>
+  ) : undefined;
+  const header = <PageHeader title={title} description={sub} actions={startCalls} filters={s.can('ask') ? <AskBox className="w-full max-w-xl" /> : undefined} />;
+  if (err) return <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">{header}<p className="text-badText">Could not load the dashboard numbers. {err.replace(/\.$/, '')}. Refresh to try again.</p></main>;
   if (!m || !lists) return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">
       {header}
@@ -141,6 +157,12 @@ export function Dashboard() {
     def: 'Alerts raised by the CRM’s rules (for example, a lead not called for days) that nobody has resolved yet.', href: '/p/alert?view=Open' });
   if (m.fees_overdue_amt != null) attention.push({ id: 'fees_overdue', label: 'Overdue fees', value: money(m.fees_overdue_amt), tone: m.fees_overdue_amt ? 'bad' : 'good', note: `${m.fees_overdue_n} payment${m.fees_overdue_n === 1 ? '' : 's'} marked Overdue`,
     def: 'Total of fee payments whose status is Overdue (a due date has passed without payment).', href: '/p/payment?view=All&f.status=Overdue' });
+  if (lists.capture) {
+    const c = lists.capture;
+    attention.push({ id: 'capture_new', label: 'New conversations', value: c.new, tone: c.unclaimed ? 'bad' : c.new ? undefined : 'good',
+      note: c.new ? (c.unclaimed ? `${c.unclaimed} not taken by anyone yet` : 'All taken by someone') : 'None waiting.',
+      def: 'People who messaged the institute on WhatsApp or gave a missed call, are not leads yet, and are still marked New. “Not taken” means nobody has pressed Take this.', href: '/p/inbox' });
+  }
   if (m.joining_soon != null && ['Placement', 'Admin'].includes(s.staff.role)) attention.push({ id: 'joining_soon', label: 'Joining soon', value: m.joining_soon, note: 'Offers waiting for joining',
     def: 'Placements with status “Joining soon”: the candidate accepted an offer and has not joined yet.', href: '/p/placement?view=Joining soon' });
 
@@ -201,14 +223,19 @@ export function Dashboard() {
     </>
   );
 
+  const caller = ['Telecaller', 'Sales'].includes(s.staff.role);
+  const winBack = ['Telecaller', 'Sales', 'Admin'].includes(s.staff.role) && s.can('winback') ? <WinBackCard /> : null;
+
   return (
     <main className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:px-6 md:py-5">
       {header}
       <Checklist />
       <Tiles label="Needs attention" tiles={attention} compact />
-      {['Telecaller', 'Sales'].includes(s.staff.role) && s.can('lead') && <CallBrief />}
+      {caller && s.can('lead') && <CallBrief />}
+      {caller && winBack}
       <Tiles label={`This month so far · ${monthSpan}`} tiles={month} />
       {ring}
+      {['Finance', 'Admin'].includes(s.staff.role) && s.can('payment') && <CollectionsForecast />}
       {s.staff.role === 'Admin' && <OwnerSummary />}
       <div className="gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid" style={{ columnWidth: 380, columnGap: 12 }}>
         {workLists}
@@ -216,6 +243,8 @@ export function Dashboard() {
         {showSources && <DashboardInsights sources={m.sources!} from={m.month_from} to={m.today} />}
         <Leaderboard role={s.staff.role} />
       </div>
+      {!caller && winBack}
+      {['Telecaller', 'Sales', 'Admin'].includes(s.staff.role) && s.can('call') && <PickupHeatmap />}
       {['Telecaller', 'Sales', 'HR / Counsellor', 'Placement', 'Front desk', 'Admin'].includes(s.staff.role) && <ActivityHeatmap />}
     </main>
   );

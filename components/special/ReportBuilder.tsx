@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { BarChart3, Check, Download, LineChart, Plus, Save, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -90,7 +91,7 @@ export function ReportBuilder() {
       db.rpc('run_report', { p_def: sent }).then(({ data, error }: { data: unknown; error: { message: string } | null }) => {
         if (!live) return;
         setBusy(false);
-        if (error) { setErr(error.message); setRes(null); } else { setErr(''); setRes(data as Result); }
+        if (error) { setErr(friendlyError(error, 'this', 'Could not run the report. Please try again.')); setRes(null); } else { setErr(''); setRes(data as Result); }
       });
     }, 250);
     return () => { live = false; clearTimeout(t); };
@@ -141,7 +142,7 @@ export function ReportBuilder() {
     const r = savedId && saved.find((x) => x.id === savedId)?.owner === s.staff.id
       ? await db.from('saved_report').update({ ...row, updated_at: new Date().toISOString() }).eq('id', savedId).select('id').single()
       : await db.from('saved_report').insert(row).select('id').single();
-    if (r.error) { setMsg(''); setErr(r.error.message); return; }
+    if (r.error) { setMsg(''); setErr(friendlyError(r.error, 'reports', 'Could not save the report. Please try again.')); return; }
     setSavedId(r.data.id); setMsg('Report saved'); loadSaved();
   };
   const open = (id: string) => {

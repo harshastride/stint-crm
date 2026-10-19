@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Button, Notice } from './ui';
@@ -18,10 +19,10 @@ export function ChangePassword({ forced, onDone }: { forced?: boolean; onDone: (
     setBusy(true); setMsg(null);
     const db = supabase();
     const { error } = await db.auth.updateUser({ password: pw });
-    if (error) { setBusy(false); setMsg(/different from the old/i.test(error.message) ? 'Pick a password different from the temporary one.' : error.message); return; }
+    if (error) { setBusy(false); setMsg(/different from the old/i.test(error.message) ? 'Pick a password different from the temporary one.' : plainMessage(error.message, 'Could not change the password. Please try again.')); return; }
     const r = await db.rpc('password_changed');
     setBusy(false);
-    if (r.error) { setMsg(r.error.message); return; }
+    if (r.error) { setMsg(plainMessage(r.error.message, 'Could not save. Please try again.')); return; }
     onDone();
   };
 

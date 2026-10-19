@@ -145,8 +145,8 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('Trainer (role that does not own candidates) still sees candidates', kc.length > 0); }
 
 // 2.3 File uploads: private bucket, access follows the page grid
-{ const path = `${cand.id}/doc/${Date.now()}-test.txt`;
-  const up = await hr.storage.from('candidate-files').upload(path, new Blob(['hello']), { contentType: 'text/plain' });
+{ const path = `${cand.id}/doc/${Date.now()}-test.pdf`;
+  const up = await hr.storage.from('candidate-files').upload(path, new Blob(['hello'], { type: 'application/pdf' }), { contentType: 'application/pdf' });
   check('HR can attach a document file', !up.error, up.error?.message);
   const link = await hr.storage.from('candidate-files').createSignedUrl(path, 60);
   check('HR gets a signed download link', !!link.data?.signedUrl, link.error?.message);
@@ -328,6 +328,13 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('The person who recorded can play it', !!own.data?.signedUrl, own.error?.message);
   const stray = await tele.storage.from('recordings').upload(`${crypto.randomUUID()}.webm`, new Blob(['x']));
   check('Audio cannot be stored without its recording row', !!stray.error);
+  // migration 087: a saved processing problem never names an outside service or a server setting
+  await svc.from('recording').update({ process_error: 'DEEPGRAM_API_KEY is not set on the server.' }).eq('id', r.id);
+  const pe = (await tele.from('recording').select('process_error').eq('id', r.id).single()).data;
+  check('Recording problem is saved in plain words, without service names', !!pe?.process_error && !/deepgram|api_key/i.test(pe.process_error), pe?.process_error);
+  await svc.from('recording').update({ process_error: 'Could not read the audio: missing' }).eq('id', r.id);
+  check('Recording problem in plain words is kept as written', (await svc.from('recording').select('process_error').eq('id', r.id).single()).data?.process_error === 'Could not read the audio: missing');
+  await svc.from('recording').update({ process_error: null }).eq('id', r.id);
 
   // clean-up: audio past the retention period is removed, transcript kept
   await svc.from('recording').update({ created_at: '2020-01-01', transcript_text: 'kept' }).eq('id', r.id);
@@ -463,7 +470,7 @@ const mobile = '9' + String(Date.now()).slice(-9);
   const leads = (await st.from('lead').select('id')).data || [], cands = (await st.from('candidate').select('id')).data || [], pays = (await st.from('fee_payment').select('id')).data || [];
   check('A student cannot read leads, students or payments', leads.length + cands.length + pays.length === 0, [leads.length, cands.length, pays.length].join('/'));
   const other = (await svc.from('candidate').select('id').neq('id', c.id).limit(1).single()).data;
-  const up = await st.storage.from('candidate-files').upload(`${other.id}/doc/x.pdf`, new Blob(['x']));
+  const up = await st.storage.from('candidate-files').upload(`${other.id}/doc/x.pdf`, new Blob(['x'], { type: 'application/pdf' }), { contentType: 'application/pdf' });
   check('A student cannot upload into another student’s files', !!up.error);
   const png = 'data:image/png;base64,iVBORw0KGgo=';
   const sg = await st.rpc('portal_sign', { p_png: png });
@@ -589,11 +596,11 @@ const mobile = '9' + String(Date.now()).slice(-9);
   check('A student cannot read the notification table directly', sn.length === 0);
   // resume files
   const own = `${c.id}/resume/sec-${tag}.pdf`, oth = `${other.id}/resume/sec-${tag}.pdf`;
-  await svc.storage.from('candidate-files').upload(own, new Blob(['x'])); await svc.storage.from('candidate-files').upload(oth, new Blob(['y']));
+  await svc.storage.from('candidate-files').upload(own, new Blob(['x'], { type: 'application/pdf' }), { contentType: 'application/pdf' }); await svc.storage.from('candidate-files').upload(oth, new Blob(['y'], { type: 'application/pdf' }), { contentType: 'application/pdf' });
   const d1 = await st.storage.from('candidate-files').download(own), d2 = await st.storage.from('candidate-files').download(oth);
   check('A student can open their own resume file', !d1.error, d1.error?.message);
   check('A student cannot open another student’s resume file', !!d2.error);
-  const up = await st.storage.from('candidate-files').upload(`${c.id}/resume/up-${tag}.pdf`, new Blob(['z']));
+  const up = await st.storage.from('candidate-files').upload(`${c.id}/resume/up-${tag}.pdf`, new Blob(['z'], { type: 'application/pdf' }), { contentType: 'application/pdf' });
   check('A student cannot upload into the resume folder', !!up.error);
   await svc.storage.from('candidate-files').remove([own, oth]);
   // notifications from staff actions
@@ -837,6 +844,7 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   const after = (await tele.rpc('sidebar_counts')).data?.followups ?? 0;
   check('Sidebar counts a follow-up due late tonight India time as today', after === before + 1, before + ' -> ' + after);
   await svc.from('follow_up').delete().eq('id', f.id);
+  await svc.from('notification').delete().eq('staff_id', tid).eq('title', 'New follow-up for you: IST day check').gte('created_at', startedAt);
 }
 // Voice input route: signed-out callers are refused (needs the app on port 3100)
 { const r = await fetch('http://localhost:3100/api/voice/dictate', { method: 'POST', body: new FormData() }).catch(() => null);
@@ -903,7 +911,8 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   if (fp) await svc.from('fee_payment').delete().eq('id', fp.id);
   for (const l of logs) if (l.message_id) await svc.from('message').delete().eq('id', l.message_id);
   await svc.from('reminder_rule').delete().in('id', [rule.id, fr.id]);
-  await svc.from('follow_up').delete().eq('id', fu.id); }
+  await svc.from('follow_up').delete().eq('id', fu.id);
+  await svc.from('notification').delete().eq('staff_id', tid).eq('title', 'New follow-up for you: Reminder test').gte('created_at', startedAt); }
 // Messaging (migration 060): visibility, outbound-only inserts, webhook signature
 { const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   const ld = (await svc.from('lead').select('id').limit(1).single()).data;
@@ -924,6 +933,7 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   const tw = await trainer.from('message_template').insert({ name: 'x', body: 'y' });
   check('message_template: non-admin cannot add', !!tw.error);
   await svc.from('message').delete().eq('id', m.id);
+  await svc.from('notification').delete().eq('kind', 'message').like('title', 'New WhatsApp from %').like('link', '%' + ld.id + '%').gte('created_at', startedAt);
   const r = await fetch('http://localhost:3100/api/webhooks/whatsapp', { method: 'POST', headers: { 'x-hub-signature-256': 'sha256=' + '0'.repeat(64), 'content-type': 'application/json' }, body: '{"entry":[]}' }).catch(() => null);
   if (!r) console.log('SKIP whatsapp webhook check: the app is not running on port 3100');
   else check('whatsapp webhook: bad signature rejected', r.status === 401, String(r.status));
@@ -951,6 +961,7 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
       const rel = d + '/' + e.name; if (e.isDirectory()) { if (e.name !== 'node_modules') walk(rel); }
       else if (/\.(tsx?|mjs)$/.test(e.name)) for (const m of fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8').matchAll(/['"]([a-z_0-9]+)['"]/g)) used.add(m[1]); } };
     for (const d of ['app', 'components', 'lib']) walk(d); used.add('raise_alerts_now'); // Admin-only check, refused inside for others
+    used.add('referrer_search'); used.add('referrer_add'); // New enquiry referrer lookup (migration 085, on the main branch; the UI calls them there)
     const open = await service.rpc('definer_open_to_staff');
     const extra = (open.data || []).filter((n) => !used.has(n));
     check('signed-in users can run only definer functions the app calls (allow-list)', !open.error && extra.length === 0, open.error?.message || extra.join(', ')); }
@@ -1329,13 +1340,13 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     await svc.from('candidate').delete().in('id', [c.id, other.id]);
   }
 }
-// Claude features (migration 083): usage log, saved briefs, weekly numbers
+// AI features (migration 083): usage log, saved briefs, weekly numbers
 {
   const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   const ids = Object.fromEntries(((await svc.from('staff').select('id,email').in('email', ['teja@demo.stint.local', 'manish@demo.stint.local'])).data || []).map((s) => [s.email.split('@')[0], s.id]));
   const day = '2001-01-0' + (Date.now() % 9 + 1);
   try {
-    const u = await svc.from('ai_usage').insert({ feature: 'test', staff_id: ids.teja, model: 'claude-haiku-5-5', input_tokens: 10, output_tokens: 5, cost_usd: 0.00001 }).select('id').single();
+    const u = await svc.from('ai_usage').insert({ feature: 'test', staff_id: ids.teja, model: 'test-model', input_tokens: 10, output_tokens: 5, cost_usd: 0.00001 }).select('id').single();
     check('AI usage: the server can log a call', !u.error, u.error?.message);
     check('AI usage: Admin reads the log', ((await admin.from('ai_usage').select('id').eq('id', u.data?.id)).data || []).length === 1);
     check('AI usage: a telecaller cannot read it', ((await tele.from('ai_usage').select('id')).data || []).length === 0);
@@ -1353,6 +1364,9 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     check('AI brief: staff cannot write briefs', !!(await tele.from('ai_brief').insert(mk('call_brief', ids.teja))).error);
     const dup = await svc.from('ai_brief').insert(mk('owner_week', null));
     check('AI brief: one owner summary per week', !!dup.error);
+    // migration 087: the model id (it names the AI vendor) is not readable from the browser
+    check('AI brief: staff cannot read the model name', !!(await tele.from('ai_brief').select('model').eq('period_start', day)).error);
+    check('AI usage: Admin cannot read the model name', !!(await admin.from('ai_usage').select('model').limit(1)).error);
 
     const f = await svc.rpc('owner_week_facts', { p_end: new Date().toISOString().slice(0, 10) });
     check('Weekly numbers: counted for the server', !f.error && typeof f.data?.leads?.new === 'number' && Array.isArray(f.data?.calls?.by_caller), f.error?.message);
@@ -1369,6 +1383,7 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
   const URL1 = 'https://prod-01.westindia.logic.azure.com:443/workflows/test' + Date.now() + '/triggers/manual/paths/invoke?sig=abc';
   const made = [];
+  let pay = null, payMade = false;
   // set aside channels that already exist for these roles, and put them back afterwards
   const kept = (await svc.from('teams_channel').select('*').in('audience', ['Finance', 'Admin'])).data || [];
   if (kept.length) await svc.from('teams_channel').delete().in('id', kept.map((k) => k.id));
@@ -1379,7 +1394,7 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     check('Teams: an unknown role is refused', !!badRole.error);
     const ch = await admin.from('teams_channel').insert([
       { audience: 'Finance', name: 'Finance team', webhook_url_secret: URL1 },
-      { audience: 'Admin', name: 'Owner', webhook_url_secret: URL1 }]).select('id, audience');
+      { audience: 'Admin', name: 'Owner', webhook_url_secret: URL1 }]).select('id, audience, created_at');
     check('Teams: Admin can add role channels', !ch.error && ch.data.length === 2, ch.error?.message);
     made.push(...(ch.data || []).map((c) => c.id));
     check('Teams: Finance cannot read channel links', ((await fin.from('teams_channel').select('id')).data || []).length === 0);
@@ -1388,17 +1403,25 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     check('Teams: Sales cannot change who hears what', (r.data || []).length === 0);
 
     // a fee received → queued for Finance and Admin, without mobile or email
-    const pay = (await svc.from('fee_payment').select('id, candidate_id').eq('status', 'Due').limit(1).single()).data;
-    const before = new Date().toISOString();
+    // a fee still due (the demo data may have none left: then a temporary one, removed afterwards)
+    pay = (await svc.from('fee_payment').select('id, candidate_id, mode').eq('status', 'Due').limit(1).maybeSingle()).data;
+    if (!pay) {
+      const cid = (await svc.from('candidate').select('id').limit(1).single()).data.id;
+      pay = (await svc.from('fee_payment').insert({ candidate_id: cid, amount: 1000, status: 'Due', due_on: new Date().toISOString().slice(0, 10), label: 'Teams test' })
+        .select('id, candidate_id, mode').single()).data;
+      payMade = true;
+    }
+    // count from when the channels were made, by the database clock (the computer's clock can be a little ahead of it)
+    const before = (ch.data || []).map((c) => c.created_at).sort()[0] || new Date(Date.now() - 2000).toISOString();
     await svc.from('fee_payment').update({ status: 'Received', paid_on: new Date().toISOString().slice(0, 10), mode: 'UPI' }).eq('id', pay.id);
     const q = (await svc.from('teams_message').select('audience, payload, status').eq('event', 'payment.recorded').gte('created_at', before)).data || [];
     check('Teams: a fee received is queued for the Finance and owner channels', q.length === 2 && q.every((m) => m.status === 'Pending') && q.map((m) => m.audience).sort().join() === 'Admin,Finance', JSON.stringify(q.map((m) => m.audience)));
     check('Teams: queued messages carry no mobile or email', q.every((m) => !/"(mobile|email|owner_email)"/.test(JSON.stringify(m.payload))));
     check('Teams: Admin sees the send log, Finance does not', ((await admin.from('teams_message').select('id').gte('created_at', before)).data || []).length >= 2
       && ((await fin.from('teams_message').select('id')).data || []).length === 0);
-    const one = (await admin.from('teams_message').select('id').gte('created_at', before).limit(1).single()).data;
-    check('Teams: the log cannot be rewritten, only retried', !!(await admin.from('teams_message').update({ payload: { x: 1 } }).eq('id', one.id)).error
-      && !(await admin.from('teams_message').update({ status: 'Pending', attempts: 0 }).eq('id', one.id)).error);
+    const one = (await admin.from('teams_message').select('id').gte('created_at', before).limit(1).maybeSingle()).data;
+    check('Teams: the log cannot be rewritten, only retried', !!one && !!(await admin.from('teams_message').update({ payload: { x: 1 } }).eq('id', one.id)).error
+      && !(await admin.from('teams_message').update({ status: 'Pending', attempts: 0 }).eq('id', one.id)).error, one ? '' : 'nothing queued');
     check('Teams: staff cannot add to the log', !!(await admin.from('teams_message').insert({ event: 'x', audience: 'Admin', payload: {} })).error);
 
     // new events: a student joins, a High alert
@@ -1412,8 +1435,9 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     check('Teams: a High alert raises “alert.high”', ah.length === 1 && ah[0].person_name === 'Teams Test Student', JSON.stringify(ah));
     await svc.from('alert').delete().eq('id', al.id);
     await svc.from('candidate').delete().eq('id', c.id);
-    await svc.from('fee_payment').update({ status: 'Due', paid_on: null }).eq('id', pay.id);
   } finally {
+    if (pay && payMade) await svc.from('fee_payment').delete().eq('id', pay.id);
+    else if (pay) await svc.from('fee_payment').update({ status: 'Due', paid_on: null, mode: pay.mode ?? null }).eq('id', pay.id);
     await svc.from('teams_message').delete().gte('created_at', startedAt);
     if (made.length) await svc.from('teams_channel').delete().in('id', made);
     if (kept.length) await svc.from('teams_channel').insert(kept);
@@ -1472,6 +1496,33 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
       await svc.from('lead').delete().in('id', made.leads);
     }
     if (made.referrers.length) await svc.from('referrer').delete().in('id', made.referrers);
+  }
+}
+
+// Sales playbook (migration 086): Admin writes it, telecallers and sales read it, nobody else sees it
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const tag = 'PB-' + Date.now();
+  const add = await admin.from('playbook_item').insert({ kind: 'Doubt and answer', title: 'Too costly ' + tag, answer: 'We have instalments.' }).select('id').single();
+  check('Playbook: Admin adds a doubt with its answer', !add.error, add.error?.message);
+  check('Playbook: a doubt without an answer is refused', !!(await admin.from('playbook_item').insert({ kind: 'Doubt and answer', title: 'No answer ' + tag })).error);
+  check('Playbook: an unknown type is refused', !!(await admin.from('playbook_item').insert({ kind: 'Rumour', title: 'x ' + tag })).error);
+  check('Playbook: a telecaller can read it', ((await tele.from('playbook_item').select('id').eq('id', add.data?.id)).data || []).length === 1);
+  check('Playbook: sales can read it', ((await sales.from('playbook_item').select('id').eq('id', add.data?.id)).data || []).length === 1);
+  check('Playbook: a telecaller cannot change it', ((await tele.from('playbook_item').update({ answer: 'Hacked' }).eq('id', add.data?.id).select('id')).data || []).length === 0
+    && !!(await tele.from('playbook_item').insert({ kind: 'Selling point', title: 'x ' + tag })).error);
+  check('Playbook: a trainer cannot see it', ((await trainer.from('playbook_item').select('id')).data || []).length === 0);
+  if (add.data?.id) await svc.from('playbook_item').delete().eq('id', add.data.id);
+}
+
+// Feature checks kept in their own files (scripts/test-parts/NN-name.mjs, run in name order).
+// Each file: export default async function ({ env, createClient, check, admin, tele, sales, trainer, fin, desk, hr, mkt, anon, service }) { … }
+{
+  const dir = new URL('./test-parts/', import.meta.url);
+  const parts = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.mjs')).sort() : [];
+  for (const f of parts) {
+    try { await (await import(new URL(f, dir).href)).default({ env, createClient, check, admin, tele, sales, trainer, fin, desk, hr, mkt, anon, service }); }
+    catch (e) { check(`${f} ran to the end`, false, e instanceof Error ? e.message : String(e)); }
   }
 }
 

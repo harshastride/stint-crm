@@ -630,7 +630,7 @@ private fun NoteScreen(api: Api, id: String, onBack: () -> Unit) {
                         Text("Summary", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = T.muted)
                     }
                     Spacer(Modifier.height(8.dp))
-                    Text(n.summaryText() ?: n.str("process_error") ?: "Writing the summary…", lineHeight = 22.sp)
+                    Text(n.summaryText() ?: if (n.str("process_error") != null) "Couldn't write the summary yet." else "Writing the summary…", lineHeight = 22.sp)
                 }
             }
             val d = n.optJSONObject("draft")

@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Info } from 'lucide-react';
@@ -28,7 +29,7 @@ export function Funnel({ title = 'Lead conversion' }: { title?: string }) {
     setSteps(null);
     supabase().rpc('funnel_cohort', { p_from: range?.from ?? null, p_to: range?.to ?? null }).then(({ data, error }) => {
       if (!live) return;
-      if (error) setErr(error.message); else { setErr(''); setSteps(((data || []) as Step[]).filter((x) => x.n != null)); }
+      if (error) setErr(friendlyError(error, 'this', 'Please try again.')); else { setErr(''); setSteps(((data || []) as Step[]).filter((x) => x.n != null)); }
     });
     // students added straight to Candidates have no lead, so they cannot be part of this lead group: count them for a note
     let q = supabase().from('candidate').select('id', { count: 'exact', head: true }).is('lead_id', null);
@@ -56,7 +57,7 @@ export function Funnel({ title = 'Lead conversion' }: { title?: string }) {
         {scope}{steps && steps.length > 0 && <>: of <span className="num font-semibold text-text">{base}</span>, how many reached each step.</>}
       </p>
       {why && <p id="funnel-def" className="mt-2 rounded-row bg-surface2 p-3 text-[12.5px] leading-relaxed text-text2">{DEFINITION}{since ? ` Stage history is recorded from ${new Date(since).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}; earlier moves are known only from the current stage.` : ''}</p>}
-      {err && <p className="mt-3 text-[13px] text-badText">Could not load the funnel: {err}</p>}
+      {err && <p className="mt-3 text-[13px] text-badText">Could not load the funnel. {err}</p>}
       {!steps && !err && <div className="mt-4 h-40 animate-pulse rounded-card bg-surface2" />}
       {steps && steps.length === 0 && <p className="mt-3 text-text2">Your role cannot see leads, so there is no funnel to show.</p>}
       {steps && steps.length > 0 && base === 0 && <p data-testid="funnel-empty" className="mt-3 text-text2">Not enough data: no leads were created in these dates.</p>}

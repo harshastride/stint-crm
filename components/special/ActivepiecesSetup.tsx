@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -22,7 +23,7 @@ export function ActivepiecesSetup() {
 
   const save = async (key: string, value: string | null) => {
     const { error } = await supabase().from('integration_config').update({ value, updated_at: new Date().toISOString() }).eq('key', key);
-    if (error) { setMsg({ tone: 'bad', text: error.message }); return false; }
+    if (error) { setMsg({ tone: 'bad', text: friendlyError(error, 'automation settings') }); return false; }
     await load(); return true;
   };
   const newSecret = () => Array.from(crypto.getRandomValues(new Uint8Array(24))).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -56,7 +57,7 @@ export function ActivepiecesSetup() {
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button variant="outline" size="sm" onClick={async () => { const { error } = await supabase().rpc('send_test_event'); setMsg(error ? { tone: 'bad', text: error.message } : { tone: 'good', text: 'Test event queued. It appears in the log below and goes out within a minute.' }); }}>Send a test event</Button>
+        <Button variant="outline" size="sm" onClick={async () => { const { error } = await supabase().rpc('send_test_event'); setMsg(error ? { tone: 'bad', text: friendlyError(error, 'this', 'Could not send the test event. Please try again.') } : { tone: 'good', text: 'Test event queued. It appears in the log below and goes out within a minute.' }); }}>Send a test event</Button>
         <span className="text-[12px] text-muted">Starter flows to import: <code>docs/activepieces/</code> in the project.</span>
       </div>
       {msg && <div className="mt-3"><Notice tone={msg.tone}>{msg.text}</Notice></div>}

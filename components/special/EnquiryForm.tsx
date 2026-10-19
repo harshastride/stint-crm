@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import Link from 'next/link';
 import { RadioCards } from '../kit/RadioCards';
 import { useEffect, useRef, useState } from 'react';
@@ -84,7 +85,7 @@ export function EnquiryForm() {
     };
     const { data, error } = await db.from('lead').insert(row).select('id, owner:owner_id(full_name)').single();
     saving.current = false; setBusy(false);
-    if (error) { setMsg({ tone: 'bad', text: (error.code === '23505' ? 'This mobile is already in the CRM.' : error.message) + ' What you typed is kept.' }); return; }
+    if (error) { setMsg({ tone: 'bad', text: (error.code === '23505' ? 'This mobile is already in the CRM.' : friendlyError(error, 'leads', 'Could not save.')) + ' What you typed is kept.' }); return; }
     setMsg({ tone: 'good', text: `${row.full_name} saved as a new lead${data?.owner?.full_name ? ' and assigned to ' + data.owner.full_name : ''}.`, id: data?.id });
     setV({ ...blank, source_id: walkIn });
     setReferrer(null);

@@ -12,7 +12,7 @@ export const maxDuration = 300;
 // The recording is matched to a lead or candidate by number; unmatched ones wait on the Recordings page.
 // Consent: the app must only upload calls where the other person was told the call is recorded (consent=yes).
 export async function POST(request: Request) {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'Server is missing SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('recordings/upload: SUPABASE_SERVICE_ROLE_KEY is not set'); return NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }); }
   const db = service();
   const signedIn = await staffFromBearer(request);
   if (!signedIn) {
@@ -49,6 +49,7 @@ export async function POST(request: Request) {
   const up = await db.storage.from('recordings').upload(path, audio, { contentType: audio.type || 'audio/mp4', upsert: false });
   if (up.error) { await db.from('recording').delete().eq('id', rec.id); return fail('recordings/upload storage', up.error, 'Upload failed.'); }
   await db.from('recording').update({ audio_path: path }).eq('id', rec.id);
-  const processed = aiReady() ? await processRecording(db, rec.id) : { ok: false, error: 'Transcription keys are not set; audio saved.' };
+  if (!aiReady()) console.error('recordings/upload: not transcribed (DEEPGRAM_API_KEY or ANTHROPIC_API_KEY missing)');
+  const processed = aiReady() ? await processRecording(db, rec.id) : { ok: false, error: 'Audio saved. Speech to text isn’t switched on yet. Ask the admin.' };
   return NextResponse.json({ ok: true, recording_id: rec.id, matched: !!(lead || cand), processed }, { status: 201 });
 }

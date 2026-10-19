@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   if (body.branch_id && !isUuid(body.branch_id)) return NextResponse.json({ error: 'Pick a branch from the list.' }, { status: 400 });
   // only an Admin can create another Admin login
   if (/admin/i.test(body.role) && (await asCaller.rpc('is_admin')).data !== true) return NextResponse.json({ error: 'Only an admin can create an admin login.' }, { status: 403 });
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set on the server.' }, { status: 500 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('admin/invite: SUPABASE_SERVICE_ROLE_KEY is not set'); return NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }); }
 
   const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const password = crypto.randomBytes(9).toString('base64url');

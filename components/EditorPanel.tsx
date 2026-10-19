@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/lib/session';
@@ -100,7 +101,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
       const res = await fetch('/api/admin/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const out = await res.json();
       done();
-      if (!res.ok) { setMsg({ tone: 'bad', text: out.error || 'Could not invite.' }); return; }
+      if (!res.ok) { setMsg({ tone: 'bad', text: plainMessage(out.error, 'Could not invite.') }); return; }
       onSaved(`${payload.full_name} invited. Temporary password: ${out.password} — share it privately and ask them to change it.`);
       return;
     }
@@ -212,7 +213,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
           setBusy(true);
           const res = await fetch('/api/admin/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staff_id: row.id }) });
           const out = await res.json(); setBusy(false);
-          setMsg(res.ok ? { tone: 'good', text: `New temporary password: ${out.password} — share it privately. They must change it when they sign in.` } : { tone: 'bad', text: out.error || 'Could not reset.' });
+          setMsg(res.ok ? { tone: 'good', text: `New temporary password: ${out.password} — share it privately. They must change it when they sign in.` } : { tone: 'bad', text: plainMessage(out.error, 'Could not reset.') });
         }}>Reset password</Button>
       )}
       {readOnly && !cfg.readOnly && <div className="text-[13px] text-text2">View only for {s.staff.role}. Ask an admin if this needs changing.</div>}

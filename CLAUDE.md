@@ -45,4 +45,17 @@ Demo logins: `<name>@demo.stint.local` / `stint-demo-1234` (harsha Admin, anita 
 
 ## Where to look next
 Integrations: `docs/activepieces/` (events, incoming leads), Teams alerts (Admin page `teams`: one Teams Workflows link per role channel, events → roles in `teams_rule`; queued by a trigger on `integration_event` into `teams_message` without contact details, sent by `/api/teams/send` every minute; migration 084, `lib/server/teams.ts`, `lib/teams-events.ts`), AI needs `DEEPGRAM_API_KEY` (speech to text) and `ANTHROPIC_API_KEY` (Claude: call summaries, voice notes, daily call brief, weekly owner summary; server only, `lib/server/ai.ts`, every call logged with its cost in `ai_usage`).
+Live help during a call: `/live/<leadId>` (laptop mic → Deepgram live via a 30-second pass from `/api/live/token`, so the Deepgram key needs Member permission) → `/api/live/tips` (Claude Haiku, only from the Admin-written Sales playbook `playbook_item`, migration 086) → `/api/live/summary` → the lead panel opens Log call pre-filled. No audio is stored.
+Growth features (migrations 088–097):
+| Feature | Where |
+|---|---|
+| Ask the CRM | page `ask`, `/api/ai/ask`: the AI only fills a report-builder request (never SQL); the server re-checks it and runs `run_report()` as the caller (094) |
+| Win-back | page `winback`, `winback_list` (definer view, no contact details; exception to `old_data_days`), `winback_reopen` → event `lead.won_back` (097) |
+| Brochures | page `brochures`, panel card; public link `/b/<token>` (no sign-in), opens recorded by `/api/brochures/track` → `brochure_track` → owner notification + event `brochure.opened` (088–089) |
+| Lead signals | `lead_signal` view (hot score 0–100 + best time to call, rule-based), `ScoreBadge` in the Leads table and panel (090) |
+| Calling queue | page `queue` "Start my calls", `my_call_queue(day)` (091) |
+| Staff scorecard | page `scorecard`, `staff_scorecard` / `staff_scorecard_team` (092) |
+| Expected collections | `expected_collections(days)`, card on Payments and the Finance dashboard (093) |
+| Lead capture inbox | page `inbox` "New conversations": new WhatsApp numbers and missed calls (`capture_inbound`); `POST /api/integrations/missed-call` with `x-api-key`; event `conversation.new` (096) |
+| Bell | `kit/NotificationCenter`: read (`read_at`) and Done (`done_at`) are separate, changed only through `notification_mark` (095) |
 `docs/BACKLOG.md` lists the remaining work in order, with acceptance checks. The visual reference is the "Stint CRM Role Dashboards" design (screenshots in the mockup zip, if present under `docs/design/`).

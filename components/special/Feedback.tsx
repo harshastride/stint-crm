@@ -1,4 +1,5 @@
 'use client';
+import { friendlyError } from '@/components/Fields';
 import { useEffect, useMemo, useState } from 'react';
 import { Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -35,7 +36,7 @@ export function Feedback() {
     const since = new Date(Date.now() - Number(f.period) * 86400000).toISOString();
     setRows(null); setErr(null);
     supabase().from('feedback_for_trainer').select('*').gte('created_at', since).order('created_at', { ascending: false }).limit(2000)
-      .then(({ data, error }) => { if (error) setErr(error.message); setRows((data || []) as F[]); });
+      .then(({ data, error }) => { if (error) setErr(friendlyError(error, 'this', 'Please try again.')); setRows((data || []) as F[]); });
   }, [f.period]);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
@@ -68,7 +69,7 @@ export function Feedback() {
             <select aria-label="About" className={field} value={f.subject} onChange={set('subject')}><option value="">Everything rated</option>{Object.entries(SUBJECT).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           </div>
         } />
-      {err && <Notice tone="bad">Could not load feedback: {err}</Notice>}
+      {err && <Notice tone="bad">Could not load feedback. {err}</Notice>}
       {rows === null ? <div className="rounded-[14px] bg-surface p-6 text-muted">Loading…</div>
         : list.length === 0 ? <EmptyState kind={rows.length ? 'search' : 'empty'} title={rows.length ? 'No ratings match these filters' : 'No ratings yet in this period'} body="Students are asked after each mock interview, once a week during classes and at the end of training." />
         : (

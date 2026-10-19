@@ -1,4 +1,5 @@
 'use client';
+import { plainMessage } from '@/lib/plainMessage';
 import { useEffect, useState } from 'react';
 import { ChevronDown, RefreshCw, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -71,8 +72,8 @@ export function OwnerSummary() {
     try {
       const res = await fetch('/api/ai/weekly', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const json = await res.json().catch(() => ({}));
-      if (res.status === 503) setErr({ text: json.error || 'The weekly summary is not set up yet. Add the Claude key on the server.', notSetUp: true });
-      else if (!res.ok || !json.brief) setErr({ text: json.error || 'Could not write the summary. Please try again.', notSetUp: false });
+      if (res.status === 503) setErr({ text: plainMessage(json.error, 'The weekly summary isn’t switched on yet. Ask the admin.'), notSetUp: true });
+      else if (!res.ok || !json.brief) setErr({ text: plainMessage(json.error, 'Could not write the summary. Please try again.'), notSetUp: false });
       else { setBrief(json.brief as Brief); setOpen(false); }
     } catch {
       setErr({ text: 'Could not reach the server. Check the connection and try again.', notSetUp: false });
@@ -227,7 +228,7 @@ export function OwnerSummary() {
       )}
 
       {cost && (
-        <p className="mt-1 text-[11.5px] text-muted" title="Sum of every Claude call logged since the 1st of this month">
+        <p className="mt-1 text-[11.5px] text-muted" title="Sum of every AI assistant call logged since the 1st of this month">
           AI cost this month: {cost.partial ? 'at least ' : ''}${cost.usd.toFixed(2)}
         </p>
       )}

@@ -10,13 +10,13 @@ export async function POST(req: NextRequest) {
   const password = String(body.password || '');
   if (!email || !password) return NextResponse.json({ error: 'invalid' }, { status: 400 });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!, anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set on the server.' }, { status: 500 });
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('auth/sign-in: SUPABASE_SERVICE_ROLE_KEY is not set'); return NextResponse.json({ error: 'This isn’t switched on yet. Ask the admin.' }, { status: 500 }); }
   const admin = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const ip = (req.headers.get('x-forwarded-for') || '').split(',')[0].trim() || req.headers.get('x-real-ip') || '';
 
   const locked = async () => {
     const r = await admin.rpc('login_locked_seconds', { p_email: email });
-    if (r.error) throw new Error(r.error.message);
+    if (r.error) { console.error('auth/sign-in: lock check failed', r.error.code || '', r.error.message.slice(0, 120)); throw new Error('lock check'); }
     return Number(r.data) || 0;
   };
   const lockedReply = (s: number) => NextResponse.json({ error: 'locked', minutes: Math.max(1, Math.ceil(s / 60)) }, { status: 429 });

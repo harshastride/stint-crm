@@ -8,7 +8,7 @@ const STEPS: { target: string; title: string; body: string }[] = [
   { target: 'nav', title: 'Your pages', body: 'Everything your role works on is in this menu. You only see the pages you need.' },
   { target: 'home', title: 'Start every day here', body: 'The dashboard shows today’s numbers, your follow-ups and anything that needs attention.' },
   { target: 'jump', title: 'Find anything fast', body: 'Press Ctrl K (⌘K on a Mac) to jump to a person, a page or a task like “Record a payment”.' },
-  { target: 'bell', title: 'Notifications', body: 'When a colleague @mentions you or gives you a follow-up, it shows up here.' },
+  { target: 'bell', title: 'Notifications', body: 'Mentions, follow-ups and replies for you. Press Done once you have dealt with one; it moves to the Done tab.' },
   { target: 'account', title: 'You and your settings', body: 'Change your password, switch to dark mode, or sign out from here. You can restart this tour here too.' },
 ];
 

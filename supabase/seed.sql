@@ -62,6 +62,29 @@ insert into public.page (id, grp, title, sort) values
   ('branding', 'Admin settings', 'Branding & sidebar', 45)
 on conflict (id) do update set grp = excluded.grp, title = excluded.title, sort = excluded.sort;
 
+-- Pages added by migrations 086-097 (the same rows the migrations add). On a fresh database the migrations run before
+-- this file, so they cannot place these pages; page_place (migration 086) does it here, in the same order as the
+-- migrations, so a fresh database gets the same sidebar as an upgraded one:
+--   Telecalling: Start my calls, Leads, New conversations, Call logs, Recordings, Win-back
+--   Sales: Counselling, Fee quotes, Sales targets, Sales playbook, Brochures
+--   Reports: Ask the CRM, the reports, Report builder, Staff scorecard
+insert into public.page (id, grp, title, sort) values
+  ('playbook', 'Sales', 'Sales playbook', 12),
+  ('brochures', 'Sales', 'Brochures', 13),
+  ('queue', 'Telecalling', 'Start my calls', 6),
+  ('scorecard', 'Reports', 'Staff scorecard', 38),
+  ('ask', 'Reports', 'Ask the CRM', 32),
+  ('inbox', 'Telecalling', 'New conversations', 7),
+  ('winback', 'Telecalling', 'Win-back', 9)
+on conflict (id) do update set grp = excluded.grp, title = excluded.title;
+select public.page_place('playbook', 'target');              -- 086
+select public.page_place('brochures', 'playbook');           -- 088
+select public.page_place('queue', 'lead', false);            -- 091
+select public.page_place('scorecard', 'reports_builder');    -- 092
+select public.page_place('ask', 'rep_funnel', false);        -- 094
+select public.page_place('inbox', 'lead');                   -- 096
+select public.page_place('winback', 'recordings');           -- 097
+
 insert into public.role_page_access (role, page_id, mode) values
   ('Front desk', 'home', 'w'),
   ('Front desk', 'followups', 'w'),
@@ -86,7 +109,7 @@ insert into public.role_page_access (role, page_id, mode) values
   ('Sales', 'home', 'w'),
   ('Sales', 'followups', 'w'),
   ('Sales', 'lead', 'w'),
-  ('Sales', 'call', 'r'),
+  ('Sales', 'call', 'w'),
   ('Sales', 'recordings', 'w'),
   ('Sales', 'counsel', 'w'),
   ('Sales', 'quote', 'w'),
@@ -141,6 +164,18 @@ insert into public.role_page_access (role, page_id, mode) values
   ('Finance', 'plan', 'w'),
   ('Finance', 'payment', 'w'),
   ('Finance', 'alert', 'r')
+on conflict do nothing;
+
+-- Default access to the pages added by migrations 086-097 (the migrations grant the same on an upgraded database)
+insert into public.role_page_access (role, page_id, mode) values
+  ('Telecaller', 'playbook', 'r'), ('Sales', 'playbook', 'r'),                                                   -- 086
+  ('Telecaller', 'brochures', 'r'), ('Sales', 'brochures', 'r'), ('Front desk', 'brochures', 'r'), ('Marketing', 'brochures', 'r'), -- 088
+  ('Telecaller', 'queue', 'w'), ('Sales', 'queue', 'w'),                                                         -- 091
+  ('Telecaller', 'scorecard', 'r'), ('Sales', 'scorecard', 'r'), ('HR / Counsellor', 'scorecard', 'r'),
+  ('Placement', 'scorecard', 'r'), ('Finance', 'scorecard', 'r'), ('Front desk', 'scorecard', 'r'),             -- 092
+  ('Finance', 'ask', 'r'), ('Sales', 'ask', 'r'),                                                               -- 094
+  ('Telecaller', 'inbox', 'w'), ('Sales', 'inbox', 'w'), ('Front desk', 'inbox', 'w'),                           -- 096
+  ('Telecaller', 'winback', 'w'), ('Sales', 'winback', 'w'), ('Marketing', 'winback', 'r')                       -- 097
 on conflict do nothing;
 
 insert into public.role_field_access (role, field_group, mode) values
@@ -381,7 +416,7 @@ insert into public.follow_rule (trigger, suggest_next, after, stage, stuck_after
 insert into public.connection (service, used_for) values
   ('Activepieces', 'Runs every automation'), ('WhatsApp Business', 'Messages to leads and candidates'),
   ('Email sender', 'Receipts, quotes, vendor emails'), ('Meta lead ads', 'Leads in'), ('Google lead forms', 'Leads in'),
-  ('Online payments', 'Payments in, receipts'), ('SMS', 'Backup when WhatsApp fails'), ('Deepgram', 'Transcripts'), ('Claude', 'Summaries and briefs')
+  ('Online payments', 'Payments in, receipts'), ('SMS', 'Backup when WhatsApp fails'), ('Speech to text', 'Call and voice-note transcripts'), ('AI assistant', 'Summaries, briefs and call tips')
 on conflict do nothing;
 
 insert into public.automation (name, direction, trigger, channel, recipient, message) values
