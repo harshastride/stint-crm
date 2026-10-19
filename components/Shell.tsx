@@ -10,7 +10,7 @@ import { PersonSearch } from './Fields';
 import { cx } from './ui';
 import { pageIcon } from '@/lib/icons';
 import { CommandMenu } from './CommandMenu';
-import { NotificationBell } from './NotificationBell';
+import { NotificationCenter } from './kit/NotificationCenter';
 import { UserMenu, type ThemePref } from './UserMenu';
 import { Tour } from './Tour';
 import { Shortcuts } from './kit/Shortcuts';
@@ -215,7 +215,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <button data-tour="jump" type="button" onClick={() => setCmdOpen(true)} aria-label="Open command menu (Ctrl+K)" className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-[10px] px-2.5 text-[13px] font-medium text-text2 transition-colors hover:bg-surface2 hover:text-text active:scale-[0.97]">
               <Command size={18} className="md:hidden" aria-hidden /><span className="max-md:hidden">Jump to</span><kbd className="max-md:hidden rounded-md border border-line px-1.5 py-0.5 text-[11px] font-medium text-muted">{typeof navigator !== 'undefined' && /Mac/.test(navigator.platform) ? '⌘K' : 'Ctrl K'}</kbd>
             </button>
-            <span data-tour="bell"><NotificationBell /></span>
+            <span data-tour="bell"><NotificationCenter /></span>
             <span data-tour="account"><UserMenu onTour={() => setTourOpen(true)} staff={s.staff} theme={theme} onTheme={chooseTheme} onChangePassword={() => setPwOpen(true)} onSignOut={s.signOut} canCalendar={s.can('calendar')} /></span>
           </div>
         </div>

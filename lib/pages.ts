@@ -4,7 +4,7 @@ import type { RefRow } from './session';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type Row = Record<string, any>;
-export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean; /** 'person': the team/role shown on hover */ role?: (r: Row) => string | null | undefined; /** long text: wraps within a max width instead of one long line (notes, summaries, messages wrap by default) */ wrap?: boolean };
+export type Col = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'datetime' | 'pill' | 'pct' | 'duration' | 'number' | 'tags' | 'person' | 'people' | 'due' | 'progress' | 'score'; get?: (r: Row) => unknown; /** 'due': no warning once this is true (e.g. lead closed) */ doneWhen?: (r: Row) => boolean; /** 'progress': dropdown list giving the stage order */ list?: string; /** low-value: hidden by default, still available under Columns */ optional?: boolean; /** 'person': the team/role shown on hover */ role?: (r: Row) => string | null | undefined; /** long text: wraps within a max width instead of one long line (notes, summaries, messages wrap by default) */ wrap?: boolean };
 export type Field = {
   key: string; label: string;
   type: 'text' | 'textarea' | 'number' | 'date' | 'datetime' | 'select' | 'ref' | 'person' | 'instalments' | 'file' | 'phone' | 'tags';
@@ -132,12 +132,17 @@ export const PAGES: Record<string, PageCfg> = {
   lead: {
     bulk: [{ field: 'owner_id', label: 'Reassign to', ref: 'staff' }, { field: 'stage', label: 'Move to stage', list: 'lead_stage' }],
     id: 'lead', table: 'lead', readFrom: 'lead_list', sameRows: true, kind: 'Lead', purpose: 'Every enquiry, from first contact until it becomes a candidate.', cta: 'Add lead',
-    select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name)', order: { col: 'created_at' },
+    // signal: score, band and best time to call (migration 090; open leads only, so closed ones show "—"). lead_score sorts on the server.
+    select: '*, program:program_id(name), owner:owner_id(full_name), source:source_id(name), signal:lead_signal_of(score,band,reasons,best_label,best_from,best_to)', order: { col: 'created_at' },
     server: true,
-    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'next_call_at', label: 'Next call', type: 'due', doneWhen: (r) => CLOSED_LEAD.includes(r.stage) }, { key: 'program.name', label: 'Course' }, { key: 'owner.full_name', label: 'Owner', type: 'person' },
-      { key: 'mobile_masked', label: 'Mobile' }, { key: 'source.name', label: 'Source', optional: true }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No'), optional: true }, { key: 'tags', label: 'Tags', type: 'tags', optional: true }],
+    columns: [{ key: 'full_name', label: 'Lead' }, { key: 'stage', label: 'Stage', type: 'pill' }, { key: 'lead_score', label: 'Score', type: 'score' }, { key: 'next_call_at', label: 'Next call', type: 'due', doneWhen: (r) => CLOSED_LEAD.includes(r.stage) }, { key: 'program.name', label: 'Course' }, { key: 'owner.full_name', label: 'Owner', type: 'person' },
+      { key: 'mobile_masked', label: 'Mobile' }, { key: 'source.name', label: 'Source', optional: true }, { key: 'consent', label: 'Marketing OK', get: (r) => (r.marketing_consent ? 'Yes' : 'No'), optional: true }, { key: 'tags', label: 'Tags', type: 'tags', optional: true },
+      { key: 'best_time', label: 'Best time', get: (r) => r.signal?.best_label || null, optional: true }],
     views: [{ label: 'All leads' }, { label: 'Calls due', where: (r) => !CLOSED_LEAD.includes(r.stage) && !!r.next_call_at && new Date(r.next_call_at).getTime() < new Date(dayStart(1)).getTime(), filter: (q) => openLead(q).lt('next_call_at', dayStart(1)), order: { col: 'next_call_at', asc: true } },
-      { label: 'My leads', where: (r, id) => r.owner_id === id, filter: (q, id) => q.eq('owner_id', id) }, { label: 'Open', where: (r) => !CLOSED_LEAD.includes(r.stage), filter: openLead }],
+      { label: 'My leads', where: (r, id) => r.owner_id === id, filter: (q, id) => q.eq('owner_id', id) }, { label: 'Open', where: (r) => !CLOSED_LEAD.includes(r.stage), filter: openLead },
+      // new tabs go last: saved views remember the tab by position
+      { label: 'Hot first', where: (r) => !CLOSED_LEAD.includes(r.stage), filter: openLead, order: { col: 'lead_score', asc: false } },
+      { label: 'Hot', where: (r) => Number(r.signal?.score) >= 70, filter: (q) => openLead(q).gte('lead_score', 70), order: { col: 'lead_score', asc: false } }],
     kpis: [count('New today', (r) => isToday(r.created_at), today('created_at')), count('Overdue calls', (r) => !CLOSED_LEAD.includes(r.stage) && isPast(r.next_call_at) && !isToday(r.next_call_at), (q) => openLead(q).lt('next_call_at', dayStart())),
       count('Calls due today', (r) => !CLOSED_LEAD.includes(r.stage) && isToday(r.next_call_at), (q) => today('next_call_at')(openLead(q))),
       count('Interested', (r) => r.stage === 'Interested', (q) => q.eq('stage', 'Interested')), count('Converted', (r) => r.stage === 'Converted', (q) => q.eq('stage', 'Converted'))],
@@ -370,7 +375,7 @@ export const PAGES: Record<string, PageCfg> = {
   payment: {
     id: 'payment', table: 'fee_payment', kind: 'Payment', purpose: 'Every payment received or due, with its receipt. Recording a payment settles the oldest due instalment.', cta: 'Record payment', select: '*, candidate:candidate_id(id,full_name)', order: { col: 'due_on' },
     columns: [candCol, { key: 'label', label: 'For' }, { key: 'amount', label: 'Amount', type: 'money' }, { key: 'mode', label: 'Mode', optional: true }, { key: 'receipt_no', label: 'Receipt', optional: true }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'due_on', label: 'Due', type: 'date' }, { key: 'paid_on', label: 'Paid', type: 'date' }, { key: 'pdf', label: 'Receipt', get: (r) => (r.status === 'Received' ? (r.receipt_no || 'Ready') : '—') }],
-    server: true, summaryRpc: 'list_summary_payment',
+    server: true, summaryRpc: 'list_summary_payment', top: 'collections',
     views: [{ label: 'Due and overdue', where: (r) => ['Due', 'Overdue'].includes(r.status), filter: (q) => q.in('status', ['Due', 'Overdue']) }, { label: 'Received', where: (r) => r.status === 'Received', filter: (q) => q.eq('status', 'Received') },
       { label: 'Refunds', where: (r) => /Refund/.test(r.status), filter: (q) => q.ilike('status', '%Refund%') }, { label: 'All' }],
     kpis: [{ ...sum('Collected', 'amount', (r) => r.status === 'Received'), where: (r) => r.status === 'Received', filter: (q) => q.eq('status', 'Received'), sumKey: 'collected', money: true },

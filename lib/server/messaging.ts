@@ -7,7 +7,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type Channel = 'whatsapp' | 'email';
 export type SendResult = { ok: true; providerId: string | null } | { ok: false; error: string; notSetUp?: boolean };
-export type MessageRow = { id: string; channel: Channel; lead_id: string | null; candidate_id: string | null; subject: string | null; body: string | null; template: string | null; to_addr: string | null };
+export type MessageRow = { id: string; channel: Channel; lead_id: string | null; candidate_id: string | null; subject: string | null; body: string | null; template: string | null; to_addr: string | null;
+  /** New conversation (migration 096): a number that is not a lead yet. The number is read from capture_conversation. */
+  conversation_id?: string | null };
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
@@ -34,7 +36,7 @@ export function fillTemplate(body: string, vars: Record<string, string>) {
 }
 
 /** Real address of the person, read with the service role. Never returned to the browser. */
-export async function resolveContact(svc: SupabaseClient, row: { lead_id: string | null; candidate_id: string | null }) {
+export async function resolveContact(svc: SupabaseClient, row: { lead_id: string | null; candidate_id: string | null; conversation_id?: string | null }) {
   if (row.lead_id) {
     const { data } = await svc.from('lead').select('full_name, mobile, email').eq('id', row.lead_id).maybeSingle();
     return data ? { name: String(data.full_name || ''), mobile: data.mobile as string | null, email: data.email as string | null } : null;
@@ -48,14 +50,19 @@ export async function resolveContact(svc: SupabaseClient, row: { lead_id: string
     const contact = (p?.contact || {}) as { mobile?: string; email?: string };
     return { name: String(c.full_name || ''), mobile: contact.mobile || null, email: contact.email || null };
   }
+  if (row.conversation_id) {
+    const { data } = await svc.from('capture_conversation').select('number, profile_name').eq('id', row.conversation_id).maybeSingle();
+    return data ? { name: String(data.profile_name || ''), mobile: data.number as string | null, email: null } : null;
+  }
   return null;
 }
 
 /** Was there an inbound WhatsApp from this person in the last 24 hours (free text allowed)? */
-export async function insideWindow(svc: SupabaseClient, row: { lead_id: string | null; candidate_id: string | null }) {
+export async function insideWindow(svc: SupabaseClient, row: { lead_id: string | null; candidate_id: string | null; conversation_id?: string | null }) {
   const since = new Date(Date.now() - 24 * 3600e3).toISOString();
   let q = svc.from('message').select('id', { count: 'exact', head: true }).eq('channel', 'whatsapp').eq('direction', 'in').gte('created_at', since);
-  q = row.lead_id ? q.eq('lead_id', row.lead_id) : q.eq('candidate_id', row.candidate_id!);
+  if (!row.lead_id && !row.candidate_id && !row.conversation_id) return false;
+  q = row.lead_id ? q.eq('lead_id', row.lead_id) : row.candidate_id ? q.eq('candidate_id', row.candidate_id) : q.eq('conversation_id', row.conversation_id!);
   const { count } = await q;
   return (count || 0) > 0;
 }
@@ -135,6 +142,23 @@ export async function deliver(svc: SupabaseClient, row: MessageRow): Promise<Sen
   // Not set up: keep it queued so it goes out once keys are added. Other errors: mark failed.
   await svc.from('message').update(res.notSetUp ? { error: res.error } : { status: 'failed', error: res.error }).eq('id', row.id);
   return res;
+}
+
+export type CaptureResult = { kind: 'lead' | 'candidate' | 'conversation' | 'ignored'; lead_id?: string | null; candidate_id?: string | null; conversation_id?: string | null; created?: boolean; duplicate?: boolean; reply_id?: string | null };
+
+/** Lead capture (migration 096): a WhatsApp message or a missed call from any number. The database decides
+ *  (known lead / student, new conversation, auto-create, once-a-day auto-reply); the reply it queues is sent here.
+ *  When WhatsApp is not switched on the reply stays queued and goes out later from /api/messages/process. */
+export async function captureInbound(svc: SupabaseClient, a: { channel: 'whatsapp' | 'missed_call'; number: string; body?: string | null; providerId?: string | null; profileName?: string | null; at?: string | null }) {
+  const { data, error } = await svc.rpc('capture_inbound', { p_channel: a.channel, p_number: a.number, p_body: a.body ?? null, p_provider_id: a.providerId ?? null, p_profile_name: a.profileName ?? null, p_at: a.at ?? null });
+  if (error) { console.error('[capture] inbound failed', error.code || ''); return { error } as const; }
+  const res = data as CaptureResult;
+  let reply: 'sent' | 'queued' | 'failed' | 'none' = 'none';
+  if (res.reply_id) {
+    const { data: row } = await svc.from('message').select('id, channel, lead_id, candidate_id, conversation_id, subject, body, template, to_addr').eq('id', res.reply_id).maybeSingle();
+    if (row) { const r = await deliver(svc, row as MessageRow); reply = r.ok ? 'sent' : r.notSetUp ? 'queued' : 'failed'; }
+  }
+  return { result: res, reply } as const;
 }
 
 /** Meta webhook signature: X-Hub-Signature-256 = "sha256=" + HMAC(app secret, raw body). */

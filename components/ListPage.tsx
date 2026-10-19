@@ -18,6 +18,8 @@ import { ActivepiecesSetup } from './special/ActivepiecesSetup';
 import { AutomationBuilder } from './special/AutomationBuilder';
 import { ProgramCompare } from './special/ProgramCompare';
 import { ReportHeader } from './special/ReportHeader';
+import { CollectionsForecast } from './special/CollectionsForecast';
+import { ScoreBadge, type LeadSignal } from './kit/ScoreBadge';
 import { TableSkeleton } from './Skeletons';
 import { TagChips } from './kit/Tags';
 import { DateRange, inRange, type Range } from './kit/DateRange';
@@ -32,7 +34,7 @@ import { Table, THead, TBody, Th, Td, Tr, RowActions, useDensity } from './kit/T
 import { AvatarStack, type StackPerson } from './kit/AvatarStack';
 import { PageHeader as HeaderBlock } from './kit/PageHeader';
 
-const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder, compare: ProgramCompare, funnel: Funnel, report: ReportHeader };
+const TOP: Record<string, React.ComponentType> = { activepieces: ActivepiecesSetup, builder: AutomationBuilder, compare: ProgramCompare, funnel: Funnel, report: ReportHeader, collections: CollectionsForecast };
 
 /** When the next call / follow-up is due: overdue (before today), today, or later. */
 const dueOf = (v: unknown): { tone: 'bad' | 'today' | 'later'; text: string } => {
@@ -57,6 +59,7 @@ const cell = (c: Col, r: Row, lists: Record<string, string[]> = {}) => {
     return <span className="inline-flex items-center gap-2 whitespace-nowrap"><Pill>{v as string}</Pill>
       {at >= 0 && <span className="flex items-center gap-[3px]" title={`Step ${at + 1} of ${steps.length}`}>{steps.map((st, i) => <span key={st} aria-hidden className={cx('h-1.5 w-2.5 rounded-full', i <= at ? 'bg-accent' : 'bg-line2')} />)}<span className="sr-only">Step {at + 1} of {steps.length}</span></span>}</span>;
   }
+  if (c.type === 'score') { const g = r.signal as LeadSignal | null; return <ScoreBadge score={g?.score} band={g?.band} reasons={g?.reasons} />; }
   if (c.type === 'pill') return <Pill>{v as string}</Pill>;
   if (c.type === 'tags') return Array.isArray(v) && v.length ? <TagChips tags={v as string[]} /> : <span className="text-muted">—</span>;
   if (c.type === 'person') return <PersonChip name={v as string} role={c.role?.(r) || undefined} />;
@@ -77,7 +80,7 @@ const BOARD_MAX = 300; // cards fetched for a server list's board; column counts
 const NONE = '00000000-0000-0000-0000-000000000000';
 const CHUNK = 1000;    // rows fetched per request
 const MAX_ROWS = 20000;
-const raw = (c: Col, r: Row) => (c.get ? c.get(r) : getPath(r, c.key));
+const raw = (c: Col, r: Row) => (c.type === 'score' ? (r.signal as LeadSignal | null)?.score : c.get ? c.get(r) : getPath(r, c.key));
 const NUMERIC = ['money', 'number', 'pct', 'duration'];
 const compare = (c: Col, a: Row, b: Row) => {
   const x = raw(c, a), y = raw(c, b);
@@ -156,8 +159,11 @@ const peek = (cfg: PageCfg, columns: Col[], r: Row) => (
     <span className="mt-2 block text-[11.5px] text-muted">Click the row for the quick panel.</span>
   </span>
 );
-const plain = (c: Col, r: Row) => { const v = c.get ? c.get(r) : getPath(r, c.key); return v == null ? '' : String(v); };
+/** 'score': the number lives in the row's signal (the column key only sorts on the server). */
+const scoreOf = (r: Row) => (r.signal as LeadSignal | null)?.score ?? null;
+const plain = (c: Col, r: Row) => { const v = c.type === 'score' ? scoreOf(r) : c.get ? c.get(r) : getPath(r, c.key); return v == null ? '' : String(v); };
 const short = (c: Col, r: Row) => {
+  if (c.type === 'score') { const g = r.signal as LeadSignal | null; return g?.score == null ? '' : `${g.band} ${g.score}`; }
   const v = c.get ? c.get(r) : getPath(r, c.key);
   if (v == null || v === '') return '';
   if (c.type === 'due') return dueOf(v).text;
@@ -1106,7 +1112,7 @@ export function ListPage({ cfg }: { cfg: PageCfg }) {
                     const f0 = canWrite && (!cfg.readFrom || cfg.sameRows) && r.id ? fieldFor(cfg, c) : null;
                     const f = f0 && !lockedFor(r, f0.key) ? f0 : null;
                     const editing = f && cellEdit?.id === r.id && cellEdit?.key === c.key;
-                    const tip = c.type === 'tags' || c.type === 'people' ? undefined : short(c, r) || undefined;
+                    const tip = c.type === 'tags' || c.type === 'people' || c.type === 'score' ? undefined : short(c, r) || undefined;
                     return (
                       <Td key={c.key} numeric={NUMERIC.includes(c.type || '')} title={editing ? undefined : tip} className={cx(wraps(c) ? "ui-wrap" : "whitespace-nowrap", i === 0 && "ui-stick2", i === 0 && !canBulk && "!left-0", editing && '!px-2', i === 0 ? 'font-semibold' : 'text-text2')}>
                         {i === 0 && cfg.done ? <span className="flex items-center gap-1">{doneBtn(r)}<span className="min-w-0">{editing ? inlineEditor(r, f!) : f ? hover(i === 0 && !!cfg.person?.(r), r,

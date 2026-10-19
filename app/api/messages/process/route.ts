@@ -10,7 +10,7 @@ export const maxDuration = 120;
 export async function POST(request: Request) {
   const db = service();
   if (!(await cronAllowed(db, request))) return NextResponse.json({ error: 'Not allowed.' }, { status: 401 });
-  const { data, error } = await db.from('message').select('id, channel, lead_id, candidate_id, subject, body, template, to_addr')
+  const { data, error } = await db.from('message').select('id, channel, lead_id, candidate_id, conversation_id, subject, body, template, to_addr')
     .eq('direction', 'out').eq('status', 'queued').lte('send_after', new Date().toISOString()).order('send_after').limit(50);
   if (error) return fail('messages/process read queue', error, 'Could not read the message queue.');
   let sent = 0, failed = 0, waiting = 0;

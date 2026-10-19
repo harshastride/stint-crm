@@ -2,9 +2,36 @@
 -- Claude only suggests what is written here (plus what the lead said), so no fees, offers or placement
 -- numbers are ever invented. Admin writes it; telecallers and sales can read it.
 
+-- Sidebar placement for the pages added by migrations 086-097 (also called by seed.sql, so a fresh database and an
+-- upgraded one end in the same order). Puts page p_id right after (or right before) page p_anchor and moves the pages
+-- behind it down by one. Does nothing when it is already there, or before seed.sql has created the standard pages
+-- (fresh database: seed.sql calls it again once they exist). Not callable by signed-in users.
+create or replace function public.page_place(p_id text, p_anchor text, p_after boolean default true) returns void
+language plpgsql set search_path = public as $$
+declare a int; s int;
+begin
+  if not exists (select 1 from public.page where id = 'home') then return; end if;
+  select sort into a from public.page where id = p_anchor;
+  select sort into s from public.page where id = p_id;
+  if a is null or s is null or p_id = p_anchor then return; end if;
+  if p_after then
+    if s = a + 1 and not exists (select 1 from public.page where sort = a + 1 and id <> p_id) then return; end if;
+    update public.page set sort = sort + 1 where sort > a and id <> p_id;
+    update public.page set sort = a + 1 where id = p_id;
+  else
+    if s = a - 1 and not exists (select 1 from public.page where sort = s and id <> p_id) then return; end if;
+    update public.page set sort = sort + 1 where sort >= a and id <> p_id;
+    update public.page set sort = a where id = p_id;
+  end if;
+end $$;
+revoke all on function public.page_place(text, text, boolean) from public, anon, authenticated;
+
+-- Page: last under Sales (after Sales targets). Grants for roles that exist (a fresh database gets them from seed.sql).
 insert into public.page (id, grp, title, sort) values ('playbook', 'Sales', 'Sales playbook', 12)
 on conflict (id) do nothing;
-insert into public.role_page_access (role, page_id, mode) values ('Telecaller', 'playbook', 'r'), ('Sales', 'playbook', 'r')
+select public.page_place('playbook', 'target');
+insert into public.role_page_access (role, page_id, mode)
+select name, 'playbook', 'r' from public.app_role where name in ('Telecaller', 'Sales')
 on conflict do nothing;
 
 create table if not exists public.playbook_item (

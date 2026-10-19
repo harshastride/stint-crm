@@ -20,9 +20,16 @@ import { AuditLog } from '@/components/special/AuditLog';
 import { RecycleBin } from '@/components/special/RecycleBin';
 import { Feedback } from '@/components/special/Feedback';
 import { TeamsAlerts } from '@/components/special/TeamsAlerts';
+import { Brochures } from '@/components/special/Brochures';
+import { Scorecard } from '@/components/special/Scorecard';
+import { AskCrm } from '@/components/special/AskCrm';
+import { CaptureInbox } from '@/components/special/CaptureInbox';
+import { WinBack } from '@/components/special/WinBack';
+import { CallQueue } from '@/components/special/CallQueue';
 import { PageSkeleton } from '@/components/Skeletons';
 
-const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, stage_rules: StageRules, audit: AuditLog, recycle: RecycleBin, reports_builder: ReportBuilder, feedback: Feedback, teams: TeamsAlerts };
+const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, stage_rules: StageRules, audit: AuditLog, recycle: RecycleBin, reports_builder: ReportBuilder, feedback: Feedback, teams: TeamsAlerts,
+  brochures: Brochures, scorecard: Scorecard, ask: AskCrm, inbox: CaptureInbox, winback: WinBack, queue: CallQueue };
 
 export default function Page({ params }: { params: Promise<{ page: string }> }) {
   const { page } = use(params);

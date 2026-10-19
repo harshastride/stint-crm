@@ -137,6 +137,25 @@ export function buildCard(event: string, payload: any, siteUrl: string, personNa
         : `Lead converted: ${lName}`;
       return card({ title, facts: facts([['Program', lead.program], ['Source', lead.source], ['Stage', lead.stage], ['Owner', lead.owner]]), link: leadLink });
     }
+    case 'brochure.opened': {
+      const n = Number(d.open_count);
+      return card({
+        title: `${lName} is reading the brochure now — call now`,
+        facts: facts([['Brochure', d.brochure], ['Opened', Number.isFinite(n) && n > 1 ? `${n} times` : 'First time'], ['Program', lead.program], ['Owner', lead.owner]]),
+        link: leadLink,
+      });
+    }
+    case 'lead.won_back': {
+      const n = Number(d.days_since);
+      return card({
+        title: `Lead won back: ${lName}`,
+        facts: facts([['Why', d.reason], ['Quiet for', Number.isFinite(n) && n > 0 ? `${n} days` : ''], ['Program', lead.program], ['Owner', lead.owner], ['Put back by', d.by]]),
+        link: leadLink,
+      });
+    }
+    case 'conversation.new':
+      // The sender's WhatsApp name can be a phone number, so it is never shown here.
+      return card({ title: 'New WhatsApp conversation', subtitle: 'Someone new wrote in. Open New conversations to reply or make them a lead.', facts: facts([['Received', when(d.received_at)]]), link: `${site}/p/inbox` });
     case 'alert.high': {
       const a = obj(d.alert);
       return card({

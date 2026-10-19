@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { service } from '@/lib/server/recordings';
-import { digits10, validSignature } from '@/lib/server/messaging';
+import { captureInbound, validSignature } from '@/lib/server/messaging';
 
 // Meta WhatsApp Cloud API webhook. Register: https://<your-domain>/api/webhooks/whatsapp
 
@@ -15,35 +15,26 @@ export async function GET(request: Request) {
   return new NextResponse(u.searchParams.get('hub.challenge') || '', { status: 200, headers: { 'Content-Type': 'text/plain' } });
 }
 
-type WaMsg = { from: string; id: string; type: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } } };
+type WaMsg = { from: string; id: string; type: string; timestamp?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } } };
 type WaStatus = { id: string; status: string; errors?: { title?: string }[] };
 const RANK: Record<string, number> = { queued: 0, sent: 1, delivered: 2, read: 3, failed: 4 };
 
 export async function POST(request: Request) {
   const raw = await request.text();
   if (!validSignature(raw, request.headers.get('x-hub-signature-256'))) return NextResponse.json({ error: 'Bad signature.' }, { status: 401 });
-  let payload: { entry?: { changes?: { value?: { messages?: WaMsg[]; statuses?: WaStatus[] } }[] }[] };
+  let payload: { entry?: { changes?: { value?: { messages?: WaMsg[]; statuses?: WaStatus[]; contacts?: { wa_id?: string; profile?: { name?: string } }[] } }[] }[] };
   try { payload = JSON.parse(raw); } catch { return NextResponse.json({ error: 'Bad body.' }, { status: 400 }); }
   const db = service();
 
   for (const e of payload.entry || []) for (const c of e.changes || []) {
     const v = c.value || {};
+    const names = new Map((v.contacts || []).map((k) => [k.wa_id || '', k.profile?.name || null]));
     for (const m of v.messages || []) {
-      const { count } = await db.from('message').select('id', { count: 'exact', head: true }).eq('provider_id', m.id);
-      if (count) continue; // Meta retries; store once
-      const d = digits10(m.from);
-      let lead_id: string | null = null, candidate_id: string | null = null;
-      if (d.length === 10) {
-        const { data: l } = await db.from('lead').select('id').like('mobile', '%' + d).limit(1).maybeSingle();
-        if (l) lead_id = l.id;
-        else {
-          const { data: p } = await db.from('candidate_private').select('candidate_id').like('contact->>mobile', '%' + d).limit(1).maybeSingle();
-          if (p) candidate_id = p.candidate_id;
-        }
-      }
-      if (!lead_id && !candidate_id) continue; // unknown sender: not stored
       const body = m.text?.body || m.button?.text || m.interactive?.button_reply?.title || m.interactive?.list_reply?.title || `[${m.type}]`;
-      await db.from('message').insert({ channel: 'whatsapp', direction: 'in', status: 'received', lead_id, candidate_id, from_addr: m.from, body: body.slice(0, 4000), provider_id: m.id, sent_at: new Date().toISOString() });
+      // Known lead or student: stored on them. Unknown number: a new conversation (or a lead, if auto-create is on)
+      // with one friendly auto-reply a day. Retries of the same message are stored once (provider id).
+      const sent = m.timestamp && /^\d+$/.test(m.timestamp) ? new Date(Number(m.timestamp) * 1000).toISOString() : null;
+      await captureInbound(db, { channel: 'whatsapp', number: m.from, body: body.slice(0, 4000), providerId: m.id, profileName: names.get(m.from) || null, at: sent });
     }
     for (const s of v.statuses || []) {
       if (!(s.status in RANK)) continue;

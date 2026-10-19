@@ -87,13 +87,17 @@ for (const [name, mobile, prog, stage, owner, src, next] of LEADS) {
   }).select().single(), 'lead ' + name);
   L[name] = row.id;
 }
-await must(db.from('call_log').insert([
+// Today's calls: if the seed runs early in the morning, move them back so none is in the future
+const todayCalls = [
   { lead_id: L['Ravi Kumar'], caller_id: S.Teja, outcome: 'No answer', duration_sec: 0, called_at: at(0, 9, 31) },
   { lead_id: L['Sneha P'], caller_id: S.Teja, outcome: 'Interested', duration_sec: 252, notes: 'Wants weekend batch', called_at: at(0, 10, 2) },
   { lead_id: L['Arjun Rao'], caller_id: S.Pooja, outcome: 'Callback', duration_sec: 90, called_at: at(0, 10, 20) },
   { lead_id: L['Meena S'], caller_id: S.Teja, outcome: 'Booked counselling', duration_sec: 365, called_at: at(0, 10, 45) },
   { lead_id: L['Karthik T'], caller_id: S.Teja, outcome: 'Not interested', duration_sec: 130, called_at: at(0, 11, 0) },
-]), 'call logs');
+];
+{ const late = Math.max(...todayCalls.map((c) => Date.parse(c.called_at))) - (Date.now() - 5 * 60000);
+  if (late > 0) for (const c of todayCalls) c.called_at = new Date(Date.parse(c.called_at) - late).toISOString(); }
+await must(db.from('call_log').insert(todayCalls), 'call logs');
 await must(db.from('counselling_session').insert([
   { lead_id: L['Meena S'], counsellor_id: S.Manish, program_id: P['Python'].id, status: 'Booked', scheduled_at: at(1, 11) },
   { lead_id: L['Deepak N'], counsellor_id: S.Manish, program_id: P['SAP FICO'].id, status: 'Done', scheduled_at: at(-2, 15) },
@@ -108,6 +112,101 @@ await must(db.from('note').insert([
   { lead_id: L['Ravi Kumar'], kind: 'Note', body: 'Prefers evening calls', by_id: S.Teja },
   { lead_id: L['Meena S'], kind: 'Note', body: 'Works in accounts, wants to move to data', by_id: S.Manish },
 ]), 'lead notes');
+
+// India time (Asia/Kolkata, UTC+5:30) n days ago at h:m, as an ISO time
+const ist = (n, h, m = 0) => { const d = new Date(Date.now() + 330 * 60000); d.setUTCDate(d.getUTCDate() - n);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, m) - 330 * 60000).toISOString(); };
+const istDow = (n) => { const d = new Date(Date.now() + 330 * 60000); d.setUTCDate(d.getUTCDate() - n); return d.getUTCDay(); };
+let seedNo = 7; const rnd = () => ((seedNo = (seedNo * 16807) % 2147483647) - 1) / 2147483646;   // same numbers on every run
+const pick = (xs) => xs[Math.floor(rnd() * xs.length)];
+const addLead = async (name, mobile, prog, stage, owner, src, extra = {}) => {
+  const row = await must(db.from('lead').insert({
+    full_name: name, mobile, email: name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com', city: 'Bengaluru', program_id: P[prog].id, stage,
+    owner_id: S[owner], source_id: SRC[src] ?? null, preferred_mode: 'Hybrid', currently: 'Working', created_by: S['Anita R'], ...extra,
+  }).select('id').single(), 'lead ' + name);
+  return row.id;
+};
+
+// ---- 3a. Calling history: 5 weeks of calls by the telecallers (Staff scorecard trends, pickup hours, lead scores) ----
+// Leads that came in over the last 5 weeks; each was called a few times after it came in. Mostly 10 am–1 pm and 6–8 pm India time.
+const HIST = [
+  ['Rahul J', 'Data Engineering', 'Teja', 'Meta lead form', 34, 'Interested'], ['Nandini K', 'SAP FICO', 'Teja', 'Website form', 31, 'Callback'],
+  ['Prakash B', 'AI/ML', 'Teja', 'Google lead form', 27, 'Not interested'], ['Fathima Z', 'Python', 'Teja', 'Meta lead form', 23, 'Interested'],
+  ['Vinay R', 'Azure DE', 'Teja', 'YouTube link', 18, 'Callback'], ['Harini M', 'Data Engineering', 'Teja', 'Website form', 12, 'New'],
+  ['Gopal S', 'SAP FICO', 'Teja', 'Justdial', 8, 'Interested'], ['Shreya T', 'AI/ML', 'Teja', 'Meta lead form', 4, 'Callback'],
+  ['Ajay P', 'Python', 'Pooja', 'Google lead form', 35, 'Not interested'], ['Bhavna N', 'Data Engineering', 'Pooja', 'Meta lead form', 30, 'Interested'],
+  ['Mohan L', 'Azure DE', 'Pooja', 'Website form', 26, 'Callback'], ['Rekha V', 'SAP FICO', 'Pooja', 'Meta lead form', 21, 'Interested'],
+  ['Salman S', 'AI/ML', 'Pooja', 'YouTube link', 15, 'New'], ['Kavitha R', 'Python', 'Pooja', 'Justdial', 10, 'Callback'],
+  ['Naveen G', 'Data Engineering', 'Pooja', 'Website form', 6, 'Interested'], ['Lalitha D', 'SAP FICO', 'Pooja', 'Meta lead form', 2, 'Callback'],
+];
+const HOURS = [10, 10, 11, 11, 11, 12, 12, 13, 18, 18, 19, 19, 20, 15, 16];
+const MIDDLE = ['No answer', 'No answer', 'No answer', 'Callback', 'Connected', 'Connected', 'Interested', 'No answer', 'Callback'];
+const LAST = { 'Interested': 'Interested', 'Callback': 'Callback', 'Not interested': 'Not interested', 'New': 'No answer' };
+const NOTES = { 'Interested': 'Asked about weekend batch and instalments', 'Callback': 'Busy at work, call in the evening', 'Not interested': 'Fee is more than planned', 'Connected': 'Shared course details' };
+const history = [];
+let hn = 0;
+for (const [name, prog, owner, src, ago, stage] of HIST) {
+  hn += 1;
+  const id = await addLead(name, '97000001' + String(hn).padStart(2, '0'), prog, stage, owner, src, {
+    created_at: ist(ago, 9, 30), lost_reason: stage === 'Not interested' ? 'Fee too high' : null,
+    next_call_at: stage === 'Callback' || stage === 'Interested' ? at(1 + (hn % 3), 11 + (hn % 2) * 7) : null,
+  });
+  const tries = 2 + Math.floor(rnd() * 5);   // 2–6 calls over the days after the lead came in
+  let last = null;
+  for (let i = 0; i < tries; i++) {
+    let n = ago - Math.floor((i * ago) / tries);
+    if (n < 0) n = 0;
+    if (istDow(n) === 0 && n > 0) n -= 1;      // nobody calls on Sunday
+    const outcome = i === tries - 1 ? LAST[stage] : pick(MIDDLE);
+    const answered = !['No answer', 'Wrong number'].includes(outcome);
+    const calledAt = ist(n, pick(HOURS), Math.floor(rnd() * 60));
+    if (n === 0 && calledAt > new Date().toISOString()) continue;   // not in the future
+    history.push({ lead_id: id, caller_id: S[owner], outcome, duration_sec: answered ? 40 + Math.floor(rnd() * 400) : 0,
+      notes: answered && rnd() < 0.5 ? NOTES[outcome] ?? null : null, called_at: calledAt });
+    last = calledAt;
+  }
+  if (last) await must(db.from('lead').update({ stage_changed_at: last }).eq('id', id), 'history stage date ' + name);
+}
+// Extra unanswered and short calls spread over the weeks (real calling days have many of these)
+for (let n = 34; n >= 1; n--) {
+  if (istDow(n) === 0) continue;
+  for (const owner of ['Teja', 'Pooja']) {
+    const mine = HIST.map((h, i) => [h, i]).filter(([h]) => h[2] === owner && h[4] >= n && h[5] !== 'Not interested');
+    if (!mine.length) continue;
+    for (let k = 0; k < 1 + Math.floor(rnd() * 3); k++) {
+      const [, i] = pick(mine);
+      const outcome = pick(['No answer', 'No answer', 'Connected', 'Callback', 'No answer']);
+      history.push({ lead_id: null, _i: i, caller_id: S[owner], outcome, duration_sec: outcome === 'No answer' ? 0 : 30 + Math.floor(rnd() * 180),
+        called_at: ist(n, pick(HOURS), Math.floor(rnd() * 60)) });
+    }
+  }
+}
+const histIds = (await must(db.from('lead').select('id, full_name').in('full_name', HIST.map((h) => h[0])), 'history leads'));
+const byName = Object.fromEntries(histIds.map((r) => [r.full_name, r.id]));
+await must(db.from('call_log').insert(history.map(({ _i, ...c }) => ({ ...c, lead_id: c.lead_id ?? byName[HIST[_i][0]] }))), 'call history');
+
+// ---- 3b. Win-back: leads lost or gone quiet more than 60 days ago (setting winback_after_days) ----------------
+const WB = [
+  // name, course, owner, source, days since, stage, lost reason, last call note
+  ['Rohit M', 'SAP FICO', 'Teja', 'Meta lead form', 75, 'Not interested', 'Fee too high', 'Said the fee is more than his budget'],
+  ['Kavya S', 'Data Engineering', 'Pooja', 'Website form', 92, 'Not interested', 'Timing not right', 'Exams till next month, try after that'],
+  ['Farhan A', 'AI/ML', 'Manish', 'Google lead form', 68, 'Not interested', 'Joined another institute', 'Joined a cheaper online course'],
+  ['Lata V', 'Python', 'Teja', 'Justdial', 70, 'Callback', null, null],
+  ['Sandeep K', 'Azure DE', 'Pooja', 'Meta lead form', 104, 'Interested', null, 'Liked the course, asked to call after his appraisal'],
+];
+let wn = 0;
+for (const [name, prog, owner, src, ago, stage, reason, note] of WB) {
+  wn += 1;
+  const id = await addLead(name, '96000002' + String(wn).padStart(2, '0'), prog, stage, owner, src, { created_at: ist(ago + 6, 10), lost_reason: reason });
+  await must(db.from('call_log').insert({ lead_id: id, caller_id: S[owner], outcome: stage === 'Callback' ? 'No answer' : stage,
+    duration_sec: stage === 'Callback' ? 0 : 180, notes: note, called_at: ist(ago, 11, 20) }), 'win-back call ' + name);
+  await must(db.from('lead').update({ stage_changed_at: ist(ago, 11, 25) }).eq('id', id), 'win-back date ' + name);
+}
+
+// ---- 3c. New conversations: a WhatsApp from a number we do not know, and a missed call (becomes a lead) ---------
+await must(db.rpc('capture_inbound', { p_channel: 'whatsapp', p_number: '919800000901', p_profile_name: 'Nisha',
+  p_body: 'Hi, is there a weekend batch for Data Engineering? What is the fee?', p_at: at(0, 9, 12) }), 'demo WhatsApp conversation');
+await must(db.rpc('capture_inbound', { p_channel: 'missed_call', p_number: '919800000902', p_at: at(0, 8, 47) }), 'demo missed call');
 
 // ---- 4. Candidates -----------------------------------------------------------------
 const CANDS = [
@@ -227,4 +326,4 @@ await must(db.from('playbook_item').insert([
   { kind: 'Never say', title: 'Guaranteed job or 100% placement' },
   { kind: 'Never say', title: 'Any discount above 10% without approval' },
 ]), 'playbook');
-console.log(`Sample data ready: ${LEADS.length} leads, ${CANDS.length} candidates.`);
+console.log(`Sample data ready: ${LEADS.length + HIST.length + WB.length + 1} leads (${history.length + WB.length + 5} calls), ${CANDS.length} candidates.`);

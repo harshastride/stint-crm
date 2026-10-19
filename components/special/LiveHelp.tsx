@@ -1,8 +1,8 @@
 'use client';
 import { plainMessage } from '@/lib/plainMessage';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AlertTriangle, ArrowDown, ArrowLeft, Loader2, Mic, Square } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Button, Notice, Pill, cx, fmtDuration } from '../ui';
@@ -59,8 +59,15 @@ function micProblem(e: unknown): string {
   return 'Could not use the microphone. Check that it is allowed for this site, then tap Start again.';
 }
 
+// Opened from "Start my calls" (?from=queue): going back and "Log this call" return to the queue, which fills in the call from the draft.
 export function LiveHelp({ leadId }: { leadId: string }) {
+  return <Suspense fallback={null}><LiveHelpInner leadId={leadId} /></Suspense>;
+}
+
+function LiveHelpInner({ leadId }: { leadId: string }) {
   const router = useRouter();
+  const fromQueue = useSearchParams().get('from') === 'queue';
+  const backHref = fromQueue ? '/p/queue' : '/p/lead?person=lead:' + leadId;
   const [lead, setLead] = useState<Lead | null>(null);
   const [leadState, setLeadState] = useState<'loading' | 'ok' | 'missing'>('loading');
   const [notSetUp, setNotSetUp] = useState<string | null>(null);
@@ -397,7 +404,7 @@ export function LiveHelp({ leadId }: { leadId: string }) {
     const body = r ? r.summary + (r.follow_up ? '\nNext: ' + r.follow_up + (r.follow_up_when ? ' (' + r.follow_up_when + ')' : '') : '') : '';
     try { sessionStorage.setItem('stint-live-draft:' + leadId, JSON.stringify({ outcome: r?.outcome ?? null, body, duration: duration.current })); } catch {}
     go('idle'); // no "leave page?" prompt for this move
-    router.push('/p/lead?person=lead:' + leadId);
+    router.push(backHref);
   }
 
   function discard() {
@@ -413,15 +420,14 @@ export function LiveHelp({ leadId }: { leadId: string }) {
 
   const toggleTick = (item: string) => setTicked((prev) => { const n = new Set(prev); if (n.has(item)) n.delete(item); else n.add(item); return n; });
 
-  const leadHref = '/p/lead?person=lead:' + leadId;
   const course = lead ? (Array.isArray(lead.program) ? lead.program[0]?.name : lead.program?.name) || null : null;
   const description = lead ? [lead.stage ? 'Stage: ' + lead.stage : null, course ? 'Course: ' + course : null].filter(Boolean).join(' · ') || 'Tips while you talk' : 'Tips while you talk';
 
   const backLink = (
-    <Link href={leadHref}
+    <Link href={backHref}
       onClick={(e) => { if (phaseRef.current !== 'idle' && !window.confirm('Leave live help? What was said and the summary on this page will be lost.')) e.preventDefault(); }}
       className="btn inline-flex h-11 items-center gap-2 rounded-[10px] border border-line2 bg-surface px-4 text-[13.5px] font-medium text-text hover:bg-surface2">
-      <ArrowLeft size={16} aria-hidden /> Back to lead
+      <ArrowLeft size={16} aria-hidden /> {fromQueue ? 'Back to my calls' : 'Back to lead'}
     </Link>
   );
 
@@ -628,7 +634,7 @@ export function LiveHelp({ leadId }: { leadId: string }) {
                 </dl>
               )}
               {resultErr && <Notice tone="warn">{resultErr}</Notice>}
-              <p className="text-[12.5px] text-muted">Nothing is saved yet. “Log this call” opens the lead with the Log call box filled in, so you can check and save it.</p>
+              <p className="text-[12.5px] text-muted">Nothing is saved yet. “Log this call” {fromQueue ? 'takes you back to your calls' : 'opens the lead'} with the Log call box filled in, so you can check and save it.</p>
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="primary" size="lg" onClick={logCall}>Log this call</Button>
                 <Confirm title="Discard this call?" body="What was said and the summary on this page will be cleared. Nothing was saved." yes="Discard" onYes={discard} align="left"

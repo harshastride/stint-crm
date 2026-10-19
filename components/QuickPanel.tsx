@@ -32,6 +32,8 @@ import { FeesCard } from './panel/FeesCard';
 import { AttendanceCard } from './panel/AttendanceCard';
 import { MocksResumeCard } from './panel/MocksResumeCard';
 import { DocumentsCard } from './panel/DocumentsCard';
+import { BrochureCard } from './panel/BrochureCard';
+import { LeadSignalLine } from './kit/ScoreBadge';
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 
 /** Cards each role usually needs first (Stage, Next follow-ups, Fees, Attendance, Mocks and resume, Documents, Calls and notes, Activity, Messages, Details). */
@@ -280,6 +282,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
               {contact.mobile && isAdmin && <button type="button" aria-label="Copy" disabled={!!lockReason} title={lockReason || 'Copy number'} onClick={() => openContact('mobile', 'copy')} className={cx(pillBtn, 'w-8 justify-center px-0')}><Copy size={14} strokeWidth={1.8} aria-hidden /></button>}
             </div>
           )}
+          {/* score and best time to call; reloads after a new call or note */}
+          {isLead && <LeadSignalLine key={person.id + ':' + (lastLog?.at || '')} leadId={person.id} />}
           {lockReason && <div role="note" className="rounded-[10px] bg-warnBg px-3 py-1.5 text-[12px] font-medium text-warnText">{lockReason.startsWith('Details locked') ? lockReason : 'Details locked: ' + lockReason} — ask Admin</div>}
           <Viewers kind={person.kind} id={person.id} />
         </div>
@@ -330,6 +334,8 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           )}
           <button type="button" onClick={() => pick('task')} className={cx(rowBtn, 'mt-1 self-start')}><CalendarPlus size={14} strokeWidth={1.8} aria-hidden />New follow-up</button>
         </RailCard>
+
+        {isLead && <BrochureCard leadId={person.id} programId={p.program_id ?? null} {...card} open={card.open('brochure')} />}
 
         {!isLead && <>
           <FeesCard candidateId={person.id} {...card} open={card.open('fees')} reloadKey={tick} />

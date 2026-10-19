@@ -1,4 +1,5 @@
 'use client';
+import { withType } from '@/components/kit/Dropzone';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CalendarCheck, ExternalLink, FileDown, FileStack, FolderOpen, GraduationCap, IndianRupee, LogOut, Mic, PenLine, Upload, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -428,14 +429,15 @@ function Documents({ me, onDone }: { me: Me; onDone: (t: string, bad?: boolean) 
   const pick = useRef<HTMLInputElement>(null);
   const [target, setTarget] = useState<Me | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const upload = async (file: File) => {
+  const upload = async (picked: File) => {
     if (!target) return;
+    const file = withType(picked);
     if (file.size > 20 * 1024 * 1024) { onDone('That file is over 20 MB.', true); return; }
     setBusy(target.id);
     const path = `${me.candidate.id}/doc/${crypto.randomUUID()}-${file.name.replace(/[^\w.\- ]+/g, '_')}`;
     const db = supabase();
     const up = await db.storage.from('candidate-files').upload(path, file, { contentType: file.type || undefined });
-    if (up.error) { setBusy(null); onDone('Upload failed: ' + up.error.message, true); return; }
+    if (up.error) { setBusy(null); onDone(/mime|type/i.test(up.error.message) ? 'That file type can’t be uploaded. Use a PDF or a photo.' : 'Upload failed. Please try again.', true); return; }
     const { error } = await db.rpc('portal_document_uploaded', { p_doc: target.id, p_path: path });
     setBusy(null);
     if (error) onDone(error.message, true); else onDone(target.doc_type + ' uploaded. The institute will verify it.');
