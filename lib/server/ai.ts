@@ -16,7 +16,9 @@ const PRICE: Record<string, [number, number]> = {
 export const claudeReady = () => !!process.env.ANTHROPIC_API_KEY;
 
 let client: Anthropic | null = null;
-const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 90_000 }));
+// A key made at organisation level (not inside a workspace) also needs the workspace id: set ANTHROPIC_WORKSPACE_ID.
+const claude = () => (client ??= new Anthropic({ maxRetries: 2, timeout: 90_000,
+  defaultHeaders: process.env.ANTHROPIC_WORKSPACE_ID ? { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } : undefined }));
 
 const logDb = () => createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
 
@@ -50,8 +52,11 @@ export async function askJson<T>({ feature, staffId, model, system, prompt, sche
     });
   } catch (e) {
     await logUsage(feature, staffId, model, 0, 0, false);
+    // the reason only (never the text sent), so the admin can see why in the server log
+    if (e instanceof Anthropic.APIError) console.error(`claude ${feature} failed: ${e.status ?? 'network'} ${String(e.message).slice(0, 160)}`);
     if (e instanceof Anthropic.AuthenticationError) throw new Error('The Claude key is wrong or switched off.');
     if (e instanceof Anthropic.RateLimitError) throw new Error('Claude is busy right now. Please try again in a minute.');
+    if (e instanceof Anthropic.APIError && /workspace/i.test(String(e.message))) throw new Error('The Claude key is not inside a workspace. Make a key inside a workspace, or set ANTHROPIC_WORKSPACE_ID.');
     if (e instanceof Anthropic.APIError) throw new Error(`Claude failed (${e.status ?? 'network'}).`);
     throw e;
   }
@@ -66,5 +71,5 @@ export async function askJson<T>({ feature, staffId, model, system, prompt, sche
 /** JSON schema helpers: structured outputs need every key listed in `required` and no extra keys. */
 export const obj = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
 export const str = { type: 'string' };
-export const strOrNull = { type: ['string', 'null'] };
+export const strOrNull = { anyOf: [{ type: 'string' }, { type: 'null' }] };
 export const oneOfOrNull = (values: string[]) => (values.length ? { anyOf: [{ type: 'string', enum: values }, { type: 'null' }] } : strOrNull);
