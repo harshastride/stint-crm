@@ -274,6 +274,22 @@ const mobile = '9' + String(Date.now()).slice(-9);
     const again = await post(cfg.incoming_api_key, { full_name: 'Meta Lead', mobile: m2, source: 'Google lead form' });
     const notes = (await admin.from('note').select('body').eq('lead_id', row.id)).data || [];
     check('The same mobile again is not added twice; it gets a note', again.json.duplicate === true && notes.some((n) => /Enquired again/.test(n.body)), JSON.stringify(again.json));
+    // Meta lead form answers: kept as lead fields, long answers matched to the field's options, new campaign added
+    const m4 = '4' + String(Date.now()).slice(-9), camp = 'Test Meta Campaign ' + Date.now();
+    const rich = await post(cfg.incoming_api_key, { full_name: 'Meta Form Lead', mobile: m4, source: 'Meta lead form', course: 'Python Development', campaign: camp,
+      adset_name: 'HI 25-40', ad_name: 'Video A', custom: { experience: 'Yes, I have 5–8 years of experience.', background: 'Non-IT Professional', fee_plan: 'I’d like to know more.', not_a_field: 'x' } });
+    const rr = (await service.from('lead').select('id, custom, notes, program:program_id(name), campaign:campaign_id(id, name, channel)').eq('mobile', m4).single()).data;
+    const cu = rr?.custom || {};
+    check('Meta form answers are kept as lead fields, matched to their options', rich?.status === 201 && cu.experience === '5-8 years' && cu.background === 'Non-IT Professional' && cu.fee_plan === 'Know more'
+      && cu.ad_set === 'HI 25-40' && cu.ad_name === 'Video A' && !('not_a_field' in cu) && /Experience: 5-8 years/.test(rr?.notes || ''), JSON.stringify(rr));
+    check('A Meta course answer matches the CRM course; a new campaign is added', rr?.program?.name === 'Python' && rr?.campaign?.name === camp && rr?.campaign?.channel === 'Meta ads', JSON.stringify([rr?.program, rr?.campaign]));
+    if (rr) { await service.from('follow_up').delete().eq('lead_id', rr.id); await service.from('status_history').delete().eq('entity_id', rr.id); await service.from('lead').delete().eq('id', rr.id); }
+    if (rr?.campaign?.id) await service.from('campaign').delete().eq('id', rr.campaign.id);
+    const m5 = '4' + String(Date.now() + 7).slice(-9);
+    await post(cfg.incoming_api_key, { full_name: 'Meta Azure Lead', mobile: m5, source: 'Meta lead form', course: 'Azure Data Engineering' });
+    const az = (await service.from('lead').select('id, program_id, course_other').eq('mobile', m5).single()).data;
+    check('A course answer is not matched to a different course (Azure Data Engineering is not Data Engineering)', az && !az.program_id && az.course_other === 'Azure Data Engineering', JSON.stringify(az));
+    if (az) { await service.from('follow_up').delete().eq('lead_id', az.id); await service.from('status_history').delete().eq('entity_id', az.id); await service.from('lead').delete().eq('id', az.id); }
     // Stint CRM block endpoints: subscribe, confirm events, act on people
     const api = (m, path, body) => fetch('http://localhost:3100/api/integrations/' + path, { method: m, headers: { 'content-type': 'application/json', 'x-api-key': cfg.incoming_api_key }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => ({ status: r.status, json: await r.json() }));
     const me = await api('GET', 'me');

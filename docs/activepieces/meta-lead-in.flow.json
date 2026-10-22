@@ -1,7 +1,7 @@
 {
   "name": "Meta lead in",
-  "about": "New lead from Meta Lead Ads goes into the CRM. Duplicates (same mobile) become a note on the existing lead.",
-  "trigger": { "piece": "Facebook Leads", "event": "New Lead", "settings": { "page": "<your Facebook page>", "form": "<lead form, or all forms>" } },
+  "about": "New lead from Meta Lead Ads goes into the CRM. Duplicates (same mobile) become a note on the existing lead. Form answers are kept as lead fields (Experience, Background, Fee plan, Ad set, Ad name); a new campaign name is added to Campaigns automatically.",
+  "trigger": { "piece": "Facebook Leads", "event": "New Lead", "settings": { "page": "<your Facebook page>", "form": "HOA_Stint_HI_Leadform_21-10-26 (1082558991272024), or all forms" } },
   "steps": [
     {
       "name": "send_to_crm",
@@ -9,20 +9,33 @@
       "action": "Send HTTP request",
       "settings": {
         "method": "POST",
-        "url": "https://<your CRM address>/api/integrations/lead",
+        "url": "https://crm.skillxen.com/api/integrations/lead",
         "headers": { "x-api-key": "{{connections.stint_incoming_key}}", "Content-Type": "application/json" },
         "body": {
           "full_name": "{{trigger.full_name}}",
           "mobile": "{{trigger.phone_number}}",
           "email": "{{trigger.email}}",
           "city": "{{trigger.city}}",
-          "course": "{{trigger.which_course_are_you_interested_in}}",
+          "course": "{{trigger.<question: Which program are you interested in?>}}",
           "source": "Meta lead form",
           "campaign": "{{trigger.campaign_name}}",
+          "adset_name": "{{trigger.adset_name}}",
+          "ad_name": "{{trigger.ad_name}}",
+          "custom": {
+            "experience": "{{trigger.<question: Do you have a minimum of 3 years of professional work experience?>}}",
+            "background": "{{trigger.<question: What is your current professional background?>}}",
+            "fee_plan": "{{trigger.<question: The course fee is ₹3.5 Lakhs … after placement?>}}"
+          },
           "marketing_consent": "{{trigger.agree_to_updates}}"
         },
         "failure": "Retry 3 times, then notify the admin by email"
       }
     }
+  ],
+  "notes": [
+    "Send one test lead with Meta's Lead Ads Testing Tool first: Activepieces then lists every field of the form; pick each <question …> from that list.",
+    "Long answers are fine: 'Yes, I have 5–8 years of experience.' is saved as Experience '5-8 years'; 'Currently on a career break' as Background 'Career break'; 'I'd like to know more.' as Fee plan 'Know more'.",
+    "Course: 'Python Development' matches a CRM course named 'Python'; 'Need career guidance' (no course) is kept as the course text so the telecaller sees it.",
+    "If a form field is empty or missing, it is simply left out; the lead is still created."
   ]
 }
