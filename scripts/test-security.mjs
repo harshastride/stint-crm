@@ -1542,5 +1542,60 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
   }
 }
 
+// Meta lead forms (migration 100): secrets never reach the browser; only Meta admins see or change the setup
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const before = (await svc.from('meta_app').select('*').eq('id', 1).single()).data;
+  await svc.from('meta_app').update({ app_id: '123456789012345', app_secret: 'abcdef0123456789abcdef0123456789' }).eq('id', 1);
+  await svc.from('meta_page').upsert({ page_id: '990000001', name: 'Test Page', access_token: 'secret-page-token', receiving: true });
+  await svc.from('meta_form').upsert({ form_id: '990000002', page_id: '990000001', name: 'Test Form', questions: [{ key: 'q1', label: 'Q1' }] });
+  await svc.from('meta_lead').upsert({ leadgen_id: '990000101', page_id: '990000001', form_id: '990000002', status: 'Failed', attempts: 5 });
+  try {
+    check('Meta: Admin reads the app id but never the app secret', ((await admin.from('meta_app').select('app_id').eq('id', 1)).data || [])[0]?.app_id === '123456789012345'
+      && !!(await admin.from('meta_app').select('app_secret')).error);
+    check('Meta: Admin cannot read page tokens', !!(await admin.from('meta_page').select('access_token')).error
+      && ((await admin.from('meta_page').select('name').eq('page_id', '990000001')).data || []).length === 1);
+    check('Meta: Admin cannot change the app or pages from the browser', !!(await admin.from('meta_app').update({ app_id: '1' }).eq('id', 1)).error
+      && !!(await admin.from('meta_page').insert({ page_id: 'x', name: 'x' })).error);
+    check('Meta: a telecaller sees nothing of the Meta setup', ((await tele.from('meta_app').select('app_id')).data || []).length === 0
+      && ((await tele.from('meta_page').select('name')).data || []).length === 0 && ((await tele.from('meta_lead').select('leadgen_id')).data || []).length === 0);
+    const map = await admin.from('meta_field_map').upsert({ form_id: '990000002', meta_key: 'q1', target: 'custom:experience' });
+    const badMap = await admin.from('meta_field_map').upsert({ form_id: '990000002', meta_key: 'q2', target: 'password' });
+    check('Meta: Admin maps a question to a field; unknown targets are refused', !map.error && !!badMap.error, map.error?.message);
+    check('Meta: a telecaller cannot change the mapping', !!(await tele.from('meta_field_map').upsert({ form_id: '990000002', meta_key: 'q1', target: 'notes' })).error
+      || ((await svc.from('meta_field_map').select('target').eq('form_id', '990000002').eq('meta_key', 'q1').single()).data?.target === 'custom:experience'));
+    const off = await admin.from('meta_form').update({ active: false }).eq('form_id', '990000002').select('active');
+    check('Meta: Admin can switch a form off, but not rename it', (off.data || [])[0]?.active === false && !!(await admin.from('meta_form').update({ name: 'Renamed' }).eq('form_id', '990000002')).error);
+    const retry = await admin.from('meta_lead').update({ status: 'Pending', attempts: 0 }).eq('leadgen_id', '990000101').select('status');
+    check('Meta: Admin can retry a failed lead, but not add or point leads anywhere', (retry.data || [])[0]?.status === 'Pending'
+      && !!(await admin.from('meta_lead').insert({ leadgen_id: 'fake' })).error && !!(await admin.from('meta_lead').update({ lead_id: crypto.randomUUID() }).eq('leadgen_id', '990000101')).error);
+
+    // the webhook (needs the app on port 3100): Meta's challenge, and signed calls only
+    const app = 'http://localhost:3100/api/meta/webhook';
+    const vt = before?.verify_token;
+    const ok = await fetch(`${app}?hub.mode=subscribe&hub.verify_token=${vt}&hub.challenge=hello123`).then(async (r) => [r.status, await r.text()]).catch(() => null);
+    if (!ok) console.log('SKIP Meta webhook checks: the app is not running on port 3100');
+    else {
+      const wrong = await fetch(`${app}?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=x`).then((r) => r.status);
+      check('Meta webhook: answers Meta’s challenge only with the right token', ok[0] === 200 && ok[1] === 'hello123' && wrong === 403, JSON.stringify(ok));
+      const body = JSON.stringify({ object: 'page', entry: [{ id: '990000001', time: 1, changes: [{ field: 'leadgen', value: { leadgen_id: '990000102', page_id: '990000001', form_id: '990000002', ad_id: '1' } }] }] });
+      const sig = 'sha256=' + (await import('node:crypto')).createHmac('sha256', 'abcdef0123456789abcdef0123456789').update(body).digest('hex');
+      const unsigned = await fetch(app, { method: 'POST', headers: { 'content-type': 'application/json' }, body }).then((r) => r.status);
+      const forged = await fetch(app, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': 'sha256=' + '0'.repeat(64) }, body }).then((r) => r.status);
+      const signed = await fetch(app, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': sig }, body }).then((r) => r.status);
+      const row = (await svc.from('meta_lead').select('leadgen_id').eq('leadgen_id', '990000102')).data || [];
+      check('Meta webhook: unsigned or forged calls are refused; a signed call records the lead', unsigned === 401 && forged === 401 && signed === 200 && row.length === 1, JSON.stringify([unsigned, forged, signed, row.length]));
+      const again = await fetch(app, { method: 'POST', headers: { 'content-type': 'application/json', 'x-hub-signature-256': sig }, body }).then((r) => r.status);
+      check('Meta webhook: the same lead sent twice is recorded once', again === 200 && ((await svc.from('meta_lead').select('leadgen_id').eq('leadgen_id', '990000102')).data || []).length === 1);
+      const cron = await fetch('http://localhost:3100/api/meta/process', { method: 'POST' }).then((r) => r.status);
+      check('Meta processor: refuses calls without the timer’s secret', cron === 401);
+    }
+  } finally {
+    await svc.from('meta_lead').delete().in('leadgen_id', ['990000101', '990000102']);
+    await svc.from('meta_page').delete().eq('page_id', '990000001');
+    await svc.from('meta_app').update({ app_id: before?.app_id ?? null, app_secret: before?.app_secret ?? null }).eq('id', 1);
+  }
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

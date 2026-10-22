@@ -106,6 +106,7 @@ Tested locally (5 Oct 2026): backup 388 KB, restore into a throwaway DB matched 
 | 6 | Activepieces | Automation log → paste the webhook URL; give the incoming API key to the lead flows (`docs/activepieces/`) |
 | 7 | AI | Put `DEEPGRAM_API_KEY` and `ANTHROPIC_API_KEY` in `deploy/app.env`, restart the app, record a test call and check the Recordings page. Set a monthly spend limit in the Claude Console. The weekly owner summary runs Mondays 08:00 IST (needs `app_url` and `cron_secret` in `integration_config`, like the message sender) |
 | 8 | Teams alerts | Admin → Teams alerts: paste each role channel’s Workflows link, press Send test. Sending uses the same `app_url` and `cron_secret` (job `teams-sender`, every minute) |
+| 9 | Meta lead forms | Admin → Meta lead forms: follow the steps on the page (or `docs/meta-lead-forms.md`), save the Meta app **from the live address** so the webhook is set up, press Connect Facebook, send a test lead with the Lead Ads Testing Tool |
 
 
 ## Alternative: plain docker compose (no Coolify)
