@@ -91,16 +91,46 @@ export async function userTokenFromCode(a: MetaApp, code: string, redirectUri: s
 }
 
 /** Pages the person manages, each with its own page token. */
-export async function listPages(a: MetaApp, userToken: string): Promise<{ id: string; name: string; access_token: string }[]> {
-  const out: { id: string; name: string; access_token: string }[] = [];
+type PageRow = { id: string; name: string; access_token: string };
+
+/** Pages the person manages, each with its own page token. Facebook Login for Business often leaves /me/accounts empty
+ *  (pages owned by a Business portfolio, or chosen in the "which Pages" step), so two more places are asked:
+ *  1. the pages this sign-in was granted (debug_token → granular_scopes target ids), each read for its own token;
+ *  2. pages owned by, or shared with, the person's businesses. Only pages that come back with a token are kept. */
+export async function listPages(a: MetaApp, userToken: string): Promise<PageRow[]> {
+  const found = new Map<string, PageRow>();
+  const keep = (rows: Partial<PageRow>[] | undefined) => { for (const r of rows || []) if (r.id && r.access_token) found.set(r.id, { id: r.id, name: r.name || r.id, access_token: r.access_token }); };
+
   let after = '';
   for (let i = 0; i < 10; i++) {
-    const r = await graph<{ data: { id: string; name: string; access_token: string }[]; paging?: { cursors?: { after?: string }; next?: string } }>(a, 'me/accounts', { token: userToken, params: { fields: 'id,name,access_token', limit: 100, ...(after ? { after } : {}) } });
-    out.push(...(r.data || []));
+    const r = await graph<{ data: PageRow[]; paging?: { cursors?: { after?: string }; next?: string } }>(a, 'me/accounts', { token: userToken, params: { fields: 'id,name,access_token', limit: 100, ...(after ? { after } : {}) } });
+    keep(r.data);
     if (!r.paging?.next || !r.paging.cursors?.after) break;
     after = r.paging.cursors.after;
   }
-  return out;
+  if (found.size) return [...found.values()];
+
+  // 1. pages granted in this sign-in
+  try {
+    const dbg = await graph<{ data?: { granular_scopes?: { scope: string; target_ids?: string[] }[] } }>(a, 'debug_token', { token: appToken(a), params: { input_token: userToken } });
+    const ids = new Set<string>();
+    for (const g of dbg.data?.granular_scopes || []) if (/^pages_|^leads_retrieval$/.test(g.scope)) for (const t of g.target_ids || []) if (/^\d{1,30}$/.test(t)) ids.add(t);
+    for (const id of [...ids].slice(0, 50)) {
+      try { keep([await graph<PageRow>(a, id, { token: userToken, params: { fields: 'id,name,access_token' } })]); } catch { /* not a page, or no access */ }
+    }
+  } catch { /* debug_token not allowed: try businesses */ }
+  if (found.size) return [...found.values()];
+
+  // 2. pages of the person's businesses
+  try {
+    const biz = await graph<{ data?: { id: string }[] }>(a, 'me/businesses', { token: userToken, params: { fields: 'id', limit: 25 } });
+    for (const b of (biz.data || []).slice(0, 10)) {
+      for (const edge of ['owned_pages', 'client_pages']) {
+        try { keep((await graph<{ data?: PageRow[] }>(a, `${b.id}/${edge}`, { token: userToken, params: { fields: 'id,name,access_token', limit: 100 } })).data); } catch { /* no access to this edge */ }
+      }
+    }
+  } catch { /* no business access */ }
+  return [...found.values()];
 }
 
 /** Ask Meta to send this page's new leads to the app (and stop). */

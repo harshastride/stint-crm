@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     const userToken = await userTokenFromCode(app, code, site + '/api/meta/callback');
     const pages = (await listPages(app, userToken)).filter((p) => p?.id && p.access_token);
-    if (!pages.length) return error('This Facebook account does not manage any page. Sign in with the account that is an admin of your page.');
+    if (!pages.length) return error('Facebook did not give the CRM any page. Press Connect Facebook again, choose “Opt in to current Pages only”, tick your Stint page, and keep every switch on. Use the Facebook account that is an admin of the page.');
 
     // Save every page. Only these columns are sent, so a page already receiving leads keeps doing so.
     const now = new Date().toISOString();
