@@ -992,7 +992,7 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
       const s = await post(p, { staff_id: lid, candidate_id: lid, id: lid, email: 'x@example.com', full_name: 'X', role: 'Admin' });
       check(`API ${p}: no login / key → refused`, [401, 403].includes(s), String(s));
     }
-    for (const p of ['/api/integrations/me', '/api/integrations/find?mobile=9000000000', '/api/integrations/fees-due', '/api/integrations/lead-details?lead_id=' + lid, '/api/mobile/notes', '/api/portal/coach']) {
+    for (const p of ['/api/integrations/me', '/api/integrations/find?mobile=9000000000', '/api/integrations/fees-due', '/api/integrations/lead-details?lead_id=' + lid, '/api/integrations/batches', '/api/mobile/notes', '/api/portal/coach']) {
       const s = await call(p);
       check(`API GET ${p}: no login / key → refused`, [401, 403].includes(s), String(s));
     }
