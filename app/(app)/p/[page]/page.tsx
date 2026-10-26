@@ -27,10 +27,11 @@ import { AskCrm } from '@/components/special/AskCrm';
 import { CaptureInbox } from '@/components/special/CaptureInbox';
 import { WinBack } from '@/components/special/WinBack';
 import { CallQueue } from '@/components/special/CallQueue';
+import { AdConversions } from '@/components/special/AdConversions';
 import { PageSkeleton } from '@/components/Skeletons';
 
 const SPECIAL: Record<string, React.ComponentType> = { home: Dashboard, enquiry: EnquiryForm, enrolform: EnrolmentForm, attendance: Attendance, roles: RolesGrid, dropdowns: Dropdowns, imports: ImportPage, builder: BuilderPage, duplicates: Duplicates, reminders: Reminders, stage_rules: StageRules, audit: AuditLog, recycle: RecycleBin, reports_builder: ReportBuilder, feedback: Feedback, teams: TeamsAlerts, meta: MetaLeads,
-  brochures: Brochures, scorecard: Scorecard, ask: AskCrm, inbox: CaptureInbox, winback: WinBack, queue: CallQueue };
+  brochures: Brochures, scorecard: Scorecard, ask: AskCrm, inbox: CaptureInbox, winback: WinBack, queue: CallQueue, ads: AdConversions };
 
 export default function Page({ params }: { params: Promise<{ page: string }> }) {
   const { page } = use(params);

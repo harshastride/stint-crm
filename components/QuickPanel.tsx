@@ -34,6 +34,25 @@ import { MocksResumeCard } from './panel/MocksResumeCard';
 import { DocumentsCard } from './panel/DocumentsCard';
 import { BrochureCard } from './panel/BrochureCard';
 import { LeadSignalLine } from './kit/ScoreBadge';
+/** "Came from: google · summer-intake": the ad tags the website sent with this lead (lead_click, staff-readable columns only). Nothing when there is no row. */
+function CameFrom({ leadId }: { leadId: string }) {
+  const [t, setT] = useState<{ utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; utm_content: string | null } | null>(null);
+  useEffect(() => {
+    let live = true; setT(null);
+    supabase().from('lead_click').select('utm_source,utm_medium,utm_campaign,utm_content').eq('lead_id', leadId).maybeSingle()
+      .then(({ data }) => { if (live) setT(data); });
+    return () => { live = false; };
+  }, [leadId]);
+  const parts = t ? [t.utm_source, t.utm_campaign].filter((x): x is string => !!x && !!x.trim()) : [];
+  if (!parts.length) return null;
+  const more = [t!.utm_medium && `Medium: ${t!.utm_medium}`, t!.utm_content && `Ad: ${t!.utm_content}`].filter(Boolean).join(' · ');
+  return (
+    <div data-testid="qp-came-from" className="truncate text-[12px] text-text2" title={more || undefined}>
+      <span className="text-muted">Came from: </span>{parts.join(' · ')}
+    </div>
+  );
+}
+
 const CALL_TO_STAGE: Record<string, string> = { Interested: 'Interested', Callback: 'Callback', 'Booked counselling': 'Counselling', 'Not interested': 'Not interested' };
 
 /** Cards each role usually needs first (Stage, Next follow-ups, Fees, Attendance, Mocks and resume, Documents, Calls and notes, Activity, Messages, Details). */
@@ -284,6 +303,7 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
           )}
           {/* score and best time to call; reloads after a new call or note */}
           {isLead && <LeadSignalLine key={person.id + ':' + (lastLog?.at || '')} leadId={person.id} />}
+          {isLead && <CameFrom leadId={person.id} />}
           {lockReason && <div role="note" className="rounded-[10px] bg-warnBg px-3 py-1.5 text-[12px] font-medium text-warnText">{lockReason.startsWith('Details locked') ? lockReason : 'Details locked: ' + lockReason} — ask Admin</div>}
           <Viewers kind={person.kind} id={person.id} />
         </div>

@@ -1,7 +1,7 @@
 // One icon per page and per action, from the Lucide family (one of the families on 21st.dev/community/icons).
 // Used by the sidebar, the dashboard tiles and the quick panel's next-step buttons.
 import {
-  AlarmClock, BadgeIndianRupee, CalendarDays, Copy, ListPlus, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable,
+  AlarmClock, BadgeIndianRupee, CalendarDays, Copy, ListPlus, BarChart3, Bell, BookOpen, Briefcase, Building2, CalendarCheck, ClipboardCheck, ClipboardList, Cable, Crosshair,
   FileCheck2, FileSpreadsheet, Gauge, MessagesSquare, PhoneOutgoing, RotateCcw, Sparkles, FileStack, FileText, Filter, GitBranch, GraduationCap, HandCoins, History, Home, Inbox, IndianRupee, LayoutGrid,
   ListChecks, ListTodo, type LucideIcon, Megaphone, MessageSquareText, Mic, NotebookPen, Palette, PhoneCall, PieChart, Receipt, Route, ScrollText,
   Send, Shield, Shuffle, SlidersHorizontal, Star, Target, TrendingUp, Upload, UserPlus, UserRoundCheck, Users, UsersRound, Wallet, Workflow, Zap,
@@ -19,7 +19,7 @@ export const PAGE_ICON: Record<string, LucideIcon> = {
   rep_funnel: Route, rep_roi: TrendingUp, rep_batch: BarChart3, rep_place: PieChart, rep_cash: BadgeIndianRupee, reports_builder: FileSpreadsheet,
   users: Users, duplicates: Copy, audit: ScrollText, roles: Shield, assign: Shuffle, followrules: AlarmClock, dropdowns: SlidersHorizontal, fields: ListPlus, imports: Upload,
   automations: Zap, builder: Workflow, connections: Cable, deliveries: ScrollText, branding: Palette, reminders: AlarmClock, stage_rules: Route, feedback: Star,
-  playbook: BookOpen, brochures: FileText, scorecard: Gauge, ask: Sparkles, inbox: MessagesSquare, winback: RotateCcw, queue: PhoneOutgoing,
+  playbook: BookOpen, brochures: FileText, scorecard: Gauge, ask: Sparkles, inbox: MessagesSquare, winback: RotateCcw, queue: PhoneOutgoing, ads: Crosshair,
 };
 export const pageIcon = (id: string): LucideIcon => PAGE_ICON[id] || LayoutGrid;
 

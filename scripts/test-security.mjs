@@ -977,7 +977,8 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
       const rel = d + '/' + e.name; if (e.isDirectory()) { if (e.name !== 'node_modules') walk(rel); }
       else if (/\.(tsx?|mjs)$/.test(e.name)) for (const m of fs.readFileSync(new URL('../' + rel, import.meta.url), 'utf8').matchAll(/['"]([a-z_0-9]+)['"]/g)) used.add(m[1]); } };
     for (const d of ['app', 'components', 'lib']) walk(d); used.add('raise_alerts_now'); // Admin-only check, refused inside for others
-    used.add('referrer_search'); used.add('referrer_add'); // New enquiry referrer lookup (migration 085, on the main branch; the UI calls them there)
+    used.add('referrer_search'); used.add('referrer_add'); used.add('campaign_performance_rows'); // read through the campaign_performance view (migration 104)
+    // New enquiry referrer lookup (migration 085, on the main branch; the UI calls them there)
     const open = await service.rpc('definer_open_to_staff');
     const extra = (open.data || []).filter((n) => !used.has(n));
     check('signed-in users can run only definer functions the app calls (allow-list)', !open.error && extra.length === 0, open.error?.message || extra.join(', ')); }
@@ -1594,6 +1595,145 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     await svc.from('meta_lead').delete().in('leadgen_id', ['990000101', '990000102']);
     await svc.from('meta_page').delete().eq('page_id', '990000001');
     await svc.from('meta_app').update({ app_id: before?.app_id ?? null, app_secret: before?.app_secret ?? null }).eq('id', 1);
+  }
+}
+
+// Ad conversions (migration 20261004000101, docs/ads-tracking-contract.md): secrets and click ids never reach the browser,
+// only consenting leads are queued, and the HTTP doors (sender, Google feed, settings, test, incoming attribution) refuse strangers.
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const before = (await svc.from('ad_settings').select('*').eq('id', 1).single()).data;
+  const NAMES = ['Ads Sec One', 'Ads Sec Two', 'Ads Sec Three', 'Ads Sec Four', 'Ads Sec Five'], CAMP = 'ads-sec-campaign';
+  const made = [];
+  try {
+    await svc.from('ad_settings').update({ meta_capi_token: 'SECRETtokenabcdefghijklmnop', google_feed_password: 'secret-feed-pass-1' }).eq('id', 1);
+    check('Ads: Admin and Marketing read the settings but never the token or password', (await admin.from('ad_settings').select('meta_token_set, google_password_set').eq('id', 1).single()).data?.meta_token_set === true
+      && !!(await admin.from('ad_settings').select('meta_capi_token')).error && !!(await mkt.from('ad_settings').select('google_feed_password')).error
+      && ((await mkt.from('ad_settings').select('id')).data || []).length === 1);
+    check('Ads: Admin cannot write a secret from the browser, Marketing cannot change settings', !!(await admin.from('ad_settings').update({ meta_capi_token: 'x' }).eq('id', 1)).error
+      && ((await mkt.from('ad_settings').update({ meta_dataset_id: '1' }).eq('id', 1).select('id')).data || []).length === 0);
+    const ds = await admin.from('ad_settings').update({ meta_dataset_id: '1234567890' }).eq('id', 1).select('meta_dataset_id');
+    check('Ads: Admin can change the dataset id', (ds.data || [])[0]?.meta_dataset_id === '1234567890', ds.error?.message);
+    check('Ads: a telecaller sees no ad settings, rules or conversions', ((await tele.from('ad_settings').select('id')).data || []).length === 0
+      && ((await tele.from('ad_conversion_rule').select('id')).data || []).length === 0 && ((await tele.from('ad_conversion').select('id')).data || []).length === 0);
+    check('Ads: Marketing cannot add a rule', !!(await mkt.from('ad_conversion_rule').insert({ platform: 'meta', trigger: 'stage', stage: 'Lost', event_name: 'X' })).error);
+    const rule = await admin.from('ad_conversion_rule').insert({ platform: 'google', trigger: 'stage', stage: 'Interested', event_name: 'Ads sec rule' }).select('id').single();
+    check('Ads: Admin can add and remove a rule', !rule.error && ((await admin.from('ad_conversion_rule').delete().eq('id', rule.data.id).select('id')).data || []).length === 1, rule.error?.message);
+    if (rule.data?.id) await svc.from('recycle_bin').delete().eq('row_id', rule.data.id);
+
+    // queueing: only leads with ad consent
+    const mk = async (n, m) => { const r = await svc.from('lead').insert({ full_name: n, mobile: m, email: 'ads.sec@example.com' }).select('id').single(); made.push(r.data.id); return r.data.id; };
+    const yes = await mk(NAMES[0], '9000013001'), no = await mk(NAMES[1], '9000013002');
+    await svc.from('lead_click').insert([{ lead_id: yes, utm_source: 'google', gclid: 'SECGCLID', client_ip: '203.0.113.1', user_agent: 'UA', ad_consent: true }, { lead_id: no, utm_source: 'google', gclid: 'SECGCLID2', ad_consent: false }]);
+    const q = async (id) => (await svc.from('ad_conversion').select('platform, event_name').eq('lead_id', id)).data || [];
+    check('Ads: a consenting website lead is queued for Meta and Google; one without consent is not', (await q(yes)).length === 2 && (await q(no)).length === 0, JSON.stringify([await q(yes), await q(no)]));
+    check('Ads: staff see the campaign tags but not click ids, IP or browser', ((await admin.from('lead_click').select('utm_source').eq('lead_id', yes)).data || [])[0]?.utm_source === 'google'
+      && !!(await admin.from('lead_click').select('gclid')).error && !!(await admin.from('lead_click').select('client_ip')).error && !!(await admin.from('lead_click').select('user_agent, fbc, fbp, web_event_id')).error);
+    check('Ads: staff cannot write click rows or add conversions', !!(await admin.from('lead_click').insert({ lead_id: no, utm_source: 'x' })).error
+      && !!(await admin.from('ad_conversion').insert({ lead_id: yes, platform: 'meta', event_name: 'Purchase' })).error);
+    const row = (await svc.from('ad_conversion').select('id').eq('lead_id', yes).eq('platform', 'meta').single()).data;
+    await svc.from('ad_conversion').update({ status: 'Failed', attempts: 5 }).eq('id', row.id);
+    const retry = await admin.from('ad_conversion').update({ status: 'Queued', attempts: 0 }).eq('id', row.id).select('status');
+    const fake = await admin.from('ad_conversion').update({ status: 'Sent' }).eq('id', row.id).select('status');
+    check('Ads: Admin can Retry a conversion but not mark it Sent', (retry.data || [])[0]?.status === 'Queued' && (!!fake.error || (fake.data || []).length === 0));
+    check('Ads: Marketing cannot retry (view only)', ((await mkt.from('ad_conversion').update({ status: 'Skipped' }).eq('id', row.id).select('id')).data || []).length === 0);
+    check('Ads: a second rule for the same moment is refused', (await admin.from('ad_conversion_rule').insert({ platform: 'meta', trigger: 'arrived', event_name: 'Lead again' })).error?.code === '23505');
+    check('Ads: Admin cannot change what a conversion reports (event, value, lead)', !!(await admin.from('ad_conversion').update({ event_name: 'Purchase' }).eq('id', row.id)).error
+      && !!(await admin.from('ad_conversion').update({ value: 99999 }).eq('id', row.id)).error && !!(await admin.from('ad_conversion').update({ sent_at: new Date().toISOString() }).eq('id', row.id)).error);
+    check('Ads: someone who cannot see the lead cannot see where it came from', ((await trainer.from('lead_click').select('utm_source').eq('lead_id', yes)).data || []).length === 0);
+    { const all = (await admin.from('campaign_performance').select('id, leads, enrolments, fees_received')).data || [], mine = (await mkt.from('campaign_performance').select('id, leads, enrolments, fees_received')).data || [];
+      check('Ads: campaign totals are the same for Marketing and Admin', all.length > 0 && JSON.stringify(all.sort((a, b) => a.id.localeCompare(b.id))) === JSON.stringify(mine.sort((a, b) => a.id.localeCompare(b.id))));
+      check('Ads: a role without Campaigns sees no campaign totals', ((await trainer.from('campaign_performance').select('id')).data || []).length === 0); }
+    check('Ads: Meta Purchase only on the first-fee rule with the amount', !!(await admin.from('ad_conversion_rule').insert({ platform: 'meta', trigger: 'stage', stage: 'Interested', event_name: 'Purchase' })).error
+      && !!(await admin.from('ad_conversion_rule').update({ send_value: false }).eq('platform', 'meta').eq('event_name', 'Purchase')).error);
+    check('Ads: a rule name that could run as a spreadsheet formula is refused', !!(await admin.from('ad_conversion_rule').insert({ platform: 'google', trigger: 'stage', stage: 'Interested', event_name: '=HYPERLINK(1)' })).error);
+    await svc.from('ad_conversion').update({ status: 'Sent', sent_at: new Date().toISOString() }).eq('id', row.id);
+    check('Ads: a Sent conversion cannot be put back in the queue', ((await admin.from('ad_conversion').update({ status: 'Queued' }).eq('id', row.id).select('id')).data || []).length === 0);
+    await svc.from('ad_conversion').update({ status: 'Queued', sent_at: null }).eq('id', row.id);   // later checks expect it waiting
+    check('Ads: Marketing reads campaign performance', !(await mkt.from('campaign_performance').select('id, leads, budget_per_enrolment').limit(1)).error);
+
+    // HTTP doors (need the app on port 3100)
+    const base = 'http://localhost:3100';
+    const up = await fetch(base + '/api/ads/send', { method: 'POST' }).then((r) => r.status).catch(() => null);
+    if (!up) console.log('SKIP Ads HTTP checks: the app is not running on port 3100');
+    else {
+      check('Ads sender: refuses calls without the timer’s secret', up === 401);
+      const cron = (await svc.from('integration_config').select('value').eq('key', 'cron_secret').single()).data?.value;
+      const off = await fetch(base + '/api/ads/send', { method: 'POST', headers: { 'x-cron-secret': cron } }).then((r) => r.json());
+      check('Ads sender: with Meta switched off it sends nothing and leaves rows Queued', off.ok === true && off.off === true
+        && (await svc.from('ad_conversion').select('status').eq('id', row.id).single()).data?.status === 'Queued', JSON.stringify(off));
+
+      const feed = base + '/api/ads/google-feed', auth = (u, p) => ({ authorization: 'Basic ' + Buffer.from(u + ':' + p).toString('base64') });
+      check('Google feed: closed (404) while Google is switched off', (await fetch(feed, { headers: auth('google-ads', 'secret-feed-pass-1') })).status === 404);
+      await svc.from('ad_settings').update({ google_enabled: true }).eq('id', 1);
+      const noAuth = await fetch(feed), wrong = await fetch(feed, { headers: auth('google-ads', 'wrong-pass') });
+      check('Google feed: no or wrong password → 401 asking for Basic sign-in', noAuth.status === 401 && /^Basic/.test(noAuth.headers.get('www-authenticate') || '') && wrong.status === 401);
+      const good = await fetch(feed, { headers: auth('google-ads', 'secret-feed-pass-1') }), text = await good.text();
+      const lines = text.trim().split(/\r?\n/), mine = lines.find((l) => l.startsWith('SECGCLID,'));
+      check('Google feed: right password → CSV with time zone, header, hashed contact, no plain email/phone', good.status === 200 && lines[0] === 'Parameters:TimeZone=Asia/Calcutta'
+        && lines[1].startsWith('Google Click ID,GBRAID,WBRAID,Email,Phone Number,Conversion Name') && !!mine && /,[0-9a-f]{64},[0-9a-f]{64},/.test(mine)
+        && !text.includes('example.com') && !text.includes('9000013') && !text.includes('SECGCLID2'), lines.slice(0, 3).join(' | '));
+      check('Google feed: served rows are marked Sent and the read time is kept', (await svc.from('ad_conversion').select('status').eq('lead_id', yes).eq('platform', 'google').single()).data?.status === 'Sent'
+        && !!(await svc.from('ad_settings').select('last_feed_at').eq('id', 1).single()).data?.last_feed_at);
+
+      // signed-in doors: cookies made the same way the app makes them
+      const { createServerClient } = await import('@supabase/ssr');
+      const cookieFor = async (login) => {
+        const jar = new Map();
+        const c = createServerClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { cookieOptions: { name: 'sb-stint-auth-token' },
+          cookies: { getAll: () => [...jar].map(([name, value]) => ({ name, value })), setAll: (list) => list.forEach(({ name, value }) => value ? jar.set(name, value) : jar.delete(name)) } });
+        await c.auth.signInWithPassword({ email: `${login}@demo.stint.local`, password: PASSWORD });
+        return [...jar].map(([n, v]) => `${n}=${v}`).join('; ');
+      };
+      const post = (path, body, cookie) => fetch(base + path, { method: 'POST', headers: { 'content-type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
+      const harshaC = await cookieFor('harsha'), divyaC = await cookieFor('divya');
+      check('Ads settings: refuses visitors (401) and view-only Marketing (403)', (await post('/api/ads/settings', { google_feed_password: 'hacked-password-123' })).status === 401
+        && (await post('/api/ads/settings', { google_feed_password: 'hacked-password-123' }, divyaC)).status === 403
+        && (await svc.from('ad_settings').select('google_feed_password').eq('id', 1).single()).data?.google_feed_password === 'secret-feed-pass-1');
+      const crossOrigin = await fetch(base + '/api/ads/settings', { method: 'POST', headers: { 'content-type': 'application/json', cookie: harshaC, origin: 'https://evil.example' }, body: '{"google_feed_password":"from-another-site-1"}' });
+      check('Ads settings: refuses a call from another website', crossOrigin.status === 403);
+      const set = await post('/api/ads/settings', { google_feed_password: 'new-feed-pass-1234', meta_capi_token: '' }, harshaC).then(async (r) => [r.status, await r.json()]);
+      const after = (await svc.from('ad_settings').select('google_feed_password, meta_capi_token').eq('id', 1).single()).data;
+      check('Ads settings: Admin sets the password and clears the token; the reply holds no secret', set[0] === 200 && JSON.stringify(set[1]) === '{"ok":true}' && after.google_feed_password === 'new-feed-pass-1234' && after.meta_capi_token === null, JSON.stringify(set));
+      check('Ads settings: a too-short password is refused', (await post('/api/ads/settings', { google_feed_password: 'short' }, harshaC)).status === 400);
+      const gt = await post('/api/ads/test', { platform: 'google' }, harshaC).then((r) => r.json());
+      check('Ads test: Google tells how many rows the feed shows', gt.ok === true && typeof gt.count === 'number' && gt.count >= 1, JSON.stringify(gt));
+      const mt = await post('/api/ads/test', { platform: 'meta' }, harshaC).then((r) => r.json());
+      check('Ads test: Meta without a token says what to do (nothing is sent)', mt.ok === false && /token/i.test(mt.message), JSON.stringify(mt));
+      check('Ads test: refused for view-only Marketing', (await post('/api/ads/test', { platform: 'google' }, divyaC)).status === 403);
+
+      // incoming lead with attribution
+      const key = (await svc.from('integration_config').select('value').eq('key', 'incoming_api_key').single()).data?.value;
+      const inc = (body) => fetch(base + '/api/integrations/lead', { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key }, body: JSON.stringify(body) }).then((r) => r.json());
+      const a1 = await inc({ full_name: NAMES[2], mobile: '9000013003', attribution: { utm_source: 'x'.repeat(300), utm_campaign: CAMP, gclid: 'INCGCLID', client_ip: 'not-an-ip', ad_consent: true, event_id: 'evt-sec-1' } });
+      if (a1.lead_id) made.push(a1.lead_id);
+      const c1 = (await svc.from('lead_click').select('utm_source, utm_campaign, gclid, client_ip, ad_consent, consent_at, web_event_id').eq('lead_id', a1.lead_id).maybeSingle()).data;
+      const camp = (await svc.from('lead').select('campaign:campaign_id(name)').eq('id', a1.lead_id).single()).data?.campaign?.name;
+      check('Incoming lead: attribution saved (cut to size, bad IP dropped, event id kept, campaign from utm_campaign)', c1?.utm_source?.length === 200 && c1.gclid === 'INCGCLID' && c1.client_ip === null
+        && c1.ad_consent === true && !!c1.consent_at && c1.web_event_id === 'evt-sec-1' && camp === CAMP, JSON.stringify([c1 && { ...c1, utm_source: c1.utm_source?.length }, camp]));
+      await inc({ full_name: NAMES[2], mobile: '9000013003', attribution: { utm_source: 'other', ad_consent: false } });
+      const c2 = (await svc.from('lead_click').select('utm_source, ad_consent').eq('lead_id', a1.lead_id).single()).data;
+      check('Incoming lead: the same mobile again never overwrites the first click', c2.utm_source.length === 200 && c2.ad_consent === true);
+      const a4 = await inc({ full_name: NAMES[3], mobile: '9000013004', attribution: { utm_source: 'google', landing_url: 'https://landing.example.com/?utm_source=google&gclid=ABCSEC&fbclid=DEFSEC', ad_consent: true } });
+      if (a4.lead_id) made.push(a4.lead_id);
+      const c4 = (await admin.from('lead_click').select('landing_url').eq('lead_id', a4.lead_id).maybeSingle()).data;
+      check('Incoming lead: the landing address staff can read holds no click ids', !!c4?.landing_url && c4.landing_url.includes('utm_source=google') && !/gclid|fbclid/.test(c4.landing_url), c4?.landing_url);
+      // a mobile that is already a lead: the person filling the form may not be that lead, so no consent or ids are attached
+      const old = (await svc.from('lead').insert({ full_name: NAMES[4], mobile: '9000013005' }).select('id').single()).data; made.push(old.id);
+      await inc({ full_name: 'Someone else', mobile: '9000013005', attribution: { utm_source: 'meta', utm_campaign: 'dup-sec', fbclid: 'DUPFB', fbp: 'fb.1.1700000000000.1', client_ip: '203.0.113.9', ad_consent: true } });
+      const c5 = (await svc.from('lead_click').select('utm_source, ad_consent, fbclid, fbp, client_ip').eq('lead_id', old.id).maybeSingle()).data;
+      check('Incoming lead: an existing lead gets the campaign tags only (no consent, ids or IP), and nothing is reported', c5?.utm_source === 'meta' && c5.ad_consent === false && !c5.fbclid && !c5.fbp && !c5.client_ip
+        && ((await svc.from('ad_conversion').select('id').eq('lead_id', old.id)).data || []).length === 0, JSON.stringify(c5));
+    }
+  } finally {
+    if (made.length) await svc.from('lead').delete().in('id', made);
+    await svc.from('campaign').delete().eq('name', CAMP);
+    const bin = (await svc.from('recycle_bin').select('grp, data').gte('deleted_at', startedAt)).data || [];
+    const grps = [...new Set(bin.filter((b) => NAMES.includes(b.data?.full_name) || b.data?.name === CAMP).map((b) => b.grp))];
+    if (grps.length) await svc.from('recycle_bin').delete().in('grp', grps);
+    await svc.from('ad_settings').update({ meta_enabled: before?.meta_enabled ?? false, meta_dataset_id: before?.meta_dataset_id ?? null, meta_capi_token: before?.meta_capi_token ?? null,
+      meta_test_event_code: before?.meta_test_event_code ?? null, google_enabled: before?.google_enabled ?? false, google_feed_user: before?.google_feed_user ?? 'google-ads',
+      google_feed_password: before?.google_feed_password ?? null, google_feed_days: before?.google_feed_days ?? 60, last_feed_at: before?.last_feed_at ?? null }).eq('id', 1);
   }
 }
 

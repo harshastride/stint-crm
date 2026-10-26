@@ -1,4 +1,5 @@
 import 'server-only';
+import { isIP } from 'node:net';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { likeExact } from '@/lib/pgrst';
 
@@ -6,7 +7,9 @@ import { likeExact } from '@/lib/pgrst';
 // (/api/meta/*). Same rules everywhere: 10-digit mobile, a mobile already in the CRM gets a note instead of a second lead,
 // source and campaign tagging (a new campaign name is added to Campaigns), course matching, custom-field answers
 // (Choice answers matched to the option they contain), consent. Assignment happens in the database on insert.
-//   { full_name, mobile, email?, city?, course?, source?, campaign?, notes?, marketing_consent?, adset_name?, ad_name?, custom?: { key: answer } }
+//   { full_name, mobile, email?, city?, course?, source?, campaign?, notes?, marketing_consent?, adset_name?, ad_name?, custom?: { key: answer },
+//     attribution?: { utm_*, gclid, gbraid, wbraid, fbclid, fbc, fbp, landing_url, referrer, client_ip, user_agent, ad_consent, consent_at, event_id, clicked_at } }
+// `attribution` (website, docs/ads-tracking-contract.md) becomes the lead's lead_click row: kept once, never overwritten.
 export type IncomingResult =
   | { ok: true; duplicate: boolean; lead_id?: string; stage?: string; assigned_to?: string | null }
   | { ok: false; error: string };
@@ -19,6 +22,55 @@ export const matchOption = (answer: string, options: string[]) => {
   return [...options].sort((x, y) => y.length - x.length).find((o) => o && a.includes(norm(o))) || null;
 };
 
+// Column limits of lead_click (migration 20261004000101).
+const CLICK_TEXT: Record<string, number> = {
+  utm_source: 200, utm_medium: 200, utm_campaign: 200, utm_content: 200, utm_term: 200,
+  gclid: 300, gbraid: 300, wbraid: 300, fbclid: 500, fbc: 600, fbp: 200, landing_url: 1000, referrer: 1000, user_agent: 500,
+};
+const isoOrNull = (v: unknown) => { const t = Date.parse(str(v)); return Number.isFinite(t) && t < Date.now() + 86_400_000 ? new Date(t).toISOString() : null; };
+
+/** The lead_click row from `attribution` (every value trimmed and cut, bad IP or date → null). Null when there is nothing in it. */
+export function clickRow(a: unknown): Record<string, unknown> | null {
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return null;
+  const at = a as Record<string, unknown>;
+  const row: Record<string, unknown> = {};
+  for (const [k, max] of Object.entries(CLICK_TEXT)) { const v = str(at[k]).slice(0, max); row[k] = v || null; }
+  const ip = str(at.client_ip).replace(/^::ffff:(?=\d+\.)/, '');
+  row.client_ip = ip && isIP(ip) ? ip : null;
+  row.ad_consent = at.ad_consent === true || at.ad_consent === 'true';
+  row.consent_at = row.ad_consent ? isoOrNull(at.consent_at) || new Date().toISOString() : isoOrNull(at.consent_at);
+  row.web_event_id = str(at.event_id).slice(0, 100) || null;
+  row.clicked_at = isoOrNull(at.clicked_at);
+  // staff can read landing_url and referrer: keep the click ids only in their own server-only columns
+  row.landing_url = stripClickIds(row.landing_url as string | null);
+  row.referrer = stripClickIds(row.referrer as string | null);
+  return Object.values(row).some((v) => v !== null && v !== false) ? row : null;
+}
+
+const CLICK_PARAMS = ['gclid', 'gbraid', 'wbraid', 'fbclid', 'msclkid', 'dclid', 'gclsrc', '_gl'];
+/** The address without ad click ids (left as is when it is not a valid http(s) URL). */
+export function stripClickIds(u: string | null): string | null {
+  if (!u) return u;
+  try {
+    const url = new URL(u);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    for (const k of CLICK_PARAMS) url.searchParams.delete(k);
+    return url.toString().slice(0, 1000);
+  } catch { return null; }
+}
+
+/** For a mobile that is already a lead: keep the campaign tags only. The person filling the form may not be that lead,
+ *  so their ad consent, click ids, browser ids, IP and browser are not attached to it (nothing is reported for it). */
+const tagsOnly = (c: Record<string, unknown> | null) => c && Object.fromEntries(Object.entries(c).filter(([k]) =>
+  k.startsWith('utm_') || k === 'landing_url' || k === 'referrer' || k === 'clicked_at'));
+
+async function saveClick(db: SupabaseClient, leadId: string, click: Record<string, unknown> | null) {
+  if (!click) return;
+  // ignoreDuplicates: a lead that already has a click row keeps it (first touch that reached the CRM wins)
+  const { error } = await db.from('lead_click').upsert({ lead_id: leadId, ...click }, { onConflict: 'lead_id', ignoreDuplicates: true });
+  if (error) console.error(`[lead] lead_click save failed (${error.code || '?'})`);
+}
+
 /** Save one incoming lead with the service client. Never throws for bad input; returns a plain reason instead. */
 export async function saveIncomingLead(db: SupabaseClient, body: Record<string, unknown>): Promise<IncomingResult> {
   const full_name = str(body.full_name || body.name);
@@ -30,7 +82,8 @@ export async function saveIncomingLead(db: SupabaseClient, body: Record<string, 
   const { data: sources } = await db.from('lead_source').select('id, name');
   const source = (sources || []).find((s) => s.name.toLowerCase() === sourceName.toLowerCase())
     || (sources || []).find((s) => s.name.toLowerCase().includes(sourceName.toLowerCase().split(' ')[0]));
-  const campaignName = str(body.campaign);
+  const click = clickRow(body.attribution);
+  const campaignName = str(body.campaign) || str(click?.utm_campaign);
   let campaign = campaignName ? (await db.from('campaign').select('id').ilike('name', likeExact(campaignName)).limit(1).maybeSingle()).data : null;
   if (campaignName && !campaign) {
     // first lead from a new ad campaign: add it to Campaigns so the ROI report counts it (channel and status from the dropdowns)
@@ -74,6 +127,7 @@ export async function saveIncomingLead(db: SupabaseClient, body: Record<string, 
   if (existing) {
     await db.from('note').insert({ lead_id: existing.id, kind: 'Note', body: `${tag} Enquired again${course ? ' for ' + course : ''}${campaignName ? ' (' + campaignName + ')' : ''}${str(body.notes) ? ': ' + str(body.notes) : ''}.${answers.length ? ' ' + answers.join(' · ') : ''}` });
     if (consent) await db.from('lead').update({ marketing_consent: true, consent_at: new Date().toISOString() }).eq('id', existing.id);
+    await saveClick(db, existing.id, tagsOnly(click));
     return { ok: true, duplicate: true, lead_id: existing.id, stage: existing.stage };
   }
 
@@ -89,6 +143,7 @@ export async function saveIncomingLead(db: SupabaseClient, body: Record<string, 
     console.error(`[lead] incoming lead failed (${error.code || '?'})`);
     return { ok: false, error: 'Could not save the lead.' };
   }
+  await saveClick(db, data.id, click);
   if (source) await db.from('lead_source').update({ last_lead_at: new Date().toISOString() }).eq('id', source.id);
   const owner = (data as { owner?: { full_name?: string } | null }).owner;
   return { ok: true, duplicate: false, lead_id: data.id, assigned_to: owner?.full_name || null };

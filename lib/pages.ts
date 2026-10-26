@@ -113,10 +113,16 @@ export const PAGES: Record<string, PageCfg> = {
     rowTitle: (r) => r.title,
   },
   campaign: {
-    id: 'campaign', table: 'campaign', kind: 'Campaign', purpose: 'Plan ads and drives; see which bring enrolments.', cta: 'New campaign', order: { col: 'created_at' },
-    columns: [{ key: 'name', label: 'Campaign' }, { key: 'channel', label: 'Channel' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'budget', label: 'Budget', type: 'money' }, { key: 'starts_on', label: 'Starts', type: 'date' }],
+    // results come from campaign_performance (migration 20261004000101, same rows and ids); adding and editing still write to campaign.
+    // "Budget per …" divides the planned budget (there is no ad spend import), so the screen never says "spend".
+    id: 'campaign', table: 'campaign', readFrom: 'campaign_performance', sameRows: true, kind: 'Campaign',
+    purpose: 'Plan ads and drives; see which bring leads, enrolments and fees. “Budget per” figures use the planned budget.', cta: 'New campaign', order: { col: 'leads' },
+    columns: [{ key: 'name', label: 'Campaign' }, { key: 'channel', label: 'Channel' }, { key: 'status', label: 'Status', type: 'pill' }, { key: 'budget', label: 'Budget', type: 'money' },
+      { key: 'leads', label: 'Leads', type: 'number' }, { key: 'enrolments', label: 'Enrolments', type: 'number' }, { key: 'fees_received', label: 'Fees received', type: 'money' },
+      { key: 'budget_per_lead', label: 'Budget per lead', type: 'money' }, { key: 'budget_per_enrolment', label: 'Budget per enrolment', type: 'money' }, { key: 'starts_on', label: 'Starts', type: 'date', optional: true }],
     views: [{ label: 'All' }, { label: 'Live', where: (r) => r.status === 'Live' }, { label: 'Planned', where: (r) => r.status === 'Planned' }, { label: 'Ended', where: (r) => r.status === 'Ended' }],
-    kpis: [count('Live', (r) => r.status === 'Live'), sum('Budget', 'budget')], board: { field: 'status', list: 'campaign_status' },
+    kpis: [count('Live', (r) => r.status === 'Live'), sum('Budget', 'budget'), { label: 'Enrolments', calc: (rows) => rows.reduce((a, r) => a + Number(r.enrolments || 0), 0) }, sum('Fees received', 'fees_received')],
+    board: { field: 'status', list: 'campaign_status' },
     fields: [{ key: 'name', label: 'Campaign', type: 'text', required: true }, { key: 'channel', label: 'Channel', type: 'select', list: 'campaign_channel', other: true },
       { key: 'status', label: 'Status', type: 'select', list: 'campaign_status' }, { key: 'budget', label: 'Budget (₹)', type: 'number' }, { key: 'starts_on', label: 'Starts on', type: 'date' }],
     rowTitle: (r) => r.name,
