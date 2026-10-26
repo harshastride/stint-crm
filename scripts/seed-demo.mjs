@@ -61,6 +61,11 @@ const batches = Object.fromEntries((await must(db.from('batch').insert([
   { code: 'SAP-07', program_id: P['SAP FICO'].id, trainer_id: S.Nikhil, branch_id: hsr, starts_on: day(-50), status: 'Live' },
   { code: 'AI-05', program_id: P['AI/ML'].id, trainer_id: S.Hemanth, branch_id: hsr, starts_on: day(-90), status: 'Live' },
   { code: 'PY-21', program_id: P['Python'].id, trainer_id: S.Nikhil, branch_id: hsr, starts_on: day(-20), status: 'Live' },
+  // not started yet: shown as "Next batch" on the public website (GET /api/integrations/batches)
+  { code: 'AZ-03', program_id: P['Azure DE'].id, trainer_id: S.Kiran, branch_id: hsr, starts_on: day(12), status: 'Upcoming', class_days: [1, 2, 3, 4, 5], class_start: '19:30', class_end: '21:30' },
+  { code: 'DE-15', program_id: P['Data Engineering'].id, trainer_id: S.Kiran, branch_id: hsr, starts_on: day(19), status: 'Upcoming', class_days: [6, 7], class_start: '10:00', class_end: '13:00' },
+  { code: 'PY-22', program_id: P['Python'].id, trainer_id: S.Nikhil, branch_id: hsr, starts_on: day(9), status: 'Upcoming', class_days: [1, 3, 5], class_start: '19:00', class_end: '21:00' },
+  { code: 'AI-06', program_id: P['AI/ML'].id, trainer_id: S.Hemanth, branch_id: hsr, starts_on: day(26), status: 'Upcoming', class_days: [6, 7], class_start: '14:00', class_end: '17:00' },
 ]).select(), 'batches')).map((b) => [b.code, b.id]));
 const companies = Object.fromEntries((await must(db.from('company').insert([
   { name: 'Maersk', openings: 5, contact: 'HR team', status: 'Client' }, { name: 'Deloitte', openings: 3, contact: 'TA lead', status: 'Client' },
