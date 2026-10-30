@@ -485,3 +485,6 @@ insert into public.page (id, grp, title, sort) values ('stage_rules', 'Admin set
 -- Student feedback (migration 078): Training page; Trainers see only their own batches, without names of anonymous ratings
 insert into public.page (id, grp, title, sort) values ('feedback', 'Training', 'Student feedback', 19) on conflict (id) do nothing;
 insert into public.role_page_access (role, page_id, mode) select name, 'feedback', 'r' from public.app_role where name in ('HR / Counsellor', 'SME', 'Trainer') on conflict do nothing;
+
+-- Ad conversions page (migration 101): Marketing can view it
+insert into public.role_page_access (role, page_id, mode) values ('Marketing', 'ads', 'r') on conflict do nothing;

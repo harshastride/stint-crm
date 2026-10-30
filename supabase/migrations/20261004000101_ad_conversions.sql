@@ -11,7 +11,9 @@
 
 insert into public.page (id, grp, title, sort) values ('ads', 'Marketing', 'Ad conversions', 6)
 on conflict (id) do nothing;
-insert into public.role_page_access (role, page_id, mode) values ('Marketing', 'ads', 'r')
+-- Grant only for a role that exists (on a fresh database the roles come later from seed.sql, which grants it too)
+insert into public.role_page_access (role, page_id, mode)
+select name, 'ads', 'r' from public.app_role where name = 'Marketing'
 on conflict do nothing;
 
 -- 1. Where the lead came from
