@@ -203,7 +203,14 @@ export function suggestTarget(q: { key: string; label?: string }, customKeys: st
 /** Turn one Meta lead into the body the shared lead door expects. `map` is meta_key → target for this form. */
 export function leadBody(lead: MetaLeadData, form: Pick<MetaForm, 'name' | 'course' | 'questions'> | null, map: Record<string, string>): Record<string, unknown> {
   const answers: Record<string, string> = {};
-  for (const f of lead.field_data || []) answers[f.name] = (f.values || []).map((v) => str(v)).filter(Boolean).join(', ');
+  // a choice answer arrives as the option's code ("it_professional"); show it as the option's words when the form lists them,
+  // otherwise as the code with spaces ("it professional")
+  const readable = (key: string, v: string) => {
+    const opt = form?.questions?.find((q) => q.key === key)?.options?.find((o) => o.key === v || norm(String(o.key || '')) === norm(v));
+    if (opt?.value) return String(opt.value);
+    return /_/.test(v) && !/\s/.test(v) ? v.replace(/_/g, ' ') : v;
+  };
+  for (const f of lead.field_data || []) answers[f.name] = (f.values || []).map((v) => str(v)).filter(Boolean).map((v) => (isStandard(f.name) ? v : readable(f.name, v))).join(', ');
   const labelOf = (k: string) => form?.questions?.find((q) => q.key === k)?.label || k.replace(/_/g, ' ');
   const body: Record<string, unknown> = { source: 'Meta lead form' };
   const custom: Record<string, string> = {};

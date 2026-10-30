@@ -12,7 +12,8 @@ export type IncomingResult =
   | { ok: false; error: string };
 
 export const str = (v: unknown) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim());
-export const norm = (v: string) => v.toLowerCase().replace(/[\u2010-\u2015]/g, '-').replace(/\s+/g, ' ').trim();
+// underscores count as spaces: Meta sends choice answers as codes like "yes,_i_have_3–5_years"
+export const norm = (v: string) => v.toLowerCase().replace(/[\u2010-\u2015]/g, '-').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
 /** The option a long answer contains, longest option first ("Non-IT Professional" before "IT Professional"). */
 export const matchOption = (answer: string, options: string[]) => {
   const a = norm(answer);

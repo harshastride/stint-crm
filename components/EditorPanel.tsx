@@ -74,11 +74,13 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   const customFields = s.custom.filter((f) => f.page_id === cfg.id && (!cfg.readFrom || !!cfg.sameRows));
   const planTotal = cfg.id === 'quote' ? quoteAmount(values) : Number(values.total || 0);
 
+  // fields that apply to what is filled in now (e.g. the reason appears only when the stage is Not interested)
+  const shown = fields.filter((f) => !f.showWhen || f.showWhen(values));
   const set = (key: string, val: unknown) => { if (missingKeys.includes(key)) setMissingKeys((m) => m.filter((k) => k !== key)); setValues((old) => { const next = { ...old, [key]: val }; return cfg.derive ? cfg.derive(next, s.refs) : next; }); };
 
   const save = async () => {
     if (saving.current) return;
-    const empty = fields.filter((f) => f.required && !contactLocked(f.key) && (values[f.key] == null || String(values[f.key]).trim() === ''));
+    const empty = shown.filter((f) => f.required && !contactLocked(f.key) && (values[f.key] == null || String(values[f.key]).trim() === ''));
     setMissingKeys(empty.map((f) => f.key));
     const missing = empty.map((f) => f.label);
     if (cfg.id === 'followups' && isNew && !values.lead_id && !values.candidate_id) missing.push('a lead or a candidate');
@@ -95,7 +97,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
     saving.current = true; setBusy(true); setMsg(null);
     const done = () => { saving.current = false; setBusy(false); };
     const payload: Row = {};
-    fields.forEach((f) => { if (contactLocked(f.key)) return; if (!f.readOnly || cfg.derive) { const v = values[f.key]; payload[f.key] = typeof v === 'string' ? v.trim() || null : v; } });
+    shown.forEach((f) => { if (contactLocked(f.key)) return; if (!f.readOnly || cfg.derive) { const v = values[f.key]; payload[f.key] = typeof v === 'string' ? v.trim() || null : v; } });
     const db = supabase();
     if (cfg.id === 'users' && isNew) {
       const res = await fetch('/api/admin/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -133,7 +135,7 @@ export function EditorPanel({ cfg, row, canWrite, onClose, onSaved }: { cfg: Pag
   return (
     <SidePanel kind={isNew ? 'New ' + cfg.kind.toLowerCase() : cfg.kind} title={isNew ? cfg.cta || 'New' : cfg.rowTitle(row!)} onClose={close}>
       <div ref={formRef} className="flex flex-col gap-4" onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && !readOnly) { e.preventDefault(); save(); } }}>
-        {fields.map((f) => (
+        {shown.map((f) => (
           <FieldWrap key={f.key} field={f.key} invalid={missingKeys.includes(f.key)} onBlur={blurCheck(f.key, f.required)} asLabel={f.type !== 'person' && f.type !== 'instalments' && f.type !== 'file' && f.type !== 'tags' && !f.cards && !f.slider && !f.addable}>
             <span>{f.label}{f.required && <span className="text-badText" aria-hidden> *</span>}</span>
             {f.type === 'file'

@@ -18,6 +18,7 @@ export type Field = {
   createOnly?: boolean; readOnly?: boolean;
   adminEdit?: boolean;           // after the record exists, only Admin may change it (names, IDs); never edited inline in tables
   def?: (ctx: { me: string }) => unknown;
+  showWhen?: (v: Row) => boolean;  // shown (and saved, and required) only when this is true, e.g. a reason only for 'Not interested'
 };
 /** A bulk action: set one field on all ticked rows, to a fixed `value` or one picked from a list / options / reference table. */
 export type Bulk = { field: string; label: string; value?: string; list?: string; options?: string[]; ref?: string };
@@ -149,7 +150,9 @@ export const PAGES: Record<string, PageCfg> = {
     board: { field: 'stage', list: 'lead_stage' }, person: (r) => ({ kind: 'lead', id: r.id }),
     fields: [{ key: 'full_name', label: 'Full name', type: 'text', required: true }, { key: 'mobile', label: 'Mobile', type: 'phone', required: true }, { key: 'email', label: 'Email', type: 'text' },
       { key: 'city', label: 'City', type: 'text' }, { key: 'program_id', label: 'Course interested', type: 'ref', ref: 'program' }, { key: 'source_id', label: 'Source', type: 'ref', ref: 'lead_source' },
-      { key: 'stage', label: 'Stage', type: 'select', list: 'lead_stage' }, { key: 'owner_id', label: 'Owner', type: 'ref', ref: 'staff' },
+      { key: 'stage', label: 'Stage', type: 'select', list: 'lead_stage' },
+      { key: 'lost_reason', label: 'Reason not interested', type: 'select', list: 'lost_reason', required: true, showWhen: (v) => v.stage === 'Not interested' },
+      { key: 'owner_id', label: 'Owner', type: 'ref', ref: 'staff' },
       { key: 'next_call_at', label: 'Next call', type: 'datetime' }, { key: 'tags', label: 'Tags', type: 'tags', list: 'tag' }, { key: 'notes', label: 'Notes', type: 'textarea' }],
     rowTitle: (r) => r.full_name,
   },

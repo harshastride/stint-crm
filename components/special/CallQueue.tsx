@@ -288,6 +288,7 @@ function Focus({ item, index, left, progress, header, now, brief, onSaved, onNex
   const [lock, setLock] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [lostReason, setLostReason] = useState(''); // asked when the outcome moves the lead to Not interested
   const [next, setNext] = useState<Next | null>(null);
   const [nextOpen, setNextOpen] = useState(false);
   const [callAt, setCallAt] = useState<number | null>(null);
@@ -352,6 +353,9 @@ function Focus({ item, index, left, progress, header, now, brief, onSaved, onNex
     if (busyRef.current) return;
     if (!canLog) return;
     if (!outcome) { setMsg({ tone: 'bad', text: 'Pick what happened first (keys 1 to ' + Math.min(9, outcomes.length) + ').' }); bar.current?.querySelector('button')?.focus(); return; }
+    if (CALL_TO_STAGE[outcome] === 'Not interested' && item.stage !== 'Not interested' && canEditLead && !lostReason) {
+      setMsg({ tone: 'bad', text: 'Pick why they are not interested.' }); document.querySelector<HTMLSelectElement>('[data-queue-lost]')?.focus(); return;
+    }
     busyRef.current = true; setBusy(true);
     const db = supabase();
     const duration = callAt != null ? callSecs : draftSecs;
@@ -379,7 +383,7 @@ function Focus({ item, index, left, progress, header, now, brief, onSaved, onNex
       if (u.error) console.error('next_call_at', u.error);
     }
     if (stageTo && stageTo !== item.stage && canEditLead) {
-      const up = await db.from('lead').update({ stage: stageTo }).eq('id', item.lead_id);
+      const up = await db.from('lead').update({ stage: stageTo, ...(stageTo === 'Not interested' ? { lost_reason: lostReason } : {}) }).eq('id', item.lead_id);
       if (!up.error) extra.push('Stage moved to ' + stageTo + '.');
       else problems.push(explainStageError(up.error, stageTo, s.staff.role).text);
     }
@@ -497,6 +501,15 @@ function Focus({ item, index, left, progress, header, now, brief, onSaved, onNex
                 </button>
               ))}
             </div>
+            {outcome && CALL_TO_STAGE[outcome] === 'Not interested' && item.stage !== 'Not interested' && canEditLead && (
+              <label className="flex flex-col gap-1 text-[13px] font-medium text-text2">
+                <span>Why not interested <span className="text-badText" aria-hidden>*</span></span>
+                <select data-queue-lost="1" aria-required className="h-11 rounded-[10px] border border-line2 bg-surface px-2.5 text-sm md:h-10" value={lostReason} onChange={(e) => { setLostReason(e.target.value); setMsg(null); }}>
+                  <option value="">Pick a reason</option>
+                  {(s.lists.lost_reason || []).map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+            )}
             <textarea data-queue-notes="1" aria-label="Call notes" placeholder="Notes (optional). Enter saves, Shift + Enter for a new line"
               className="min-h-[56px] rounded-[10px] border-line2 bg-surface px-3 py-2 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} />
             {outcome && (

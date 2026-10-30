@@ -285,6 +285,12 @@ const mobile = '9' + String(Date.now()).slice(-9);
     check('A Meta course answer matches the CRM course; a new campaign is added', rr?.program?.name === 'Python' && rr?.campaign?.name === camp && rr?.campaign?.channel === 'Meta ads', JSON.stringify([rr?.program, rr?.campaign]));
     if (rr) { await service.from('follow_up').delete().eq('lead_id', rr.id); await service.from('status_history').delete().eq('entity_id', rr.id); await service.from('lead').delete().eq('id', rr.id); }
     if (rr?.campaign?.id) await service.from('campaign').delete().eq('id', rr.campaign.id);
+    // Meta sends choice answers as codes ("yes,_i_have_3–5_years_of_experience.", "it_professional"): still matched
+    const m6 = '4' + String(Date.now() + 13).slice(-9);
+    await post(cfg.incoming_api_key, { full_name: 'Meta Code Lead', mobile: m6, source: 'Meta lead form', custom: { experience: 'yes,_i_have_3–5_years_of_experience.', background: 'it_professional' } });
+    const mc = (await service.from('lead').select('id, custom').eq('mobile', m6).single()).data;
+    check('Meta answer codes with underscores still fill the fields', mc?.custom?.experience === '3-5 years' && mc?.custom?.background === 'IT Professional', JSON.stringify(mc?.custom));
+    if (mc) { await service.from('follow_up').delete().eq('lead_id', mc.id); await service.from('status_history').delete().eq('entity_id', mc.id); await service.from('lead').delete().eq('id', mc.id); }
     const m5 = '4' + String(Date.now() + 7).slice(-9);
     await post(cfg.incoming_api_key, { full_name: 'Meta Azure Lead', mobile: m5, source: 'Meta lead form', course: 'Azure Data Engineering' });
     const az = (await service.from('lead').select('id, program_id, course_other').eq('mobile', m5).single()).data;
@@ -1594,6 +1600,26 @@ await createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, 
     await svc.from('meta_lead').delete().in('leadgen_id', ['990000101', '990000102']);
     await svc.from('meta_page').delete().eq('page_id', '990000001');
     await svc.from('meta_app').update({ app_id: before?.app_id ?? null, app_secret: before?.app_secret ?? null }).eq('id', 1);
+  }
+}
+
+// Not interested needs a reason; the lead list carries it so the edit form can show it (migration 105)
+{
+  const svc = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+  const m = '9' + String(Date.now() + 11).slice(-9);
+  const nl = (await desk.from('lead').insert({ full_name: 'Reason Test', mobile: m }).select('id').single()).data;
+  try {
+    await svc.from('call_log').insert({ lead_id: nl.id, caller_id: (await svc.from('staff').select('id').eq('email', 'teja@demo.stint.local').single()).data.id, outcome: 'Not interested' });
+    const noWhy = await admin.from('lead').update({ stage: 'Not interested' }).eq('id', nl.id).select('id');
+    check('Not interested: refused without a reason', !!noWhy.error && /no reason/.test(noWhy.error.message), noWhy.error?.message || 'moved');
+    const why = await admin.from('lead').update({ stage: 'Not interested', lost_reason: 'Fee too high' }).eq('id', nl.id).select('stage');
+    check('Not interested: moves when the reason comes with it (as the call forms now send it)', !why.error && (why.data || [])[0]?.stage === 'Not interested', why.error?.message);
+    const row = (await admin.from('lead_list').select('lost_reason, referrer_kind').eq('id', nl.id).single());
+    check('Lead list carries the reason (edit form shows it)', !row.error && row.data?.lost_reason === 'Fee too high', row.error?.message);
+    check('Lead list still never shows mobile or email', !!(await admin.from('lead_list').select('mobile').limit(1)).error && !!(await admin.from('lead_list').select('email').limit(1)).error);
+  } finally {
+    await svc.from('call_log').delete().eq('lead_id', nl.id); await svc.from('follow_up').delete().eq('lead_id', nl.id);
+    await svc.from('status_history').delete().eq('entity_id', nl.id); await svc.from('lead').delete().eq('id', nl.id);
   }
 }
 

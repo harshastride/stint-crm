@@ -9,6 +9,7 @@ import { useSession } from '@/lib/session';
 import type { PersonRef, Row } from '@/lib/pages';
 import { Button, Notice, cx, fmtDate, fmtDateTime, money } from './ui';
 import { friendlyError } from './Fields';
+import { explainStageError } from '@/lib/stageMoves';
 import { Recorder } from './Recorder';
 import { Timeline } from './Timeline';
 import { trackRecent } from '@/lib/recent';
@@ -194,6 +195,9 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
   };
   const saveCall = async () => {
     if (!form.outcome) { setMsg({ tone: 'bad', text: 'Pick the outcome.' }); return; }
+    // moving a lead to Not interested needs a reason (stage rule), so it is asked here, before anything is saved
+    const lostNeeded = isLead && CALL_TO_STAGE[form.outcome] === 'Not interested' && CALL_TO_STAGE[form.outcome] !== p.stage && canWritePerson;
+    if (lostNeeded && !form.lost_reason) { setMsg({ tone: 'bad', text: 'Pick why they are not interested.' }); return; }
     setBusy(true);
     const db = supabase();
     const { error } = await db.from('call_log').insert({ lead_id: person.id, caller_id: s.staff.id, outcome: form.outcome, notes: form.body || null, duration_sec: Number(form.duration || 0) });
@@ -201,8 +205,9 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
     let extra = '';
     const next = CALL_TO_STAGE[form.outcome];
     if (next && next !== p.stage && canWritePerson) {
-      const up = await db.from('lead').update({ stage: next }).eq('id', person.id);
+      const up = await db.from('lead').update({ stage: next, ...(next === 'Not interested' ? { lost_reason: form.lost_reason } : {}) }).eq('id', person.id);
       if (!up.error) extra = ` Stage moved to ${next}.`;
+      else { setBusy(false); setMsg({ tone: 'bad', text: 'Call logged, but the stage did not move: ' + explainStageError(up.error, next, s.staff.role).text }); load(); onChanged(); return; }
     }
     // Follow-up rules (Admin settings) suggest what comes next; the caller confirms or changes it
     const { data: sug } = await db.rpc('suggest_follow_up', { p_trigger: 'Call: ' + form.outcome });
@@ -438,6 +443,15 @@ export function QuickPanel({ person, onClose, onChanged, list = [], onNavigate }
                 <button key={o} type="button" aria-pressed={form.outcome === o} onClick={() => setForm({ ...form, outcome: o })} className={cx('btn h-8 rounded-full border px-3 text-xs font-medium transition-colors duration-150', form.outcome === o ? 'border-accent bg-accentSoft text-accentText' : 'border-line2 bg-surface')}>{o}</button>
               ))}
             </div>
+            {isLead && CALL_TO_STAGE[form.outcome] === 'Not interested' && p.stage !== 'Not interested' && (
+              <label className="flex flex-col gap-1 px-1 text-xs font-medium text-text2">
+                <span>Why not interested <span className="text-badText" aria-hidden>*</span></span>
+                <select aria-required className="h-11 rounded-lg border border-line2 bg-surface px-2 text-[13px] md:h-9" value={form.lost_reason || ''} onChange={(e) => setForm({ ...form, lost_reason: e.target.value })}>
+                  <option value="">Pick a reason</option>
+                  {(s.lists.lost_reason || []).map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+            )}
             <textarea aria-label="Call notes" placeholder="Notes (optional)" className="min-h-[56px] border-0 bg-transparent px-2 py-1.5 text-sm shadow-none outline-none" value={form.body || ''} onChange={(e) => setForm({ ...form, body: e.target.value })} />
             <div className="flex items-center gap-2">
               <VoiceInput context="call" onText={(t, r) => setForm((f) => ({ ...f, body: appendText(f.body || '', t), outcome: f.outcome || ((s.lists.call_outcome || []).includes(r.outcome || '') ? r.outcome : f.outcome) }))} />
